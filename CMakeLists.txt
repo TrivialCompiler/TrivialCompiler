@@ -4,6 +4,7 @@ enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
 
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
 add_executable(TrivialCompiler src/main.cpp src/ast.hpp src/ast.cpp src/parser.hpp src/parser.cpp src/casting.hpp)
 
 file(GLOB files "thirdparty/sysyruntimelibrary/*_test/*.sy")
