@@ -1,0 +1,244 @@
+include = '''
+#include <cstdlib>
+#include "ast.hpp"''' # 不要在最后加换行，否则会影响到gen.py的分割
+
+priority = [
+  { assoc = 'left', terms = ['Or'] },
+  { assoc = 'left', terms = ['And'] },
+  { assoc = 'left', terms = ['Eq', 'Ne'] },
+  { assoc = 'left', terms = ['Lt', 'Le', 'Ge', 'Gt'] },
+  { assoc = 'left', terms = ['Add', 'Sub'] },
+  { assoc = 'left', terms = ['Mul', 'Div', 'Mod'] },
+  { assoc = 'no_assoc', terms = ['Unary'] },
+  { assoc = 'no_assoc', terms = ['RPar'] },
+  { assoc = 'left', terms = ['Empty'] },
+  { assoc = 'left', terms = ['Else'] },
+]
+
+start = 'Program'
+
+[lexical]
+'void' = 'Void'
+'int' = 'Int'
+'const' = 'Const'
+'while' = 'While'
+'if' = 'If'
+'else' = 'Else'
+'return' = 'Return'
+'break' = 'Break'
+'continue' = 'Continue'
+'\+' = 'Add'
+'-' = 'Sub'
+'\*' = 'Mul'
+'/' = 'Div'
+'%' = 'Mod'
+'<' = 'Lt'
+'<=' = 'Le'
+'>=' = 'Ge'
+'>' = 'Gt'
+'==' = 'Eq'
+'!=' = 'Ne'
+'&&' = 'And'
+'\|\|' = 'Or'
+'=' = 'Assign'
+',' = 'Comma'
+';' = 'Semi' # short for semicolon
+'!' = 'Not'
+'\(' = 'LPar' # short for parenthesis
+'\)' = 'RPar'
+'\[' = 'LBrk' # short for bracket
+'\]' = 'RBrk'
+'\{' = 'LBrc' # short for brace
+'\}' = 'RBrc'
+'//[^\n]*' = '_Eps' # line comment
+'/\*[^*]*(\*[^/][^*]*)*\*/' = '_Eps' # block comment
+'\s+' = '_Eps'
+'\d+|(0x[0-9a-fA-F]+)' = 'IntConst'
+'[_A-Za-z]\w*' = 'Ident'
+'.' = '_Err'
+
+[[production]]
+lhs = 'Program'
+ty = 'Program'
+rhs = [
+  { rhs = ['Program', 'Decl'], act = 'for (Decl &d : _2) { _1.decls.push_back(std::move(d)); } __ = std::move(_1);' },
+  { rhs = ['Program', 'Func'], act = '_1.funcs.push_back(std::move(_2)); __ = std::move(_1);' },
+  { rhs = [], act = '__ = Program{{}, {}};' },
+]
+
+[[production]]
+lhs = 'Decl' # 当前的解析会放过一些语法不对的程序，比如const没有初值，数组维度不是常数等，反正后续也要检查的，没有太大关系
+ty = 'std::vector<Decl>'
+rhs = [
+  { rhs = ['Const', 'Int', 'DeclList', 'Semi'], act = 'for (Decl &d : _3) { d.is_const = true; } __ = std::move(_3);' },
+  { rhs = ['Int', 'DeclList', 'Semi'], act = '__ = std::move(_2);' },
+]
+
+[[production]]
+lhs = 'DeclList'
+ty = 'std::vector<Decl>'
+rhs = [
+  { rhs = ['DeclList1'], act = '__ = std::move(_1);' },
+  { rhs = [], act = '__ = std::vector<Decl>();' },
+]
+
+[[production]]
+lhs = 'DeclList1'
+ty = 'std::vector<Decl>'
+rhs = [
+  { rhs = ['DeclList1', 'Comma', 'Decl1'], act = '_1.push_back(std::move(_3)); __ = std::move(_1);' },
+  { rhs = ['Decl1'], act = '__ = std::vector{std::move(_1)};' },
+]
+
+[[production]]
+lhs = 'Decl1'
+ty = 'Decl'
+rhs = [
+  { rhs = ['Ident', 'ArrayDims', 'Assign', 'InitList'], act = '__ = Decl{false, true, _1.piece, std::move(_2), std::move(_4)};' },
+  { rhs = ['Ident', 'ArrayDims'], act = '__ = Decl{false, false, _1.piece, std::move(_2), {}};' },
+]
+
+[[production]]
+lhs = 'InitList'
+ty = 'InitList'
+rhs = [
+  { rhs = ['LBrc', 'InitList1', 'RBrc'], act = '__ = InitList{nullptr, std::move(_2)};' },
+  { rhs = ['LBrc', 'RBrc'], act = '__ = InitList{nullptr, {}};' },
+  { rhs = ['Expr'], act = '__ = InitList{_1, {}};' },
+]
+
+[[production]]
+lhs = 'InitList1'
+ty = 'std::vector<InitList>'
+rhs = [
+  { rhs = ['InitList1', 'Comma', 'InitList'], act = '_1.push_back(std::move(_3)); __ = std::move(_1);' },
+  { rhs = ['InitList'], act = '__ = std::vector{std::move(_1)};' },
+]
+
+[[production]]
+lhs = 'Func'
+ty = 'Func'
+rhs = [
+  { rhs = ['Int', 'Ident', 'LPar', 'ParamList', 'RPar', 'Block'], act = '__ = Func{true, _2.piece, std::move(_4), std::move(_6)};' },
+  { rhs = ['Void', 'Ident', 'LPar', 'ParamList', 'RPar', 'Block'], act = '__ = Func{false, _2.piece, std::move(_4), std::move(_6)};' },
+]
+
+[[production]]
+lhs = 'Block'
+ty = 'Block'
+rhs = [ { rhs = ['LBrc', 'StmtList', 'RBrc'], act = '__ = Block{Stmt::Block, std::move(_2)};' } ]
+
+[[production]]
+lhs = 'ParamList'
+ty = 'std::vector<Decl>'
+rhs = [
+  { rhs = ['ParamList1'], act = '__ = std::move(_1);' },
+  { rhs = [], act = '__ = std::vector<Decl>();' },
+]
+
+[[production]]
+lhs = 'ParamList1'
+ty = 'std::vector<Decl>'
+rhs = [
+  { rhs = ['ParamList1', 'Comma', 'Param'], act = '_1.push_back(std::move(_3)); __ = std::move(_1);' },
+  { rhs = ['Param'], act = '__ = std::vector{std::move(_1)};' },
+]
+
+[[production]]
+lhs = 'Param'
+ty = 'Decl'
+rhs = [
+  { rhs = ['Int', 'Ident', 'ArrayDims0'], act = '__ = Decl{false, false, _2.piece, std::move(_3), nullptr};' },
+  { rhs = ['Int', 'Ident'], act = '__ = Decl{false, false, _2.piece, {}, nullptr};' },
+]
+
+[[production]]
+lhs = 'Stmt'
+ty = 'Stmt *'
+rhs = [
+  { rhs = ['Ident', 'ArrayDims', 'Assign', 'Expr', 'Semi'], act = '__ = new Assign{Stmt::Assign, _1.piece, std::move(_2), _4};' },
+  { rhs = ['Expr', 'Semi'], act = '__ = new ExprStmt{Stmt::ExprStmt, _1};' },
+  { rhs = ['Semi'], act = '__ = new ExprStmt{Stmt::ExprStmt, nullptr};' },
+  { rhs = ['Decl'], act = '__ = new DeclStmt{Stmt::DeclStmt, std::move(_1)};' },
+  { rhs = ['Block'], act = '__ = new Block{Stmt::Block, std::move(_1.stmts)};' },
+  { rhs = ['If', 'LPar', 'Expr', 'RPar', 'Stmt', 'Else0'], act = '__ = new If{Stmt::If, _3, _5, _6};' },
+  { rhs = ['While', 'LPar', 'Expr', 'RPar', 'Stmt'], act = '__ = new While{Stmt::While, _3, _5};' },
+  { rhs = ['Break', 'Semi'], act = '__ = &Break::instance;' },
+  { rhs = ['Continue', 'Semi'], act = '__ = &Continue::instance;' },
+  { rhs = ['Return', 'Expr', 'Semi'], act = '__ = new Return{Stmt::Return, _2};' },
+  { rhs = ['Return', 'Semi'], act = '__ = new Return{Stmt::Return, nullptr};' },
+]
+
+[[production]]
+lhs = 'StmtList'
+ty = 'std::vector<Stmt *>'
+rhs = [
+  { rhs = ['StmtList', 'Stmt'], act = '_1.push_back(_2); __ = std::move(_1);' },
+  { rhs = [], act = '__ = std::vector<Stmt *>();' },
+]
+
+[[production]]
+lhs = 'Else0'
+ty = 'Stmt *'
+rhs = [
+  { rhs = ['Else', 'Stmt'], act = '__ = _2;' },
+  { rhs = [], act = '__ = static_cast<Stmt *>(nullptr);', prec = 'Empty' },
+]
+
+[[production]]
+lhs = 'Expr'
+ty = 'Expr *'
+rhs = [
+  { rhs = ['Expr', 'Add', 'Expr'], act = '__ = new Binary{Expr::Add, _1, _3};' },
+  { rhs = ['Expr', 'Sub', 'Expr'], act = '__ = new Binary{Expr::Sub, _1, _3};' },
+  { rhs = ['Expr', 'Mul', 'Expr'], act = '__ = new Binary{Expr::Mul, _1, _3};' },
+  { rhs = ['Expr', 'Div', 'Expr'], act = '__ = new Binary{Expr::Div, _1, _3};' },
+  { rhs = ['Expr', 'Mod', 'Expr'], act = '__ = new Binary{Expr::Mod, _1, _3};' },
+  { rhs = ['Expr', 'Lt', 'Expr'], act = '__ = new Binary{Expr::Lt, _1, _3};' },
+  { rhs = ['Expr', 'Le', 'Expr'], act = '__ = new Binary{Expr::Le, _1, _3};' },
+  { rhs = ['Expr', 'Ge', 'Expr'], act = '__ = new Binary{Expr::Ge, _1, _3};' },
+  { rhs = ['Expr', 'Gt', 'Expr'], act = '__ = new Binary{Expr::Gt, _1, _3};' },
+  { rhs = ['Expr', 'Eq', 'Expr'], act = '__ = new Binary{Expr::Eq, _1, _3};' },
+  { rhs = ['Expr', 'Ne', 'Expr'], act = '__ = new Binary{Expr::Ne, _1, _3};' },
+  { rhs = ['Expr', 'And', 'Expr'], act = '__ = new Binary{Expr::And, _1, _3};' },
+  { rhs = ['Expr', 'Or', 'Expr'], act = '__ = new Binary{Expr::Or, _1, _3};' },
+  { rhs = ['Add', 'Expr'], act = '__ = new Unary{Expr::Pos, _2};', prec = 'Unary' },
+  { rhs = ['Sub', 'Expr'], act = '__ = new Unary{Expr::Neg, _2};', prec = 'Unary' },
+  { rhs = ['Not', 'Expr'], act = '__ = new Unary{Expr::Not, _2};', prec = 'Unary' },
+  { rhs = ['LPar', 'Expr', 'RPar'], act = '__ = _2;' },
+  { rhs = ['Ident', 'LPar', 'ExprList', 'RPar'], act = '__ = new Call{Expr::Call, _1.piece, std::move(_3)};' },
+  { rhs = ['Ident', 'ArrayDims'], act = '__ = new Index{Expr::Index, _1.piece, std::move(_2)};' },
+  { rhs = ['IntConst'], act = '__ = new IntConst{Expr::IntConst, atoi(_1.piece.data())};' },
+]
+
+[[production]]
+lhs = 'ExprList'
+ty = 'std::vector<Expr *>'
+rhs = [
+  { rhs = ['ExprList1'], act = '__ = std::move(_1);' },
+  { rhs = [], act = '__ = std::vector<Expr *>();' },
+]
+
+[[production]]
+lhs = 'ExprList1'
+ty = 'std::vector<Expr *>'
+rhs = [
+  { rhs = ['ExprList1', 'Comma', 'Expr'], act = '_1.push_back(_3); __ = std::move(_1);' },
+  { rhs = ['Expr'], act = '__ = std::vector{_1};' },
+]
+
+[[production]]
+lhs = 'ArrayDims0' # 第一个[]内必须为空，用于函数参数
+ty = 'std::vector<Expr *>'
+rhs = [
+  { rhs = ['ArrayDims0', 'LBrk', 'Expr', 'RBrk'], act = '_1.push_back(_3); __ = std::move(_1);' },
+  { rhs = ['LBrk', 'RBrk'], act = '__ = std::vector<Expr *>{nullptr};' },
+]
+
+[[production]]
+lhs = 'ArrayDims'
+ty = 'std::vector<Expr *>'
+rhs = [
+  { rhs = ['ArrayDims', 'LBrk', 'Expr', 'RBrk'], act = '_1.push_back(_3); __ = std::move(_1);' },
+  { rhs = [], act = '__ = std::vector<Expr *>();' },
+]

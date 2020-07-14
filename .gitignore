@@ -1,0 +1,5 @@
+cmake-build-debug
+.idea
+functional_test
+performance_test
+tmp
