@@ -1,0 +1,11 @@
+image: "debian:stretch"
+
+build:
+  script:
+    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" >> /etc/apt/sources.list
+    - apt-get update
+    - apt-get install -y make cmake g++
+    - mkdir build
+    - cd build
+    - cmake ..
+    - make
