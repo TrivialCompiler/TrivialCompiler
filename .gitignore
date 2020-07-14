@@ -3,3 +3,4 @@ cmake-build-debug
 functional_test
 performance_test
 tmp
+build

@@ -22,11 +22,15 @@ int main(int argc, char **argv) {
 
   Lexer l(std::string_view(input, st.st_size));
   auto result = Parser{}.parse(l);
+  int res = 0;
   if (Program *p = std::get_if<0>(&result)) {
     puts("parsing success");
   } else if (Token *t = std::get_if<1>(&result)) {
     fprintf(stderr, "parsing error at token id %d, line %d, col %d, string piece = %s\n",
             t->kind, t->line, t->col, std::string(t->piece).c_str()); // string_view不能直接喂给C接口
+    res = 1;
   }
   munmap(input, st.st_size);
+
+  return res;
 }
