@@ -2,15 +2,15 @@ image: "debian:stretch"
 
 default:
   before_script:
+    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" >> /etc/apt/sources.list
+    - apt-get update
+    - apt-get install -y make cmake g++ git
     - cp .gitmodules-ci .gitmodules
     - git submodule sync
     - git submodule update --init
 
 build_and_test:
   script:
-    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" >> /etc/apt/sources.list
-    - apt-get update
-    - apt-get install -y make cmake g++
     - mkdir build
     - cd build
     - cmake ..
