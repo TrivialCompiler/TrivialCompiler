@@ -64,17 +64,17 @@ std::variant<Program, Token> Parser::parse(Lexer &lexer) {
           case 0: {
 [[maybe_unused]] std::vector<Decl> _2(std::move(*std::get_if<std::vector<Decl>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Program _1(std::move(*std::get_if<Program>(&stk.back().first))); stk.pop_back();
-for (Decl &d : _2) { _1.decls.push_back(std::move(d)); } __ = std::move(_1);
+for (Decl &d : _2) { _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);
 break;
 }
 case 1: {
 [[maybe_unused]] Func _2(std::move(*std::get_if<Func>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Program _1(std::move(*std::get_if<Program>(&stk.back().first))); stk.pop_back();
-_1.funcs.push_back(std::move(_2)); __ = std::move(_1);
+_1.glob.emplace_back(std::move(_2)); __ = std::move(_1);
 break;
 }
 case 2: {
-__ = Program{{}, {}};
+__ = Program{};
 break;
 }
 case 3: {
@@ -270,13 +270,13 @@ break;
 case 32: {
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = &Break::instance;
+__ = &Break::INSTANCE;
 break;
 }
 case 33: {
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = &Continue::instance;
+__ = &Continue::INSTANCE;
 break;
 }
 case 34: {
@@ -316,109 +316,109 @@ case 40: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Add, _1, _3};
+__ = new Binary{Expr::Add, 0, _1, _3};
 break;
 }
 case 41: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Sub, _1, _3};
+__ = new Binary{Expr::Sub, 0, _1, _3};
 break;
 }
 case 42: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Mul, _1, _3};
+__ = new Binary{Expr::Mul, 0, _1, _3};
 break;
 }
 case 43: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Div, _1, _3};
+__ = new Binary{Expr::Div, 0, _1, _3};
 break;
 }
 case 44: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Mod, _1, _3};
+__ = new Binary{Expr::Mod, 0, _1, _3};
 break;
 }
 case 45: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Lt, _1, _3};
+__ = new Binary{Expr::Lt, 0, _1, _3};
 break;
 }
 case 46: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Le, _1, _3};
+__ = new Binary{Expr::Le, 0, _1, _3};
 break;
 }
 case 47: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Ge, _1, _3};
+__ = new Binary{Expr::Ge, 0, _1, _3};
 break;
 }
 case 48: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Gt, _1, _3};
+__ = new Binary{Expr::Gt, 0, _1, _3};
 break;
 }
 case 49: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Eq, _1, _3};
+__ = new Binary{Expr::Eq, 0, _1, _3};
 break;
 }
 case 50: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Ne, _1, _3};
+__ = new Binary{Expr::Ne, 0, _1, _3};
 break;
 }
 case 51: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::And, _1, _3};
+__ = new Binary{Expr::And, 0, _1, _3};
 break;
 }
 case 52: {
 [[maybe_unused]] Expr * _3(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Expr * _1(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
-__ = new Binary{Expr::Or, _1, _3};
+__ = new Binary{Expr::Or, 0, _1, _3};
 break;
 }
 case 53: {
 [[maybe_unused]] Expr * _2(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Unary{Expr::Pos, _2};
+__ = _2;
 break;
 }
 case 54: {
 [[maybe_unused]] Expr * _2(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Unary{Expr::Neg, _2};
+__ = new Unary{Expr::Neg, 0, _2};
 break;
 }
 case 55: {
 [[maybe_unused]] Expr * _2(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Unary{Expr::Not, _2};
+__ = new Unary{Expr::Not, 0, _2};
 break;
 }
 case 56: {
@@ -433,18 +433,18 @@ case 57: {
 [[maybe_unused]] std::vector<Expr *> _3(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Call{Expr::Call, _1.piece, std::move(_3)};
+__ = new Call{Expr::Call, 0, _1.piece, std::move(_3)};
 break;
 }
 case 58: {
 [[maybe_unused]] std::vector<Expr *> _2(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Index{Expr::Index, _1.piece, std::move(_2)};
+__ = new Index{Expr::Index, 0, _1.piece, std::move(_2)};
 break;
 }
 case 59: {
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new IntConst{Expr::IntConst, atoi(_1.piece.data())};
+__ = new IntConst{Expr::IntConst, 0, atoi(_1.piece.data())};
 break;
 }
 case 60: {

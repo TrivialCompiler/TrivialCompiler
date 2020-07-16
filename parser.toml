@@ -61,9 +61,9 @@ start = 'Program'
 lhs = 'Program'
 ty = 'Program'
 rhs = [
-  { rhs = ['Program', 'Decl'], act = 'for (Decl &d : _2) { _1.decls.push_back(std::move(d)); } __ = std::move(_1);' },
-  { rhs = ['Program', 'Func'], act = '_1.funcs.push_back(std::move(_2)); __ = std::move(_1);' },
-  { rhs = [], act = '__ = Program{{}, {}};' },
+  { rhs = ['Program', 'Decl'], act = 'for (Decl &d : _2) { _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);' },
+  { rhs = ['Program', 'Func'], act = '_1.glob.emplace_back(std::move(_2)); __ = std::move(_1);' },
+  { rhs = [], act = '__ = Program{};' },
 ]
 
 [[production]]
@@ -163,8 +163,8 @@ rhs = [
   { rhs = ['Block'], act = '__ = new Block{Stmt::Block, std::move(_1.stmts)};' },
   { rhs = ['If', 'LPar', 'Expr', 'RPar', 'Stmt', 'Else0'], act = '__ = new If{Stmt::If, _3, _5, _6};' },
   { rhs = ['While', 'LPar', 'Expr', 'RPar', 'Stmt'], act = '__ = new While{Stmt::While, _3, _5};' },
-  { rhs = ['Break', 'Semi'], act = '__ = &Break::instance;' },
-  { rhs = ['Continue', 'Semi'], act = '__ = &Continue::instance;' },
+  { rhs = ['Break', 'Semi'], act = '__ = &Break::INSTANCE;' },
+  { rhs = ['Continue', 'Semi'], act = '__ = &Continue::INSTANCE;' },
   { rhs = ['Return', 'Expr', 'Semi'], act = '__ = new Return{Stmt::Return, _2};' },
   { rhs = ['Return', 'Semi'], act = '__ = new Return{Stmt::Return, nullptr};' },
 ]
@@ -186,29 +186,29 @@ rhs = [
 ]
 
 [[production]]
-lhs = 'Expr'
+lhs = 'Expr' # 虽然这个阶段已经可以计算出一些结果了，但是没有必要，统一在typeck阶段再计算
 ty = 'Expr *'
 rhs = [
-  { rhs = ['Expr', 'Add', 'Expr'], act = '__ = new Binary{Expr::Add, _1, _3};' },
-  { rhs = ['Expr', 'Sub', 'Expr'], act = '__ = new Binary{Expr::Sub, _1, _3};' },
-  { rhs = ['Expr', 'Mul', 'Expr'], act = '__ = new Binary{Expr::Mul, _1, _3};' },
-  { rhs = ['Expr', 'Div', 'Expr'], act = '__ = new Binary{Expr::Div, _1, _3};' },
-  { rhs = ['Expr', 'Mod', 'Expr'], act = '__ = new Binary{Expr::Mod, _1, _3};' },
-  { rhs = ['Expr', 'Lt', 'Expr'], act = '__ = new Binary{Expr::Lt, _1, _3};' },
-  { rhs = ['Expr', 'Le', 'Expr'], act = '__ = new Binary{Expr::Le, _1, _3};' },
-  { rhs = ['Expr', 'Ge', 'Expr'], act = '__ = new Binary{Expr::Ge, _1, _3};' },
-  { rhs = ['Expr', 'Gt', 'Expr'], act = '__ = new Binary{Expr::Gt, _1, _3};' },
-  { rhs = ['Expr', 'Eq', 'Expr'], act = '__ = new Binary{Expr::Eq, _1, _3};' },
-  { rhs = ['Expr', 'Ne', 'Expr'], act = '__ = new Binary{Expr::Ne, _1, _3};' },
-  { rhs = ['Expr', 'And', 'Expr'], act = '__ = new Binary{Expr::And, _1, _3};' },
-  { rhs = ['Expr', 'Or', 'Expr'], act = '__ = new Binary{Expr::Or, _1, _3};' },
-  { rhs = ['Add', 'Expr'], act = '__ = new Unary{Expr::Pos, _2};', prec = 'Unary' },
-  { rhs = ['Sub', 'Expr'], act = '__ = new Unary{Expr::Neg, _2};', prec = 'Unary' },
-  { rhs = ['Not', 'Expr'], act = '__ = new Unary{Expr::Not, _2};', prec = 'Unary' },
+  { rhs = ['Expr', 'Add', 'Expr'], act = '__ = new Binary{Expr::Add, 0, _1, _3};' },
+  { rhs = ['Expr', 'Sub', 'Expr'], act = '__ = new Binary{Expr::Sub, 0, _1, _3};' },
+  { rhs = ['Expr', 'Mul', 'Expr'], act = '__ = new Binary{Expr::Mul, 0, _1, _3};' },
+  { rhs = ['Expr', 'Div', 'Expr'], act = '__ = new Binary{Expr::Div, 0, _1, _3};' },
+  { rhs = ['Expr', 'Mod', 'Expr'], act = '__ = new Binary{Expr::Mod, 0, _1, _3};' },
+  { rhs = ['Expr', 'Lt', 'Expr'], act = '__ = new Binary{Expr::Lt, 0, _1, _3};' },
+  { rhs = ['Expr', 'Le', 'Expr'], act = '__ = new Binary{Expr::Le, 0, _1, _3};' },
+  { rhs = ['Expr', 'Ge', 'Expr'], act = '__ = new Binary{Expr::Ge, 0, _1, _3};' },
+  { rhs = ['Expr', 'Gt', 'Expr'], act = '__ = new Binary{Expr::Gt, 0, _1, _3};' },
+  { rhs = ['Expr', 'Eq', 'Expr'], act = '__ = new Binary{Expr::Eq, 0, _1, _3};' },
+  { rhs = ['Expr', 'Ne', 'Expr'], act = '__ = new Binary{Expr::Ne, 0, _1, _3};' },
+  { rhs = ['Expr', 'And', 'Expr'], act = '__ = new Binary{Expr::And, 0, _1, _3};' },
+  { rhs = ['Expr', 'Or', 'Expr'], act = '__ = new Binary{Expr::Or, 0, _1, _3};' },
+  { rhs = ['Add', 'Expr'], act = '__ = _2;', prec = 'Unary' },
+  { rhs = ['Sub', 'Expr'], act = '__ = new Unary{Expr::Neg, 0, _2};', prec = 'Unary' },
+  { rhs = ['Not', 'Expr'], act = '__ = new Unary{Expr::Not, 0, _2};', prec = 'Unary' },
   { rhs = ['LPar', 'Expr', 'RPar'], act = '__ = _2;' },
-  { rhs = ['Ident', 'LPar', 'ExprList', 'RPar'], act = '__ = new Call{Expr::Call, _1.piece, std::move(_3)};' },
-  { rhs = ['Ident', 'ArrayDims'], act = '__ = new Index{Expr::Index, _1.piece, std::move(_2)};' },
-  { rhs = ['IntConst'], act = '__ = new IntConst{Expr::IntConst, atoi(_1.piece.data())};' },
+  { rhs = ['Ident', 'LPar', 'ExprList', 'RPar'], act = '__ = new Call{Expr::Call, 0, _1.piece, std::move(_3)};' },
+  { rhs = ['Ident', 'ArrayDims'], act = '__ = new Index{Expr::Index, 0, _1.piece, std::move(_2)};' },
+  { rhs = ['IntConst'], act = '__ = new IntConst{Expr::IntConst, 0, atoi(_1.piece.data())};' },
 ]
 
 [[production]]

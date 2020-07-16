@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include "ast.hpp"
 #include "parser.hpp"
+#include "typeck.hpp"
 
 int main(int argc, char **argv) {
   if (argc != 2) {
@@ -25,6 +26,8 @@ int main(int argc, char **argv) {
   int res = 0;
   if (Program *p = std::get_if<0>(&result)) {
     puts("parsing success");
+    typeck(*p); // 失败时直接就exit(1)了
+    puts("typeck success");
   } else if (Token *t = std::get_if<1>(&result)) {
     fprintf(stderr, "parsing error at token id %d, line %d, col %d, string piece = %s\n",
             t->kind, t->line, t->col, std::string(t->piece).c_str()); // string_view不能直接喂给C接口
