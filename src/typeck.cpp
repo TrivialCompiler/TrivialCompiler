@@ -1,13 +1,10 @@
 #include <unordered_map>
+#include <string>
 #include <cstdio>
 #include <cstdlib>
 #include "typeck.hpp"
 #include "casting.hpp"
-
-// 让string_view可以传递给C接口，这个结果不能保存在变量中，只能立即使用，因为临时的string在语句结束后就析构了
-#define CSTR(sv) std::string(sv).c_str()
-#define ERR(msg, ...) do { fprintf(stderr, msg "\n", ##__VA_ARGS__); exit(1); } while (false)
-#define UNREACHABLE() __builtin_unreachable()
+#include "common.hpp"
 
 // 有两种可能的符号：函数和变量，逻辑上需要一个variant<Func *, Decl *>，但是这太浪费空间了
 // 这两种指针都至少是按4对齐的，所以最后两位不可能是1/2，就用这做discriminant
