@@ -1,6 +1,3 @@
 [submodule "thirdparty/sysyruntimelibrary"]
 	path = thirdparty/sysyruntimelibrary
 	url = https://gitlab.eduxiji.net/windcome/sysyruntimelibrary.git
-[submodule "thirdparty/dbg-macro"]
-	path = thirdparty/dbg-macro
-	url = https://github.com/sharkdp/dbg-macro.git
