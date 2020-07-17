@@ -8,18 +8,20 @@
 #include "casting.hpp"
 #include "common.hpp"
 
+#define ERR(...) ERR_EXIT(TYPE_CHECK_ERROR, __VA_ARGS__)
+
 // 有两种可能的符号：函数和变量，逻辑上需要一个variant<Func *, Decl *>，但是这太浪费空间了
 // 这两种指针都至少是按4对齐的，所以最后两位不可能是1/2，就用这做discriminant
 struct Symbol {
   size_t p;
 
-  static Symbol mk_func(Func *f) { return Symbol{reinterpret_cast<size_t>(f) | 1}; }
+  static Symbol mk_func(Func *f) { return Symbol{reinterpret_cast<size_t>(f) | 1U}; }
 
-  static Symbol mk_decl(Decl *d) { return Symbol{reinterpret_cast<size_t>(d) | 2}; }
+  static Symbol mk_decl(Decl *d) { return Symbol{reinterpret_cast<size_t>(d) | 2U}; }
 
-  Func *as_func() const { return (p & 1) ? reinterpret_cast<Func *>(p ^ 1) : nullptr; }
+  [[nodiscard]] Func *as_func() const { return (p & 1U) ? reinterpret_cast<Func *>(p ^ 1U) : nullptr; }
 
-  Decl *as_decl() const { return (p & 2) ? reinterpret_cast<Decl *>(p ^ 2) : nullptr; }
+  [[nodiscard]] Decl *as_decl() const { return (p & 2U) ? reinterpret_cast<Decl *>(p ^ 2U) : nullptr; }
 };
 
 struct Env {

@@ -12,12 +12,12 @@
 int main(int argc, char **argv) {
   if (argc != 2) {
     fprintf(stderr, "usage: %s <path>\n", argv[0]);
-    return 1;
+    return SYSTEM_ERROR;
   }
   int fd = open(argv[1], O_RDONLY);
   if (fd < 0) {
     fprintf(stderr, "failed to open %s\n", argv[1]);
-    return 1;
+    return SYSTEM_ERROR;
   }
   struct stat st {};
   fstat(fd, &st);
@@ -31,7 +31,7 @@ int main(int argc, char **argv) {
     type_check(*p);  // 失败时直接就exit(1)了
     dbg("type_check success");
   } else if (Token *t = std::get_if<1>(&result)) {
-    ERR("parsing error", t->kind, t->line, t->col, STR(t->piece));
+    ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
   }
 
   munmap(input, st.st_size);
