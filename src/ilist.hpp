@@ -1,12 +1,12 @@
-template <class node>
+template <class Node>
 struct ilist {
-  node *head;
-  node *tail;
+  Node *head;
+  Node *tail;
 
   ilist() { head = tail = nullptr; }
 
   // insert newNode before insertBefore
-  void insertBefore(node *newNode, node *insertBefore) { 
+  void insertBefore(Node *newNode, Node *insertBefore) { 
       newNode->prev = insertBefore->prev;
       newNode->next = insertBefore;
       insertBefore->prev = newNode;
@@ -17,7 +17,7 @@ struct ilist {
   }
 
   // insert newNode at the end of ilist
-  void insertAtEnd(node *newNode) { 
+  void insertAtEnd(Node *newNode) { 
       newNode->prev = tail;
       newNode->next = nullptr;
 
@@ -27,5 +27,22 @@ struct ilist {
         tail->next = newNode;
         tail = newNode;
       }
+  }
+  
+  // remove node from ilist
+  void remove(Node *node) {
+    if (node->prev != nullptr) {
+      node->prev->next = node->next;
+    } else {
+      head = node->next;
+    }
+
+    if (node->next != nullptr) {
+      node->next->prev = node->prev;
+    } else {
+      tail = node->prev;
+    }
+
+    node->prev = node->next = nullptr;
   }
 };

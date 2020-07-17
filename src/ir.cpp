@@ -2,25 +2,20 @@
 
 Use::Use(Value *v, Inst *u) : value(v), user(u) {
   if (value) {
-    value->addUse(*this);
+    value->addUse(this);
   }
 }
 
 Use::~Use() {
   if (value) {
-    value->killUse(*this);
+    value->killUse(this);
   }
 }
 
-void Value::addUse(const Use &u) { uses.push_back(u); }
+void Value::addUse(Use *u) { uses.insertAtEnd(u); }
 
-void Value::killUse(const Use &u) {
-  for (auto it = uses.cbegin(); it != uses.cend(); it++) {
-    if (it->value == u.value && it->user == u.user) {
-      uses.erase(it);
-      break;
-    }
-  }
+void Value::killUse(Use *u) {
+  uses.remove(u);
 }
 
 Inst::Inst(Tag tag, Inst *insertBefore) : Value(tag) {

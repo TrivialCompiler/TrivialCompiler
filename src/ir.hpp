@@ -11,6 +11,8 @@ struct Value;
 struct Inst;
 
 struct Use {
+  DEFINE_ILIST(Use)
+
   Value *value;
   Inst *user;
 
@@ -20,7 +22,7 @@ struct Use {
 
 struct Value {
   // value is used by ...
-  std::vector<Use> uses;
+  ilist<Use> uses;
   // tag
   enum Tag {
     Add,
@@ -50,8 +52,8 @@ struct Value {
 
   Value(Tag tag) : tag(tag) {}
 
-  void addUse(const Use &u);
-  void killUse(const Use &u);
+  void addUse(Use *u);
+  void killUse(Use *u);
 };
 
 struct IrFunc {};
