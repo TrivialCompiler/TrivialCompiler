@@ -7,8 +7,8 @@ enable_testing()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
 
-file(GLOB source_files "src/*.cpp")
-file(GLOB header_files "src/*.hpp")
+file(GLOB_RECURSE source_files "src/*.cpp")
+file(GLOB_RECURSE header_files "src/*.hpp")
 add_executable(${project_name} ${source_files} ${header_files})
 
 
