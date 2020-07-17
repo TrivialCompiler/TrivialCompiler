@@ -37,3 +37,5 @@ int main(int argc, char **argv) {
 
   return res;
 }
+
+extern "C" const char* __asan_default_options() { return "detect_leaks=0"; }
