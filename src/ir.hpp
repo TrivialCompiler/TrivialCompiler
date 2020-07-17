@@ -9,29 +9,39 @@
 typedef u32 RegIndex;
 
 struct Value;
-struct Instruction;
+struct Inst;
 
 struct Use {
   Value *value;
   Inst *user;
+
+  Use(Value *v, Inst *u);
 };
 
 struct Value {
   // value is used by ...
   std::vector<Use> uses;
   // tag
-  enum {
+  enum Tag {
     Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
     Neg, Not, Mv, // Unary
     Branch, Return,
     Load, Store, Call, LoadAddr,
     Const
   } tag;
+
+  Value(Tag tag): tag(tag) {}
+
+  void addUse(const Use &u);
+  void killUse(const Use &u);
 };
 
 struct IrFunc {};
 
-struct BasicBlock {};
+struct BasicBlock {
+  Inst *first;
+  Inst *last;
+};
 
 struct ConstValue: Value {
   DEFINE_CLASSOF(Value, p->tag == Const);
@@ -45,6 +55,12 @@ struct Inst : Value {
   Inst *next;
   // basic block
   BasicBlock *bb;
+
+  // insert this inst before `insertBefore`
+  Inst(Tag tag, Inst *insertBefore);
+
+  // insert this inst at the end of `insertAtEnd`
+  Inst(Tag tag, BasicBlock *insertAtEnd);
 };
 
 struct BinaryInst: Inst {
@@ -52,6 +68,8 @@ struct BinaryInst: Inst {
   // operands
   Use lhs;
   Use rhs;
+
+  BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore);
 };
 
 struct UnaryInst: Inst {
