@@ -1,10 +1,11 @@
-image: "debian:buster"
+image: "debian:bullseye"
 
 default:
   before_script:
-    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" >> /etc/apt/sources.list
+    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" > /etc/apt/sources.list && \
+      echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye-updates main" >> /etc/apt/sources.list
     - apt-get update
-    - env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make cmake g++ git
+    - env DEBIAN_FRONTEND=noninteractive apt-get install -y make cmake g++ git
     - cp .gitmodules-ci .gitmodules
     - git submodule sync
     - git submodule update --init
