@@ -37,7 +37,7 @@ struct Env {
         return f;
       }
     }
-    ERR("no such func %s", CSTR(name));
+    ERR("no such func", STR(name));
   }
 
   Decl *lookup_decl(std::string_view name) {
@@ -53,19 +53,19 @@ struct Env {
         return d;
       }
     }
-    ERR("no such variable %s", CSTR(name));
+    ERR("no such variable", STR(name));
   }
 
   void ck_func(Func *f) {
     cur_func = f;
     if (!glob.insert({f->name, Symbol::mk_func(f)}).second) {
-      ERR("duplicate function %s", CSTR(f->name));
+      ERR("duplicate function", STR(f->name));
     }
     local_stk.emplace_back();  // 参数作用域就是第一层局部变量的作用域
     for (Decl &d : f->params) {
       ck_decl(d, false);
       if (!local_stk[0].insert({d.name, &d}).second) {
-        ERR("duplicate param decl %s", CSTR(d.name));
+        ERR("duplicate param decl", STR(d.name));
       }
     }
     for (Stmt *s : f->body.stmts) {
@@ -130,7 +130,7 @@ struct Env {
       for (Decl &d : x->decls) {
         ck_decl(d, false);
         if (!top.insert({d.name, &d}).second) {
-          ERR("duplicate local decl %s", CSTR(d.name));
+          ERR("duplicate local decl", STR(d.name));
         }
       }
     } else if (auto x = dyn_cast<Block>(s)) {
@@ -203,7 +203,7 @@ struct Env {
     if (actual <= expect) {
       dst.resize(dst.size() + expect - actual, &IntConst::ZERO);
     } else {
-      ERR("too many initializing values, expect %d, found %d", expect, actual);
+      ERR("too many initializing values", expect, actual);
     }
   }
 
@@ -242,7 +242,7 @@ struct Env {
           }
         }
         if (!ok) {
-          ERR("function call arg %d mismatch", i + 1);
+          ERR("function call arg mismatch", i + 1);
         }
       }
       return f->is_int ? empty : none;
@@ -334,7 +334,7 @@ struct Env {
     } else if (auto x = dyn_cast<Index>(e)) {
       Decl *d = lookup_decl(x->name);
       if (!d->is_const) {
-        ERR("non-constant variable %s used in constant expr", CSTR(x->name));
+        ERR("non-constant variable",  STR(x->name), "used in constant expr");
       }
       // 常量表达式中必须完全解引用数组
       if (d->dims.size() != x->dims.size()) {
@@ -359,7 +359,7 @@ struct Env {
   }
 };
 
-void typeck(Program &p) {
+void type_check(Program &p) {
   Env env;
   for (Func &f : Func::BUILTIN) {
     env.ck_func(&f);
@@ -372,7 +372,7 @@ void typeck(Program &p) {
       env.ck_decl(*d, true);
       // 变量定义在检查后加入符号表，不允许定义时引用自身
       if (!env.glob.insert({d->name, Symbol::mk_decl(d)}).second) {
-        ERR("duplicate decl %s", CSTR(d->name));
+        ERR("duplicate decl", STR(d->name));
       }
     }
   }

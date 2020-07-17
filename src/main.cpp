@@ -25,21 +25,18 @@ int main(int argc, char **argv) {
 
   Lexer l(std::string_view(input, st.st_size));
   auto result = Parser{}.parse(l);
-  int res = 0;
 
   if (Program *p = std::get_if<0>(&result)) {
-    puts("parsing success");
-    typeck(*p);  // 失败时直接就exit(1)了
-    puts("typeck success");
+    dbg("parsing success");
+    type_check(*p);  // 失败时直接就exit(1)了
+    dbg("type_check success");
   } else if (Token *t = std::get_if<1>(&result)) {
-    fprintf(stderr, "parsing error at token id %d, line %d, col %d, string piece = %s\n", t->kind, t->line, t->col,
-            std::string(t->piece).c_str());  // string_view不能直接喂给C接口
-    res = 1;
+    ERR("parsing error", t->kind, t->line, t->col, STR(t->piece));
   }
 
   munmap(input, st.st_size);
 
-  return res;
+  return 0;
 }
 
 extern "C" const char *__asan_default_options() { return "detect_leaks=0"; }

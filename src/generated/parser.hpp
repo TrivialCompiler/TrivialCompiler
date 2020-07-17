@@ -14,7 +14,7 @@ using u16 = uint16_t;
 using u32 = uint32_t;
 
 struct Token {
-  enum Kind : u8 { _Eps, _Eof, _Err, Or, And, Eq, Ne, Lt, Le, Ge, Gt, Add, Sub, Mul, Div, Mod, Unary, RPar, Empty, Else, Void, Int, Const, While, If, Return, Break, Continue, Assign, Comma, Semi, Not, LPar, LBrk, RBrk, LBrc, RBrc, IntConst, Ident,  } kind;
+  enum Kind { _Eps, _Eof, _Err, Or, And, Eq, Ne, Lt, Le, Ge, Gt, Add, Sub, Mul, Div, Mod, Unary, RPar, Empty, Else, Void, Int, Const, While, If, Return, Break, Continue, Assign, Comma, Semi, Not, LPar, LBrk, RBrk, LBrc, RBrc, IntConst, Ident,  } kind;
   std::string_view piece;
   u32 line, col;
 };

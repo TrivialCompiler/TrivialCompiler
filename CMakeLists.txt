@@ -9,7 +9,13 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
 
 file(GLOB_RECURSE source_files "src/*.cpp")
 file(GLOB_RECURSE header_files "src/*.hpp")
+include_directories("thirdparty/dbg-macro")
 add_executable(${project_name} ${source_files} ${header_files})
+
+# use precompiled header to accelerate compiling
+if(COMMAND target_precompile_headers)
+    target_precompile_headers(${project_name} PRIVATE "src/common.hpp")
+endif()
 
 
 file(GLOB func_test_cases "thirdparty/sysyruntimelibrary/functional_test/*.sy")

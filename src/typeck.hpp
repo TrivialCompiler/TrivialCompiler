@@ -2,4 +2,4 @@
 
 #include "ast.hpp"
 
-void typeck(Program &p);
+void type_check(Program &p);
