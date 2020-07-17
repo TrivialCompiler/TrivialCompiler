@@ -39,13 +39,6 @@ struct Inst : Value {
   Inst *next;
   // basic block
   BasicBlock *bb;
-  // operation
-  enum {
-    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
-    Jump, Bz, Bnz, // Jump
-    Load, Store, // Memory
-    Call, LoadAddr
-  } op;
 };
 
 struct BinaryInst: Inst {
@@ -68,4 +61,8 @@ struct StoreInst: Inst {
 
 struct CallInst: Inst {
   IrFunc *func;
+};
+
+struct LoadAddrInst: Inst {
+  std::string_view label;
 };
