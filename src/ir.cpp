@@ -1,8 +1,14 @@
 #include "ir.hpp"
 
 Use::Use(Value *v, Inst *u) : value(v), user(u) {
-  if (v && u) {
+  if (value) {
     value->addUse(*this);
+  }
+}
+
+Use::~Use() {
+  if (value) {
+    value->killUse(*this);
   }
 }
 
@@ -44,3 +50,5 @@ Inst::Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag) {
 
 BinaryInst::BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
     : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
+BinaryInst::BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
+    : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}

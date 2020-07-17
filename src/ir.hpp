@@ -16,6 +16,7 @@ struct Use {
   Inst *user;
 
   Use(Value *v, Inst *u);
+  ~Use();
 };
 
 struct Value {
@@ -70,6 +71,7 @@ struct BinaryInst: Inst {
   Use rhs;
 
   BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore);
+  BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd);
 };
 
 struct UnaryInst: Inst {
