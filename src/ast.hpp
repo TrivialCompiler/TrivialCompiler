@@ -4,11 +4,7 @@
 #include <string_view>
 #include <vector>
 #include <variant>
-
-using i32 = int32_t;
-using u32 = uint32_t;
-
-#define DEFINE_CLASSOF(cls, cond) static bool classof(const cls *p) { return cond; }
+#include "common.hpp"
 
 struct Expr {
   enum {

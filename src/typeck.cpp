@@ -21,7 +21,9 @@ struct Symbol {
 };
 
 struct Env {
+  // global symbols
   std::unordered_map<std::string_view, Symbol> glob;
+  // stacks of local decls
   std::vector<std::unordered_map<std::string_view, Decl *>> local_stk;
   Func *cur_func = nullptr;
   u32 loop_cnt = 0;
