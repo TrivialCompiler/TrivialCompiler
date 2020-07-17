@@ -1,18 +1,17 @@
-image: "debian:stretch"
+image: "debian:buster"
 
 default:
   before_script:
     - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" >> /etc/apt/sources.list
     - apt-get update
-    - apt-get install -y make cmake g++ git
+    - env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends make cmake g++ git
     - cp .gitmodules-ci .gitmodules
     - git submodule sync
     - git submodule update --init
 
 build_and_test:
   script:
-    - mkdir build
-    - cd build
+    - mkdir -p build && cd build
     - cmake ..
     - make
     - make test
