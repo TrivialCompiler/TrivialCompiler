@@ -12,6 +12,7 @@ struct Ir {
   enum {
     Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
     Neg, Not, Mv, // Unary
+    Jump, Bz, Bnz, // Jump
     Call, Index, LoadAddr
   } tag;
   RegIndex dest; // 目标寄存器编号，0表示没有
@@ -40,6 +41,19 @@ struct IrCall : Ir {
   std::vector<IrOperand *> args;
 };
 
+// jump to label
+struct IrJump : Ir {
+  DEFINE_CLASSOF(Ir, p->tag == Jump);
+  std::string_view label;
+};
+
+// conditional branch to label
+struct IrBranch : Ir {
+  DEFINE_CLASSOF(Ir, Bz <= p->tag && p->tag <= Bnz);
+  std::string_view label;
+  IrOperand o1;
+};
+
 // get index of array
 struct IrIndex : Ir {
   DEFINE_CLASSOF(Ir, p->tag == Index);
@@ -50,5 +64,5 @@ struct IrIndex : Ir {
 // get addr of label in data section
 struct IrLoadAddr : Ir {
   DEFINE_CLASSOF(Ir, p->tag == LoadAddr);
-  std::string_view func;
+  std::string_view label;
 };
