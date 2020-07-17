@@ -19,8 +19,14 @@ struct Use {
 struct Value {
   // value is used by ...
   std::vector<Use> uses;
-  // lhs name
-  std::string_view name;
+  // tag
+  enum {
+    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
+    Neg, Not, Mv, // Unary
+    Branch, Return,
+    Load, Store, Call, LoadAddr,
+    Const
+  } tag;
 };
 
 struct IrFunc {};
@@ -28,10 +34,12 @@ struct IrFunc {};
 struct BasicBlock {};
 
 struct Const: Value {
+  DEFINE_CLASSOF(Value, p->tag == Const);
   u32 imm;
 };
 
 struct Inst : Value {
+  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= LoadAddr);
   // operands
   std::vector<Use> operands;
   // instruction linked list
@@ -42,27 +50,37 @@ struct Inst : Value {
 };
 
 struct BinaryInst: Inst {
-  enum {
-    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
-  } op;
+  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Or);
 };
 
 struct UnaryInst: Inst {
-  enum {
-    Neg, Not, Mv, // Unary
-  } op;
+  DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
 };
 
 struct LoadInst: Inst {
+  DEFINE_CLASSOF(Value, p->tag == Load);
 };
 
 struct StoreInst: Inst {
+  DEFINE_CLASSOF(Value, p->tag == Store);
 };
 
 struct CallInst: Inst {
+  DEFINE_CLASSOF(Value, p->tag == Call);
   IrFunc *func;
 };
 
 struct LoadAddrInst: Inst {
+  DEFINE_CLASSOF(Value, p->tag == LoadAddr);
   std::string_view label;
+};
+
+struct BranchInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Branch);
+  BasicBlock *left;
+  BasicBlock *right;
+};
+
+struct ReturnInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Return);
 };
