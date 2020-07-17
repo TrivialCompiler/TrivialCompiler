@@ -1,3 +1,3 @@
-[submodule "thirdparty/sysyruntimelibrary"]
-	path = thirdparty/sysyruntimelibrary
+[submodule "sysyruntimelibrary"]
+	path = sysyruntimelibrary
 	url = https://gitlab.eduxiji.net/windcome/sysyruntimelibrary.git
