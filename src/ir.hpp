@@ -8,74 +8,64 @@
 #define REG_NONE 0
 typedef u32 RegIndex;
 
-struct Ir {
-  enum {
-    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
-    Neg, Not, Mv, // Unary
-    Jump, Bz, Bnz, // Jump
-    Load, Store, // Memory
-    Call, LoadAddr
-  } tag;
-  RegIndex dest; // 目标寄存器编号，0表示没有
+struct Value;
+struct Instruction;
+
+struct Use {
+  Value *value;
+  Inst *user;
 };
 
-struct IrFunc {
+struct Value {
+  // value is used by ...
+  std::vector<Use> uses;
+  // lhs name
   std::string_view name;
 };
 
-struct IrOperand {
-  enum { R, C } kind;
-  union { RegIndex reg; u32 imm; };
+struct IrFunc {};
+
+struct BasicBlock {};
+
+struct Const: Value {
+  u32 imm;
 };
 
-struct IrBinary : Ir {
-  DEFINE_CLASSOF(Ir, Add <= p->tag && p->tag <= Or);
-  IrOperand o1;
-  IrOperand o2;
+struct Inst : Value {
+  // operands
+  std::vector<Use> operands;
+  // instruction linked list
+  Inst *prev;
+  Inst *next;
+  // basic block
+  BasicBlock *bb;
+  // operation
+  enum {
+    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
+    Jump, Bz, Bnz, // Jump
+    Load, Store, // Memory
+    Call, LoadAddr
+  } op;
 };
 
-struct IrUnary : Ir {
-  DEFINE_CLASSOF(Ir, Neg <= p->tag && p->tag <= Mv);
-  IrOperand o1;
+struct BinaryInst: Inst {
+  enum {
+    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
+  } op;
 };
 
-// call function
-struct IrCall : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == Call);
+struct UnaryInst: Inst {
+  enum {
+    Neg, Not, Mv, // Unary
+  } op;
+};
+
+struct LoadInst: Inst {
+};
+
+struct StoreInst: Inst {
+};
+
+struct CallInst: Inst {
   IrFunc *func;
-  std::vector<IrOperand *> args;
-};
-
-// jump to label
-struct IrJump : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == Jump);
-  std::string_view label;
-};
-
-// conditional branch to label
-struct IrBranch : Ir {
-  DEFINE_CLASSOF(Ir, Bz <= p->tag && p->tag <= Bnz);
-  std::string_view label;
-  IrOperand o1;
-};
-
-// read memory content
-struct IrLoad : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == Load);
-  RegIndex arr;
-  std::vector<IrOperand *> dims;
-};
-
-// write memory content
-struct IrStore : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == Store);
-  RegIndex arr;
-  std::vector<IrOperand *> dims;
-  IrOperand o1;
-};
-
-// get addr of label in data section
-struct IrLoadAddr : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == LoadAddr);
-  std::string_view label;
 };
