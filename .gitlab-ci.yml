@@ -2,7 +2,7 @@ image: "debian:bullseye"
 
 default:
   before_script:
-    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" > /etc/apt/sources.list && \
+    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" > /etc/apt/sources.list &&
       echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye-updates main" >> /etc/apt/sources.list
     - apt-get update
     - env DEBIAN_FRONTEND=noninteractive apt-get install -y make cmake g++ git
