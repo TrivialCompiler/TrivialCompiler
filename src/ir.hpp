@@ -13,9 +13,14 @@ struct Ir {
     Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
     Neg, Not, Mv, // Unary
     Jump, Bz, Bnz, // Jump
-    Call, Index, LoadAddr
+    Load, Store, // Memory
+    Call, LoadAddr
   } tag;
   RegIndex dest; // 目标寄存器编号，0表示没有
+};
+
+struct IrFunc {
+  std::string_view name;
 };
 
 struct IrOperand {
@@ -37,7 +42,7 @@ struct IrUnary : Ir {
 // call function
 struct IrCall : Ir {
   DEFINE_CLASSOF(Ir, p->tag == Call);
-  std::string_view func; // label of the function called
+  IrFunc *func;
   std::vector<IrOperand *> args;
 };
 
@@ -54,11 +59,19 @@ struct IrBranch : Ir {
   IrOperand o1;
 };
 
-// get index of array
-struct IrIndex : Ir {
-  DEFINE_CLASSOF(Ir, p->tag == Index);
+// read memory content
+struct IrLoad : Ir {
+  DEFINE_CLASSOF(Ir, p->tag == Load);
   RegIndex arr;
   std::vector<IrOperand *> dims;
+};
+
+// write memory content
+struct IrStore : Ir {
+  DEFINE_CLASSOF(Ir, p->tag == Store);
+  RegIndex arr;
+  std::vector<IrOperand *> dims;
+  IrOperand o1;
 };
 
 // get addr of label in data section
