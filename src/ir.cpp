@@ -25,27 +25,12 @@ void Value::killUse(const Use &u) {
 
 Inst::Inst(Tag tag, Inst *insertBefore) : Value(tag) {
   bb = insertBefore->bb;
-  prev = insertBefore->prev;
-  next = insertBefore;
-  insertBefore->prev = this;
-
-  if (bb->first == insertBefore) {
-    bb->first = this;
-  }
+  bb->insts.insertBefore(this, insertBefore);
 }
 
 Inst::Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag) {
   bb = insertAtEnd;
-  prev = bb->last;
-  next = nullptr;
-
-  // only this instruction
-  if (bb->last == nullptr) {
-    bb->first = bb->last = this;
-  } else {
-    bb->last->next = this;
-    bb->last = this;
-  }
+  bb->insts.insertAtEnd(this);
 }
 
 BinaryInst::BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)

@@ -5,9 +5,7 @@
 #include <vector>
 
 #include "common.hpp"
-
-#define REG_NONE 0
-typedef u32 RegIndex;
+#include "ilist.hpp"
 
 struct Value;
 struct Inst;
@@ -59,8 +57,7 @@ struct Value {
 struct IrFunc {};
 
 struct BasicBlock {
-  Inst *first;
-  Inst *last;
+  ilist<Inst> insts;
 };
 
 struct ConstValue : Value {
@@ -71,8 +68,7 @@ struct ConstValue : Value {
 struct Inst : Value {
   DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= LoadAddr);
   // instruction linked list
-  Inst *prev;
-  Inst *next;
+  DEFINE_ILIST(Inst)
   // basic block
   BasicBlock *bb;
 

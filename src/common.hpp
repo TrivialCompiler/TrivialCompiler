@@ -24,3 +24,7 @@ using u32 = uint32_t;
 
 #define DEFINE_CLASSOF(cls, cond) \
   static bool classof(const cls *p) { return cond; }
+
+#define DEFINE_ILIST(cls) \
+  cls *prev; \
+  cls *next;
