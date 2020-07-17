@@ -33,15 +33,13 @@ struct IrFunc {};
 
 struct BasicBlock {};
 
-struct Const: Value {
+struct ConstValue: Value {
   DEFINE_CLASSOF(Value, p->tag == Const);
   u32 imm;
 };
 
 struct Inst : Value {
   DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= LoadAddr);
-  // operands
-  std::vector<Use> operands;
   // instruction linked list
   Inst *prev;
   Inst *next;
@@ -51,23 +49,34 @@ struct Inst : Value {
 
 struct BinaryInst: Inst {
   DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Or);
+  // operands
+  Use lhs;
+  Use rhs;
 };
 
 struct UnaryInst: Inst {
   DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
+  // operands
+  Use operand;
 };
 
 struct LoadInst: Inst {
   DEFINE_CLASSOF(Value, p->tag == Load);
+  Use arr;
+  std::vector<Use> dims;
 };
 
 struct StoreInst: Inst {
   DEFINE_CLASSOF(Value, p->tag == Store);
+  Use arr;
+  std::vector<Use> dims;
+  Use data;
 };
 
 struct CallInst: Inst {
   DEFINE_CLASSOF(Value, p->tag == Call);
   IrFunc *func;
+  std::vector<Use> args;
 };
 
 struct LoadAddrInst: Inst {
@@ -77,10 +86,15 @@ struct LoadAddrInst: Inst {
 
 struct BranchInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Branch);
+  Use lhs;
+  Use rhs;
+  // eq
   BasicBlock *left;
+  // ne
   BasicBlock *right;
 };
 
 struct ReturnInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Return);
+  Use ret;
 };
