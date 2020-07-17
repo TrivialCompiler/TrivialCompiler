@@ -1,7 +1,7 @@
 #pragma once
 
 #include <cstdint>
-#include <dbg.h>
+#include "thirdparty/dbg.h"
 
 enum {
   SYSTEM_ERROR = 1,
