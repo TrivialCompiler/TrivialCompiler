@@ -1,10 +1,12 @@
-#include <cstdio>
+#include <fcntl.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#include <cstdio>
 #include <string>
-#include <fcntl.h>
+
 #include "ast.hpp"
-#include "parser.hpp"
+#include "generated/parser.hpp"
 #include "typeck.hpp"
 
 int main(int argc, char **argv) {
@@ -17,25 +19,27 @@ int main(int argc, char **argv) {
     fprintf(stderr, "failed to open %s\n", argv[1]);
     return 1;
   }
-  struct stat st;
+  struct stat st {};
   fstat(fd, &st);
-  char *input = (char *) mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  char *input = (char *)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
   Lexer l(std::string_view(input, st.st_size));
   auto result = Parser{}.parse(l);
   int res = 0;
+
   if (Program *p = std::get_if<0>(&result)) {
     puts("parsing success");
-    typeck(*p); // 失败时直接就exit(1)了
+    typeck(*p);  // 失败时直接就exit(1)了
     puts("typeck success");
   } else if (Token *t = std::get_if<1>(&result)) {
-    fprintf(stderr, "parsing error at token id %d, line %d, col %d, string piece = %s\n",
-            t->kind, t->line, t->col, std::string(t->piece).c_str()); // string_view不能直接喂给C接口
+    fprintf(stderr, "parsing error at token id %d, line %d, col %d, string piece = %s\n", t->kind, t->line, t->col,
+            std::string(t->piece).c_str());  // string_view不能直接喂给C接口
     res = 1;
   }
+
   munmap(input, st.st_size);
 
   return res;
 }
 
-extern "C" const char* __asan_default_options() { return "detect_leaks=0"; }
+extern "C" const char *__asan_default_options() { return "detect_leaks=0"; }

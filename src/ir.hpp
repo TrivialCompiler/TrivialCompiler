@@ -1,9 +1,10 @@
 #pragma once
 
-#include "common.hpp"
 #include <cstdint>
 #include <string_view>
 #include <vector>
+
+#include "common.hpp"
 
 #define REG_NONE 0
 typedef u32 RegIndex;
@@ -24,14 +25,32 @@ struct Value {
   std::vector<Use> uses;
   // tag
   enum Tag {
-    Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, // Binary
-    Neg, Not, Mv, // Unary
-    Branch, Return,
-    Load, Store, Call, LoadAddr,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Lt,
+    Le,
+    Ge,
+    Gt,
+    Eq,
+    Ne,
+    And,
+    Or,  // Binary
+    Neg,
+    Not,
+    Mv,  // Unary
+    Branch,
+    Return,
+    Load,
+    Store,
+    Call,
+    LoadAddr,
     Const
   } tag;
 
-  Value(Tag tag): tag(tag) {}
+  Value(Tag tag) : tag(tag) {}
 
   void addUse(const Use &u);
   void killUse(const Use &u);
@@ -44,7 +63,7 @@ struct BasicBlock {
   Inst *last;
 };
 
-struct ConstValue: Value {
+struct ConstValue : Value {
   DEFINE_CLASSOF(Value, p->tag == Const);
   u32 imm;
 };
@@ -64,7 +83,7 @@ struct Inst : Value {
   Inst(Tag tag, BasicBlock *insertAtEnd);
 };
 
-struct BinaryInst: Inst {
+struct BinaryInst : Inst {
   DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Or);
   // operands
   Use lhs;
@@ -74,32 +93,32 @@ struct BinaryInst: Inst {
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd);
 };
 
-struct UnaryInst: Inst {
+struct UnaryInst : Inst {
   DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
   // operands
   Use operand;
 };
 
-struct LoadInst: Inst {
+struct LoadInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Load);
   Use arr;
   std::vector<Use> dims;
 };
 
-struct StoreInst: Inst {
+struct StoreInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Store);
   Use arr;
   std::vector<Use> dims;
   Use data;
 };
 
-struct CallInst: Inst {
+struct CallInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Call);
   IrFunc *func;
   std::vector<Use> args;
 };
 
-struct LoadAddrInst: Inst {
+struct LoadAddrInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == LoadAddr);
   std::string_view label;
 };

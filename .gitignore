@@ -4,3 +4,4 @@ functional_test
 performance_test
 tmp
 build
+parser.cpp
