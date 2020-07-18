@@ -126,7 +126,9 @@ struct BinaryInst : Inst {
 struct UnaryInst : Inst {
   DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
   // operands
-  Use operand;
+  Use rhs;
+  UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd)
+      : Inst(tag, insertAtEnd), rhs(rhs, this) {}
 };
 
 struct LoadInst : Inst {

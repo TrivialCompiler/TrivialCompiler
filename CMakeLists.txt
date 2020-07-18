@@ -27,6 +27,8 @@ foreach(case_file ${all_test_cases})
     get_filename_component(case_name "${case_file}" NAME_WE)
     add_test(NAME check_parse_${case_name}
             COMMAND ./${project_name} "${case_file}")
+    add_test(NAME check_emit_llvm_${case_name}
+            COMMAND ./${project_name} -l "${case_file}")
     add_custom_command(OUTPUT "${case_name}.bc"
             COMMAND ./${project_name} -l "${case_file}" > "${case_name}.bc"
 	    DEPENDS ./${project_name})

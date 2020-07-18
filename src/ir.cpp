@@ -153,11 +153,23 @@ void debug_print(IrProgram *p) {
           if (conversion) {
             u32 temp = v_index.alloc();
             cout << "%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
-                << pv(v_index, x->rhs.value) << endl;
-            cout << "\t" << pv(v_index, inst) << " = " << "zext i1 " << "%t" << temp << " to i32" << endl;
+                 << pv(v_index, x->rhs.value) << endl;
+            cout << "\t" << pv(v_index, inst) << " = "
+                 << "zext i1 "
+                 << "%t" << temp << " to i32" << endl;
           } else {
             cout << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
-                << pv(v_index, x->rhs.value) << endl;
+                 << pv(v_index, x->rhs.value) << endl;
+          }
+        } else if (auto x = dyn_cast<UnaryInst>(inst)) {
+          switch (x->tag) {
+            case Value::Neg:
+              cout << pv(v_index, inst) << " = sub i32 0, "
+                   << pv(v_index, x->rhs.value) << endl;
+              break;
+            default:
+              UNREACHABLE();
+              break;
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           cout << "br label %_" << bb_index.get(x->next) << endl;
