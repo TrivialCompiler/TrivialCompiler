@@ -180,7 +180,7 @@ struct Env {
   // flatten_init可以用于常量和非常量的初始化，由need_eval控制
   void flatten_init(std::vector<InitList> &src, Expr **dims, Expr **dims_end, bool need_eval,
                     std::vector<Expr *> &dst) {
-    u32 elem_size = dims + 1 < dims_end ? dims[1]->result : 1, expect = dims[0]->result * elem_size;
+    u32 elem_size = dims + 1 < dims_end ? dims[1]->result : 1, expect = dims[0]->result;
     u32 cnt = 0, old_len = dst.size();
     for (InitList &l : src) {
       if (l.val1) {
