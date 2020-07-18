@@ -28,11 +28,6 @@ Inst::Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag) {
   bb->insts.insertAtEnd(this);
 }
 
-BinaryInst::BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
-    : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
-BinaryInst::BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
-    : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
-
 template <class T>
 struct IndexMapper {
   std::map<T *, u32> mapping;
@@ -64,13 +59,67 @@ void debug_print(IrProgram *p) {
         if (auto x = dyn_cast<AllocaInst>(inst)) {
           cout << "%" << index << " = alloca" << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
-          cout << "store %" << v_index.get(x->arr->value) << ", %" << v_index.get(x->data->value) << endl;
+          // TODO: dims
+          cout << "store %" << v_index.get(x->data.value) << ", %" << v_index.get(x->arr.value) << endl;
+        } else if (auto x = dyn_cast<BinaryInst>(inst)) {
+          const char *op = "unknown";
+          switch (x->tag) {
+            case Value::Add:
+              op = "+";
+              break;
+            case Value::Sub:
+              op = "+";
+              break;
+            case Value::Mul:
+              op = "*";
+              break;
+            case Value::Div:
+              op = "/";
+              break;
+            case Value::Mod:
+              op = "%";
+              break;
+            case Value::Lt:
+              op = "<";
+              break;
+            case Value::Le:
+              op = "<=";
+              break;
+            case Value::Ge:
+              op = ">=";
+              break;
+            case Value::Gt:
+              op = ">";
+              break;
+            case Value::Eq:
+              op = "==";
+              break;
+            case Value::Ne:
+              op = "!=";
+              break;
+            case Value::And:
+              op = "&&";
+              break;
+            case Value::Or:
+              op = "||";
+              break;
+            default:
+              break;
+          }
+
+          cout << "%" << v_index.get(inst) << " = %" << v_index.get(x->lhs.value) << " " << op << " "
+               << v_index.get(x->rhs.value) << endl;
+        } else if (auto x = dyn_cast<JumpInst>(inst)) {
+          cout << "j _" << bb_index.get(x->next) << endl;
+        } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          cout << "br %" << v_index.get(x->cond.value) << ", _" << bb_index.get(x->left) << ", _"
+               << bb_index.get(x->right) << endl;
         } else {
           UNREACHABLE();
         }
       }
     }
 
-    cout << "}" << endl;
+    cout << "}" << endl << endl;
   }
 }

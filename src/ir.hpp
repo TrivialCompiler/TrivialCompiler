@@ -6,9 +6,9 @@
 #include <vector>
 
 #include "ast.hpp"
-#include "typeck.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
+#include "typeck.hpp"
 
 struct Value;
 struct Inst;
@@ -47,6 +47,7 @@ struct Value {
     Not,
     Mv,  // Unary
     Branch,
+    Jump,
     Return,
     Load,
     Store,
@@ -81,7 +82,9 @@ struct BasicBlock {
 
 struct ConstValue : Value {
   DEFINE_CLASSOF(Value, p->tag == Const);
-  u32 imm;
+  i32 imm;
+
+  ConstValue(i32 imm) : Value(Const), imm(imm) {}
 };
 
 struct Inst : Value {
@@ -104,8 +107,10 @@ struct BinaryInst : Inst {
   Use lhs;
   Use rhs;
 
-  BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore);
-  BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd);
+  BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
+      : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
+  BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
+      : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 };
 
 struct UnaryInst : Inst {
@@ -122,12 +127,11 @@ struct LoadInst : Inst {
 
 struct StoreInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Store);
-  Use *arr;
-  std::vector<Use *> dims;
-  Use *data;
+  Use arr;
+  std::vector<Use> dims;
+  Use data;
 
-  StoreInst(BasicBlock *insertAtEnd)
-      : Inst(Store, insertAtEnd), arr(nullptr), data(nullptr) {}
+  StoreInst(Value *arr, Value *data, BasicBlock *insertAtEnd) : Inst(Store, insertAtEnd), arr(arr, this), data(data, this) {}
 };
 
 struct CallInst : Inst {
@@ -143,12 +147,22 @@ struct LoadAddrInst : Inst {
 
 struct BranchInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Branch);
-  Use lhs;
-  Use rhs;
-  // eq
+  Use cond;
+  // true
   BasicBlock *left;
-  // ne
+  // false
   BasicBlock *right;
+
+  BranchInst(Value *cond, BasicBlock *left, BasicBlock *right, BasicBlock *insertAtEnd)
+    :Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
+};
+
+struct JumpInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Jump);
+  BasicBlock *next;
+
+  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd)
+    :Inst(Jump, insertAtEnd), next(next) {}
 };
 
 struct ReturnInst : Inst {

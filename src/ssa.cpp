@@ -3,7 +3,18 @@
 #include "ast.hpp"
 #include "casting.hpp"
 
-Value *convert_expr(IrFunc *func, Expr *expr, BasicBlock *bb) { return nullptr; }
+Value *convert_expr(IrFunc *func, Expr *expr, BasicBlock *bb) {
+  if (auto x = dyn_cast<Binary>(expr)) {
+    auto lhs = convert_expr(func, x->lhs, bb);
+    auto rhs = convert_expr(func, x->rhs, bb);
+    // happened to have same tag values
+    auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, bb);
+    return inst;
+  } else if (auto x = dyn_cast<IntConst>(expr)) {
+    return new ConstValue(x->result);
+  }
+  return nullptr;
+}
 
 void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *bb) {
   if (auto x = dyn_cast<DeclStmt>(stmt)) {
@@ -15,19 +26,36 @@ void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *bb) {
   } else if (auto x = dyn_cast<Assign>(stmt)) {
     // lhs
     auto value = func->decls[x->lhs_sym];
-    auto inst = new StoreInst(bb);
-    inst->arr = new Use(value, inst);
+    // rhs
+    auto rhs = convert_expr(func, x->rhs, bb);
+    auto inst = new StoreInst(value, rhs, bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
     for (auto &expr : x->dims) {
       auto dim = convert_expr(func, expr, bb);
-      inst->dims.push_back(new Use(dim, inst));
+      inst->dims.emplace_back(dim, inst);
     }
 
-    // rhs
-    auto rhs = convert_expr(func, x->rhs, bb);
-    inst->data = new Use(rhs, inst);
+  } else if (auto x = dyn_cast<If>(stmt)) {
+    auto cond = convert_expr(func, x->cond, bb);
+    BasicBlock *bb_then = new BasicBlock;
+    BasicBlock *bb_else = new BasicBlock;
+    BasicBlock *bb_end = new BasicBlock;
+    func->bb.insertAtEnd(bb_then);
+    func->bb.insertAtEnd(bb_else);
+    func->bb.insertAtEnd(bb_end);
+
+    auto br_inst = new BranchInst(cond, bb_then, bb_else, bb);
+
+    convert_stmt(func, x->on_true, bb_then);
+    if (x->on_false) {
+        convert_stmt(func, x->on_false, bb_else);
+    }
+    
+    // jump to end bb
+    auto inst_then = new JumpInst(bb_end, bb_then);
+    auto inst_else = new JumpInst(bb_end, bb_else);
   }
 }
 
