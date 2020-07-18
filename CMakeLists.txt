@@ -27,4 +27,23 @@ foreach(case_file ${all_test_cases})
     get_filename_component(case_name "${case_file}" NAME_WE)
     add_test(NAME check_parse_${case_name}
             COMMAND ./${project_name} "${case_file}")
+    add_custom_command(OUTPUT "${case_name}.bc"
+            COMMAND ./${project_name} -l "${case_file}" > "${case_name}.bc"
+	    DEPENDS ./${project_name})
+    add_custom_command(OUTPUT "${case_name}.o"
+            COMMAND llc -march=thumb -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}.o"
+	    DEPENDS "${case_name}.bc")
+    add_custom_target("${case_name}"
+	    COMMAND arm-linux-gnueabihf-gcc -mthumb -mfpu=neon -mfloat-abi=hard -static "${case_name}.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}"
+	    DEPENDS "${case_name}.o")
+    string(REGEX REPLACE ".sy$" ".in" case_input ${case_file})
+    if (EXISTS ${case_input})
+        add_custom_target("run_${case_name}"
+	    COMMAND qemu-arm "${case_name}" < "${case_input}" || true
+	    DEPENDS "${case_name}")
+    else()
+        add_custom_target("run_${case_name}"
+	    COMMAND qemu-arm "${case_name}" || true
+	    DEPENDS "${case_name}")
+    endif()
 endforeach()
