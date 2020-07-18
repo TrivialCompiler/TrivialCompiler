@@ -6,29 +6,29 @@ struct ilist {
   ilist() { head = tail = nullptr; }
 
   // insert newNode before insertBefore
-  void insertBefore(Node *newNode, Node *insertBefore) { 
-      newNode->prev = insertBefore->prev;
-      newNode->next = insertBefore;
-      insertBefore->prev = newNode;
+  void insertBefore(Node *newNode, Node *insertBefore) {
+    newNode->prev = insertBefore->prev;
+    newNode->next = insertBefore;
+    insertBefore->prev = newNode;
 
-      if (head == insertBefore) {
-        head = newNode;
-      }
+    if (head == insertBefore) {
+      head = newNode;
+    }
   }
 
   // insert newNode at the end of ilist
-  void insertAtEnd(Node *newNode) { 
-      newNode->prev = tail;
-      newNode->next = nullptr;
+  void insertAtEnd(Node *newNode) {
+    newNode->prev = tail;
+    newNode->next = nullptr;
 
-      if (tail == nullptr) {
-        head = tail = newNode;
-      } else {
-        tail->next = newNode;
-        tail = newNode;
-      }
+    if (tail == nullptr) {
+      head = tail = newNode;
+    } else {
+      tail->next = newNode;
+      tail = newNode;
+    }
   }
-  
+
   // remove node from ilist
   void remove(Node *node) {
     if (node->prev != nullptr) {
