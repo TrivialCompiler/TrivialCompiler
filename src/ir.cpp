@@ -72,6 +72,7 @@ void debug_print(IrProgram *p) {
   using namespace std;
   // builtin functions
   cout << "declare i32 @getint()" << endl;
+  cout << "declare void @putint(i32)" << endl;
   for (auto &d : p->glob_decl) {
     if (d->has_init) {
       if (d->init.val1) {
@@ -129,7 +130,7 @@ void debug_print(IrProgram *p) {
               op = "mul";
               break;
             case Value::Div:
-              op = "div";
+              op = "sdiv";
               break;
             case Value::Mod:
               op = "srem";
