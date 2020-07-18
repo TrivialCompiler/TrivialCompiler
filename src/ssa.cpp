@@ -34,8 +34,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     return inst;
   } else if (auto x = dyn_cast<Call>(expr)) {
     // TODO args
-    auto func = ctx->program->findFunc(x->f);
-    auto inst = new CallInst(func, ctx->bb);
+    auto inst = new CallInst(x->f, ctx->bb);
     return inst;
   }
   return nullptr;
@@ -111,6 +110,14 @@ IrProgram *convert_ssa(Program &p) {
       SsaContext ctx = {.program = ret, .func = func, .bb = entryBB};
       for (auto &stmt : f->body.stmts) {
         convert_stmt(&ctx, stmt);
+      }
+
+      // add extra return statement to avoid undefined behavior
+      if (func->func->is_int) {
+        auto value = new ConstValue(0);
+        auto inst = new ReturnInst(value, ctx.bb);
+      } else {
+        auto inst = new ReturnInst(nullptr, ctx.bb);
       }
     } else {
       Decl *d = std::get_if<1>(&g);

@@ -148,9 +148,10 @@ struct StoreInst : Inst {
 
 struct CallInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Call);
-  IrFunc *func;
+  // FIXME: IrFunc and Func 是什么关系？
+  Func *func;
   std::vector<Use> args;
-  CallInst(IrFunc *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
+  CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
 };
 
 struct BranchInst : Inst {
