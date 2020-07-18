@@ -36,12 +36,9 @@ struct IndexMapper {
   u32 alloc() { return index_max++; }
 
   u32 get(T *t) {
-    auto it = mapping.find(t);
-    if (it != mapping.end()) {
-      return it->second;
-    } else {
-      return mapping[t] = index_max++;
-    }
+    auto[it, inserted] = mapping.insert({t, index_max});
+    index_max += inserted;
+    return it->second;
   }
 };
 
@@ -117,57 +114,23 @@ void debug_print(IrProgram *p) {
           // TODO: dims
           cout << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
-          const char *op = "unknown";
-          bool conversion = false;
-          switch (x->tag) {
-            case Value::Add:
-              op = "add";
-              break;
-            case Value::Sub:
-              op = "sub";
-              break;
-            case Value::Mul:
-              op = "mul";
-              break;
-            case Value::Div:
-              op = "sdiv";
-              break;
-            case Value::Mod:
-              op = "srem";
-              break;
-            case Value::Lt:
-              op = "icmp slt";
-              conversion = true;
-              break;
-            case Value::Le:
-              op = "icmp sle";
-              conversion = true;
-              break;
-            case Value::Ge:
-              op = "icmp sge";
-              conversion = true;
-              break;
-            case Value::Gt:
-              op = "icmp sgt";
-              conversion = true;
-              break;
-            case Value::Eq:
-              op = "icmp eq";
-              conversion = true;
-              break;
-            case Value::Ne:
-              op = "icmp ne";
-              conversion = true;
-              break;
-            case Value::And:
-              op = "and";
-              break;
-            case Value::Or:
-              op = "or";
-              break;
-            default:
-              break;
-          }
+          const static char *OPS[] = {
+            [Value::Add] = "add",
+            [Value::Sub] = "sub",
+            [Value::Mul] = "mul",
+            [Value::Div] = "sdiv",
+            [Value::Mod] = "srem",
+            [Value::Lt] = "icmp slt",
+            [Value::Le] = "icmp sle",
+            [Value::Ge] = "icmp sge",
+            [Value::Gt] = "icmp sgt",
+            [Value::Eq] = "icmp eq",
+            [Value::Ne] = "icmp ne",
+            [Value::And] = "and",
+            [Value::Or] = "or",
+          };
+          const char *op = OPS[x->tag];
+          bool conversion = Value::Lt <= x->tag && x->tag <= Value::Ne;
           if (conversion) {
             u32 temp = v_index.alloc();
             cout << "%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
