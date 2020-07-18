@@ -56,6 +56,8 @@ IrFunc *IrProgram::findFunc(Func *f) {
 const char *pv(IndexMapper<Value> &v_index, Value *v) {
   if (auto x = dyn_cast<ConstValue>(v)) {
     std::cout << x->imm;
+  } else if (auto x = dyn_cast<GlobalRef>(v)) {
+    std::cout << "@" << x->decl->name;
   } else {
     std::cout << "%x" << v_index.get(v);
   }
@@ -64,6 +66,10 @@ const char *pv(IndexMapper<Value> &v_index, Value *v) {
 
 void debug_print(IrProgram *p) {
   using namespace std;
+  for (auto &d : p->glob_decl) {
+    cout << "@" << d->name << " = global i32 0" << endl;
+  }
+
   for (auto f = p->func.head; f != nullptr; f = f->next) {
     if (f->func->is_int) {
       cout << "define i32 @";
@@ -149,8 +155,6 @@ void debug_print(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           cout << pv(v_index, inst) << " = call i32 @" << x->func->func->name << "()" << endl;
-        } else if (auto x = dyn_cast<LoadAddrInst>(inst)) {
-          cout << pv(v_index, inst) << " = @" << x->label << endl;
         } else {
           UNREACHABLE();
         }

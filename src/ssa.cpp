@@ -1,5 +1,4 @@
 #include "ssa.hpp"
-
 #include "ast.hpp"
 #include "casting.hpp"
 
@@ -12,8 +11,7 @@ struct SsaContext {
     auto it = func->decls.find(decl);
     if (it == func->decls.end()) {
       // not found, must be a global variable
-      auto inst = new LoadAddrInst(decl, bb);
-      return inst;
+      return new GlobalRef(decl);
     } else {
       return it->second;
     }
@@ -117,6 +115,7 @@ IrProgram *convert_ssa(Program &p) {
     } else {
       Decl *d = std::get_if<1>(&g);
       // TODO
+      ret->glob_decl.push_back(d);
     }
   }
   return ret;

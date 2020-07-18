@@ -52,8 +52,8 @@ struct Value {
     Load,
     Store,
     Call,
-    LoadAddr,
     Const,
+    Global,
     Alloca,
   } tag;
 
@@ -65,6 +65,7 @@ struct Value {
 
 struct IrProgram {
   ilist<IrFunc> func;
+  std::vector<Decl *> glob_decl;
 
   IrFunc *findFunc(Func *func);
 };
@@ -89,8 +90,15 @@ struct ConstValue : Value {
   ConstValue(i32 imm) : Value(Const), imm(imm) {}
 };
 
+struct GlobalRef : Value {
+  DEFINE_CLASSOF(Value, p->tag == Global);
+  Decl *decl;
+
+  GlobalRef(Decl *decl) : Value(Global), decl(decl) {}
+};
+
 struct Inst : Value {
-  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= LoadAddr);
+  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Alloca);
   // instruction linked list
   DEFINE_ILIST(Inst)
   // basic block
@@ -143,13 +151,6 @@ struct CallInst : Inst {
   IrFunc *func;
   std::vector<Use> args;
   CallInst(IrFunc *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
-};
-
-struct LoadAddrInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == LoadAddr);
-  std::string_view label;
-
-  LoadAddrInst(Decl *decl, BasicBlock *insertAtEnd) : Inst(LoadAddr, insertAtEnd), label(decl->name) {}
 };
 
 struct BranchInst : Inst {
