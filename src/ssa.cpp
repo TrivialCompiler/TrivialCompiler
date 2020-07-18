@@ -102,14 +102,14 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
     ctx->bb = bb_then;
     convert_stmt(ctx, x->on_true);
+    // jump to end bb
+    auto inst_then = new JumpInst(bb_end, ctx->bb);
     if (x->on_false) {
       ctx->bb = bb_else;
       convert_stmt(ctx, x->on_false);
+      auto inst_else = new JumpInst(bb_end, ctx->bb);
     }
 
-    // jump to end bb
-    auto inst_then = new JumpInst(bb_end, bb_then);
-    auto inst_else = new JumpInst(bb_end, bb_else);
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {

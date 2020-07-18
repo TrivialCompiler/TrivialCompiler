@@ -132,7 +132,7 @@ void debug_print(IrProgram *p) {
               op = "div";
               break;
             case Value::Mod:
-              op = "mod";
+              op = "srem";
               break;
             case Value::Lt:
               op = "icmp slt";
