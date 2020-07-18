@@ -14,14 +14,17 @@
 
 int main(int argc, char *argv[]) {
 
-  bool opt = false, print_usage = false;
+  bool opt = false, print_usage = false, emit_llvm = false;
   char *src = nullptr, *output = nullptr;
 
   // parse command line options and check
-  for (int ch; (ch = getopt(argc, argv, "So:O:h")) != -1;) {
+  for (int ch; (ch = getopt(argc, argv, "Slo:O:h")) != -1;) {
     switch (ch) {
       case 'S':
         // do nothing
+        break;
+      case 'l':
+        emit_llvm = true;
         break;
       case 'o':
         output = strdup(optarg);
@@ -44,7 +47,7 @@ int main(int argc, char *argv[]) {
   dbg(src, output, opt, print_usage);
 
   if (src == nullptr || print_usage) {
-    fprintf(stderr, "Usage: %s [-S] [-o output_file] [-O level] input_file\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-l] [-S] [-o output_file] [-O level] input_file\n", argv[0]);
     return !print_usage && SYSTEM_ERROR;
   }
 
@@ -71,7 +74,9 @@ int main(int argc, char *argv[]) {
     type_check(*p);  // 失败时直接就exit(1)了
     dbg("type_check success");
     IrProgram *ir = convert_ssa(*p);
-    debug_print(ir);
+    if (emit_llvm) {
+      debug_print(ir);
+    }
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
   }
