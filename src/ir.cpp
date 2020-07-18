@@ -60,6 +60,8 @@ const char *pv(IndexMapper<Value> &v_index, Value *v) {
     std::cout << x->imm;
   } else if (auto x = dyn_cast<GlobalRef>(v)) {
     std::cout << "@" << x->decl->name;
+  } else if (auto x = dyn_cast<ParamRef>(v)) {
+    std::cout << "%" << x->decl->name;
   } else {
     std::cout << "%x" << v_index.get(v);
   }
@@ -89,7 +91,11 @@ void debug_print(IrProgram *p) {
     }
     cout << f->func->name << "(";
     for (auto &p : f->func->params) {
-      cout << "i32 @" << p.name << ",";
+      cout << "i32 %" << p.name;
+      if (&p != &f->func->params.back()) {
+        // last element
+        cout << ", ";
+      }
     }
     cout << ") {" << endl;
 
@@ -196,7 +202,14 @@ void debug_print(IrProgram *p) {
             cout << "ret void" << endl;
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
-          cout << pv(v_index, inst) << " = call i32 @" << x->func->name << "()" << endl;
+          if (x->func->is_int) {
+            cout << pv(v_index, inst) << " = ";
+          }
+          cout << "call i32 @" << x->func->name << "(";
+          for (auto &p: x->args) {
+            cout << "i32 " << pv(v_index, p.value);
+          }
+          cout << ")" << endl;
         } else {
           UNREACHABLE();
         }

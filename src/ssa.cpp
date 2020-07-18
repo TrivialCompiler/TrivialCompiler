@@ -39,8 +39,21 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     auto inst = new LoadInst(value, ctx->bb);
     return inst;
   } else if (auto x = dyn_cast<Call>(expr)) {
-    // TODO args
+    // must evaluate args before calling
+    std::vector<Value *> args;
+    args.reserve(x->args.size());
+    for (auto &p : x->args) {
+      auto value = convert_expr(ctx, p);
+      args.push_back(value);
+    }
+
     auto inst = new CallInst(x->f, ctx->bb);
+
+    // args
+    inst->args.reserve(x->args.size());
+    for (auto &value : args) {
+      inst->args.emplace_back(value, inst);
+    }
     return inst;
   }
   return nullptr;
@@ -124,14 +137,18 @@ IrProgram *convert_ssa(Program &p) {
       IrFunc *func = new IrFunc;
       func->func = f;
       ret->func.insertAtEnd(func);
-
-      // setup param ref
-      for (auto &p: f->params) {
-        func->decls[&p] = new ParamRef(&p);
-      }
-
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
+
+      // setup params
+      for (auto &p: f->params) {
+        // alloca for each param
+        auto inst = new AllocaInst(entryBB);
+        func->decls[&p] = inst;
+        // then copy param into it
+        auto store_inst = new StoreInst(inst, new ParamRef(&p), entryBB);
+      }
+
       SsaContext ctx = {.program = ret, .func = func, .bb = entryBB};
       for (auto &stmt : f->body.stmts) {
         convert_stmt(&ctx, stmt);
