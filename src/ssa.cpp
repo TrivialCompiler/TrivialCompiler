@@ -1,4 +1,5 @@
 #include "ssa.hpp"
+
 #include "ast.hpp"
 #include "casting.hpp"
 
@@ -51,6 +52,15 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
       // local variables
       auto inst = new AllocaInst(ctx->bb);
       ctx->func->decls[&decl] = inst;
+
+      // handle init expr
+      if (decl.has_init) {
+        if (decl.init.val1) {
+          // assign variable to expr
+          auto init = convert_expr(ctx, decl.init.val1);
+          auto store_inst = new StoreInst(inst, init, ctx->bb);
+        }
+      }
     }
   } else if (auto x = dyn_cast<Assign>(stmt)) {
     // lhs
