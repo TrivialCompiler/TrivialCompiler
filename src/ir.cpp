@@ -71,7 +71,14 @@ void debug_print(IrProgram *p) {
   // builtin functions
   cout << "declare i32 @getint()" << endl;
   for (auto &d : p->glob_decl) {
-    cout << "@" << d->name << " = global i32 0" << endl;
+    if (d->has_init) {
+      if (d->init.val1) {
+        cout << "@" << d->name << " = global i32 " << d->init.val1->result << endl;
+      }
+    } else {
+      // default 0 initialized
+      cout << "@" << d->name << " = global i32 0" << endl;
+    }
   }
 
   for (auto f = p->func.head; f != nullptr; f = f->next) {
