@@ -65,6 +65,8 @@ struct Value {
 
 struct IrProgram {
   ilist<IrFunc> func;
+
+  IrFunc *findFunc(Func *func);
 };
 
 struct IrFunc {
@@ -123,7 +125,7 @@ struct LoadInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Load);
   Use arr;
   std::vector<Use> dims;
-  LoadInst(Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), arr(arr, this)  {}
+  LoadInst(Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), arr(arr, this) {}
 };
 
 struct StoreInst : Inst {
@@ -132,13 +134,15 @@ struct StoreInst : Inst {
   std::vector<Use> dims;
   Use data;
 
-  StoreInst(Value *arr, Value *data, BasicBlock *insertAtEnd) : Inst(Store, insertAtEnd), arr(arr, this), data(data, this) {}
+  StoreInst(Value *arr, Value *data, BasicBlock *insertAtEnd)
+      : Inst(Store, insertAtEnd), arr(arr, this), data(data, this) {}
 };
 
 struct CallInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Call);
   IrFunc *func;
   std::vector<Use> args;
+  CallInst(IrFunc *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
 };
 
 struct LoadAddrInst : Inst {
@@ -155,23 +159,21 @@ struct BranchInst : Inst {
   BasicBlock *right;
 
   BranchInst(Value *cond, BasicBlock *left, BasicBlock *right, BasicBlock *insertAtEnd)
-    :Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
+      : Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
 };
 
 struct JumpInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Jump);
   BasicBlock *next;
 
-  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd)
-    :Inst(Jump, insertAtEnd), next(next) {}
+  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd) : Inst(Jump, insertAtEnd), next(next) {}
 };
 
 struct ReturnInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Return);
   Use ret;
 
-  ReturnInst(Value *ret, BasicBlock *insertAtEnd)
-    :Inst(Return, insertAtEnd), ret(ret, this) {}
+  ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Return, insertAtEnd), ret(ret, this) {}
 };
 
 struct AllocaInst : Inst {

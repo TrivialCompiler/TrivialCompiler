@@ -8,6 +8,7 @@
 #include "common.hpp"
 
 struct Decl;
+struct Func;
 
 struct Expr {
   enum {
@@ -50,6 +51,7 @@ struct Call : Expr {
   DEFINE_CLASSOF(Expr, p->tag == Expr::Call);
   std::string_view func;
   std::vector<Expr *> args;
+  Func *f;  // typeck前是nullptr，若typeck成功则非空
 };
 
 struct Index : Expr {

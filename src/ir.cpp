@@ -43,10 +43,34 @@ struct IndexMapper {
   }
 };
 
+IrFunc *IrProgram::findFunc(Func *f) {
+  for (auto p = func.head; p; p = p->next) {
+    if (p->func == f) {
+      return p;
+    }
+  }
+  return nullptr;
+}
+
+// print value
+const char *pv(IndexMapper<Value> &v_index, Value *v) {
+  if (auto x = dyn_cast<ConstValue>(v)) {
+    std::cout << x->imm;
+  } else {
+    std::cout << "%x" << v_index.get(v);
+  }
+  return "";
+}
+
 void debug_print(IrProgram *p) {
   using namespace std;
   for (auto f = p->func.head; f != nullptr; f = f->next) {
-    cout << "function " << f->func->name << " {" << endl;
+    if (f->func->is_int) {
+      cout << "define i32 @";
+    } else {
+      cout << "define void @";
+    }
+    cout << f->func->name << "() {" << endl;
 
     IndexMapper<BasicBlock> bb_index;
     IndexMapper<Value> v_index;
@@ -54,75 +78,77 @@ void debug_print(IrProgram *p) {
       u32 index = bb_index.get(bb);
       cout << "_" << index << ":" << endl;
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
-        u32 index = v_index.get(inst);
         cout << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
-          cout << "%" << index << " = alloca" << endl;
+          cout << pv(v_index, inst) << " = alloca i32, align 4" << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
-          cout << "store %" << v_index.get(x->data.value) << ", %" << v_index.get(x->arr.value) << endl;
+          cout << "store i32 " << pv(v_index, x->data.value) << ", i32 *" << pv(v_index, x->arr.value) << ", align 4"
+               << endl;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           // TODO: dims
-          cout << "%" << index << " = load %" << v_index.get(x->arr.value) << endl;
+          cout << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const char *op = "unknown";
           switch (x->tag) {
             case Value::Add:
-              op = "+";
+              op = "add";
               break;
             case Value::Sub:
-              op = "+";
+              op = "sub";
               break;
             case Value::Mul:
-              op = "*";
+              op = "mul";
               break;
             case Value::Div:
-              op = "/";
+              op = "div";
               break;
             case Value::Mod:
-              op = "%";
+              op = "mod";
               break;
             case Value::Lt:
-              op = "<";
+              op = "icmp lt";
               break;
             case Value::Le:
-              op = "<=";
+              op = "icmp le";
               break;
             case Value::Ge:
-              op = ">=";
+              op = "icmp ge";
               break;
             case Value::Gt:
-              op = ">";
+              op = "icmp gt";
               break;
             case Value::Eq:
-              op = "==";
+              op = "icmp eq";
               break;
             case Value::Ne:
-              op = "!=";
+              op = "icmp ne";
               break;
             case Value::And:
-              op = "&&";
+              op = "and";
               break;
             case Value::Or:
-              op = "||";
+              op = "or";
               break;
             default:
               break;
           }
 
-          cout << "%" << index << " = %" << v_index.get(x->lhs.value) << " " << op << " %" << v_index.get(x->rhs.value)
-               << endl;
+          cout << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+               << pv(v_index, x->rhs.value) << endl;
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
-          cout << "j _" << bb_index.get(x->next) << endl;
+          cout << "br label %_" << bb_index.get(x->next) << endl;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
-          cout << "br %" << v_index.get(x->cond.value) << ", _" << bb_index.get(x->left) << ", _"
+          cout << "br i1 " << pv(v_index, x->cond.value) << ", label %_" << bb_index.get(x->left) << ", label %_"
                << bb_index.get(x->right) << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
-            cout << "return _" << v_index.get(x->ret.value) << endl;
+            cout << "ret i32 " << pv(v_index, x->ret.value) << endl;
           } else {
-            cout << "return" << endl;
+            cout << "ret void" << endl;
           }
+        } else if (auto x = dyn_cast<CallInst>(inst)) {
+          cout << pv(v_index, inst) << " = call i32 @" << x->func->func->name << "()" << endl;
         } else {
           UNREACHABLE();
         }

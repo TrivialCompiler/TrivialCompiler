@@ -3,76 +3,89 @@
 #include "ast.hpp"
 #include "casting.hpp"
 
-Value *convert_expr(IrFunc *func, Expr *expr, BasicBlock *bb) {
+struct SsaContext {
+  IrProgram *program;
+  IrFunc *func;
+  BasicBlock *bb;
+};
+
+Value *convert_expr(SsaContext *ctx, Expr *expr) {
   if (auto x = dyn_cast<Binary>(expr)) {
-    auto lhs = convert_expr(func, x->lhs, bb);
-    auto rhs = convert_expr(func, x->rhs, bb);
+    auto lhs = convert_expr(ctx, x->lhs);
+    auto rhs = convert_expr(ctx, x->rhs);
     // happened to have same tag values
-    auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, bb);
+    auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
     return inst;
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {
     // TODO dim
-    auto value = func->decls[x->lhs_sym];
-    auto inst = new LoadInst(value, bb);
+    auto value = ctx->func->decls[x->lhs_sym];
+    auto inst = new LoadInst(value, ctx->bb);
+    return inst;
+  } else if (auto x = dyn_cast<Call>(expr)) {
+    // TODO args
+    auto func = ctx->program->findFunc(x->f);
+    auto inst = new CallInst(func, ctx->bb);
     return inst;
   }
   return nullptr;
 }
 
-void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *&bb) {
+void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   if (auto x = dyn_cast<DeclStmt>(stmt)) {
     // local variables
     for (auto &decl : x->decls) {
-      auto inst = new AllocaInst(bb);
-      func->decls[&decl] = inst;
+      auto inst = new AllocaInst(ctx->bb);
+      ctx->func->decls[&decl] = inst;
     }
   } else if (auto x = dyn_cast<Assign>(stmt)) {
     // lhs
-    auto value = func->decls[x->lhs_sym];
+    auto value = ctx->func->decls[x->lhs_sym];
     // rhs
-    auto rhs = convert_expr(func, x->rhs, bb);
-    auto inst = new StoreInst(value, rhs, bb);
+    auto rhs = convert_expr(ctx, x->rhs);
+    auto inst = new StoreInst(value, rhs, ctx->bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
     for (auto &expr : x->dims) {
-      auto dim = convert_expr(func, expr, bb);
+      auto dim = convert_expr(ctx, expr);
       inst->dims.emplace_back(dim, inst);
     }
 
   } else if (auto x = dyn_cast<If>(stmt)) {
-    auto cond = convert_expr(func, x->cond, bb);
+    auto cond = convert_expr(ctx, x->cond);
     BasicBlock *bb_then = new BasicBlock;
     BasicBlock *bb_else = new BasicBlock;
     BasicBlock *bb_end = new BasicBlock;
-    func->bb.insertAtEnd(bb_then);
-    func->bb.insertAtEnd(bb_else);
-    func->bb.insertAtEnd(bb_end);
+    ctx->func->bb.insertAtEnd(bb_then);
+    ctx->func->bb.insertAtEnd(bb_else);
+    ctx->func->bb.insertAtEnd(bb_end);
 
-    auto br_inst = new BranchInst(cond, bb_then, bb_else, bb);
+    auto br_inst = new BranchInst(cond, bb_then, bb_else, ctx->bb);
 
-    convert_stmt(func, x->on_true, bb_then);
+    ctx->bb = bb_then;
+    convert_stmt(ctx, x->on_true);
     if (x->on_false) {
-      convert_stmt(func, x->on_false, bb_else);
+      ctx->bb = bb_else;
+      convert_stmt(ctx, x->on_false);
     }
 
     // jump to end bb
     auto inst_then = new JumpInst(bb_end, bb_then);
     auto inst_else = new JumpInst(bb_end, bb_else);
 
-    bb = bb_end;
+    ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
-      convert_stmt(func, stmt, bb);
+      convert_stmt(ctx, stmt);
     }
   } else if (auto x = dyn_cast<Return>(stmt)) {
     if (x->val) {
-      auto value = convert_expr(func, x->val, bb);
-      auto inst = new ReturnInst(value, bb);
+      auto value = convert_expr(ctx, x->val);
+      auto inst = new ReturnInst(value, ctx->bb);
     } else {
-      auto inst = new ReturnInst(nullptr, bb);
+      auto inst = new ReturnInst(nullptr, ctx->bb);
     }
   }
 }
@@ -86,8 +99,13 @@ IrProgram *convert_ssa(Program &p) {
       ret->func.insertAtEnd(func);
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
+      SsaContext ctx = {
+        .program = ret,
+        .func = func,
+        .bb = entryBB
+      };
       for (auto &stmt : f->body.stmts) {
-        convert_stmt(func, stmt, entryBB);
+        convert_stmt(&ctx, stmt);
       }
     } else {
       Decl *d = std::get_if<1>(&g);

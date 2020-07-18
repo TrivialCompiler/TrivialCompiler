@@ -230,6 +230,7 @@ struct Env {
       return empty;
     } else if (auto x = dyn_cast<Call>(e)) {
       Func *f = lookup_func(x->func);
+      x->f = f;
       if (f->params.size() != x->args.size()) {
         ERR("function call argc mismatch");
       }
@@ -263,6 +264,7 @@ struct Env {
       // 这里逻辑上总是返回：后面的，但是stl的实现中空vector的指针可能是nullptr，所以加个特判
       return d->dims.empty() ? empty : std::pair{d->dims.data() + x->dims.size(), d->dims.data() + d->dims.size()};
     } else if (auto x = dyn_cast<IntConst>(e)) {
+      e->result = x->val;
       return empty;
     } else {
       UNREACHABLE();
