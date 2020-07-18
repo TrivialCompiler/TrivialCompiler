@@ -1,5 +1,7 @@
 #include "ir.hpp"
 
+#include <sstream>
+
 #include "casting.hpp"
 
 Use::Use(Value *v, Inst *u) : value(v), user(u) {
@@ -51,24 +53,25 @@ IrFunc *IrProgram::findFunc(Func *f) {
   return nullptr;
 }
 
-// print value
-const char *pv(IndexMapper<Value> &v_index, Value *v) {
-  if (auto x = dyn_cast<ConstValue>(v)) {
-    std::cout << x->imm;
-  } else if (auto x = dyn_cast<GlobalRef>(v)) {
-    std::cout << "@" << x->decl->name;
-  } else if (auto x = dyn_cast<ParamRef>(v)) {
-    std::cout << "%" << x->decl->name;
-  } else {
-    std::cout << "%x" << v_index.get(v);
-  }
-  return "";
-}
-
-
 // output IR
-std::ostream& operator<<(std::ostream& os, const IrProgram& p) {
+std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   using std::endl;
+
+  // print value according to type
+  auto pv = [&os](IndexMapper<Value> &v_index, Value *v) -> std::string {
+    std::stringstream ss;
+    if (auto x = dyn_cast<ConstValue>(v)) {
+      ss << x->imm;
+    } else if (auto x = dyn_cast<GlobalRef>(v)) {
+      ss << "@" << x->decl->name;
+    } else if (auto x = dyn_cast<ParamRef>(v)) {
+      ss << "%" << x->decl->name;
+    } else {
+      ss << "%x" << v_index.get(v);
+    }
+    return ss.str();
+  };
+
   // builtin functions
   os << "declare i32 @getint()" << endl;
   os << "declare void @putint(i32)" << endl;
@@ -111,7 +114,7 @@ std::ostream& operator<<(std::ostream& os, const IrProgram& p) {
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
           os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
-               << endl;
+             << endl;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           // TODO: dims
           os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
@@ -126,17 +129,17 @@ std::ostream& operator<<(std::ostream& os, const IrProgram& p) {
           bool conversion = Value::Lt <= x->tag && x->tag <= Value::Ne;
           // add comment
           os << "; " << pv(v_index, inst) << " = " << pv(v_index, x->lhs.value) << " " << op << " "
-               << pv(v_index, x->rhs.value) << endl;
+             << pv(v_index, x->rhs.value) << endl;
           if (conversion) {
             u32 temp = v_index.alloc();
             os << "\t%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
-                 << pv(v_index, x->rhs.value) << endl;
+               << pv(v_index, x->rhs.value) << endl;
             os << "\t" << pv(v_index, inst) << " = "
-                 << "zext i1 "
-                 << "%t" << temp << " to i32" << endl;
+               << "zext i1 "
+               << "%t" << temp << " to i32" << endl;
           } else {
             os << "\t" << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
-                 << pv(v_index, x->rhs.value) << endl;
+               << pv(v_index, x->rhs.value) << endl;
           }
         } else if (auto x = dyn_cast<UnaryInst>(inst)) {
           switch (x->tag) {
@@ -152,11 +155,11 @@ std::ostream& operator<<(std::ostream& os, const IrProgram& p) {
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           // add comment
           os << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.get(x->left) << " else _"
-               << bb_index.get(x->right) << endl;
+             << bb_index.get(x->right) << endl;
           u32 temp = v_index.alloc();
           os << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
-          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_"
-               << bb_index.get(x->right) << endl;
+          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_" << bb_index.get(x->right)
+             << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             os << "ret i32 " << pv(v_index, x->ret.value) << endl;
