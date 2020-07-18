@@ -47,7 +47,8 @@ struct Value {
     Store,
     Call,
     LoadAddr,
-    Const
+    Const,
+    Alloca,
   } tag;
 
   Value(Tag tag) : tag(tag) {}
@@ -134,4 +135,8 @@ struct BranchInst : Inst {
 struct ReturnInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Return);
   Use ret;
+};
+
+struct AllocaInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Alloca);
 };
