@@ -100,16 +100,17 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
     auto br_inst = new BranchInst(cond, bb_then, bb_else, ctx->bb);
 
+    // then
     ctx->bb = bb_then;
     convert_stmt(ctx, x->on_true);
     // jump to end bb
     auto inst_then = new JumpInst(bb_end, ctx->bb);
+    // else
+    ctx->bb = bb_else;
     if (x->on_false) {
-      ctx->bb = bb_else;
       convert_stmt(ctx, x->on_false);
-      auto inst_else = new JumpInst(bb_end, ctx->bb);
     }
-
+    auto inst_else = new JumpInst(bb_end, ctx->bb);
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
@@ -141,7 +142,7 @@ IrProgram *convert_ssa(Program &p) {
       func->bb.insertAtEnd(entryBB);
 
       // setup params
-      for (auto &p: f->params) {
+      for (auto &p : f->params) {
         // alloca for each param
         auto inst = new AllocaInst(entryBB);
         func->decls[&p] = inst;
