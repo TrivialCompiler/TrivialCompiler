@@ -7,6 +7,8 @@ struct SsaContext {
   IrProgram *program;
   IrFunc *func;
   BasicBlock *bb;
+  // bb stack for (continue, break)
+  std::vector<std::pair<BasicBlock *, BasicBlock *>> loop_stk;
 
   Value *getDecl(Decl *decl) {
     auto it = func->decls.find(decl);
@@ -90,6 +92,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     }
 
   } else if (auto x = dyn_cast<If>(stmt)) {
+    // 1. check `cond`
+    // 2. branch to `then` or `else`
+    // 3. jump to `end` at the end of `then` and `else`
     auto cond = convert_expr(ctx, x->cond);
     BasicBlock *bb_then = new BasicBlock;
     BasicBlock *bb_else = new BasicBlock;
@@ -113,6 +118,34 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     auto inst_else = new JumpInst(bb_end, ctx->bb);
 
     ctx->bb = bb_end;
+  } else if (auto x = dyn_cast<While>(stmt)) {
+    // 1. jump to `cond`
+    // 2. branch to `end` or `loop`
+    // 3. jump to `cond` at the end of `loop`
+    BasicBlock *bb_cond = new BasicBlock;
+    BasicBlock *bb_loop = new BasicBlock;
+    BasicBlock *bb_end = new BasicBlock;
+    ctx->func->bb.insertAtEnd(bb_cond);
+    ctx->func->bb.insertAtEnd(bb_loop);
+    ctx->func->bb.insertAtEnd(bb_end);
+
+    // jump to cond bb
+    auto inst_cond = new JumpInst(bb_cond, ctx->bb);
+
+    // cond
+    ctx->bb = bb_cond;
+    auto cond = convert_expr(ctx, x->cond);
+    auto br_inst = new BranchInst(cond, bb_loop, bb_end, ctx->bb);
+
+    // loop
+    ctx->bb = bb_loop;
+    ctx->loop_stk.emplace_back(bb_cond, bb_end);
+    convert_stmt(ctx, x->body);
+    ctx->loop_stk.pop_back();
+    // jump to cond bb
+    auto inst_continue = new JumpInst(bb_cond, ctx->bb);
+
+    ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
       convert_stmt(ctx, stmt);
@@ -128,6 +161,10 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     if (x->val) {
       convert_expr(ctx, x->val);
     }
+  } else if (auto x = dyn_cast<Continue>(stmt)) {
+    auto inst = new JumpInst(ctx->loop_stk.back().first, ctx->bb);
+  } else if (auto x = dyn_cast<Break>(stmt)) {
+    auto inst = new JumpInst(ctx->loop_stk.back().second, ctx->bb);
   }
 }
 
