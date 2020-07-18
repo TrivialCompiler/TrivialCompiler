@@ -168,15 +168,18 @@ void debug_print(IrProgram *p) {
             default:
               break;
           }
+          // add comment
+          cout << "; " << pv(v_index, inst) << " = " << pv(v_index, x->lhs.value) << " " << op << " " << pv(v_index, x->rhs.value)
+               << endl;
           if (conversion) {
             u32 temp = v_index.alloc();
-            cout << "%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            cout << "\t%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                  << pv(v_index, x->rhs.value) << endl;
             cout << "\t" << pv(v_index, inst) << " = "
                  << "zext i1 "
                  << "%t" << temp << " to i32" << endl;
           } else {
-            cout << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            cout << "\t" << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                  << pv(v_index, x->rhs.value) << endl;
           }
         } else if (auto x = dyn_cast<UnaryInst>(inst)) {
@@ -191,8 +194,11 @@ void debug_print(IrProgram *p) {
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           cout << "br label %_" << bb_index.get(x->next) << endl;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          // add comment
+          cout << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.get(x->left) << " else _" << bb_index.get(x->right)
+               << endl;
           u32 temp = v_index.alloc();
-          cout << "%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
+          cout << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
           cout << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_"
                << bb_index.get(x->right) << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
