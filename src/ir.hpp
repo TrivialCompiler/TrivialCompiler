@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "ast.hpp"
+#include "typeck.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
 
@@ -67,6 +68,7 @@ struct IrProgram {
 
 struct IrFunc {
   DEFINE_ILIST(IrFunc)
+  Func *func;
   ilist<BasicBlock> bb;
   // mapping from decl to its value in this function
   std::map<Decl *, Value *> decls;
@@ -159,3 +161,5 @@ struct AllocaInst : Inst {
 
   AllocaInst(BasicBlock *insertBefore) : Inst(Alloca, insertBefore) {}
 };
+
+void debug_print(IrProgram *p);

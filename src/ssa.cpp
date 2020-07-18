@@ -38,6 +38,7 @@ IrProgram *convert_ssa(Program &p) {
       dbg(f->name);
 
       IrFunc *func = new IrFunc;
+      func->func = f;
       ret->func.insertAtEnd(func);
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
