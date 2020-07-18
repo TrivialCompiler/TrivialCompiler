@@ -1,6 +1,6 @@
 include = '''
 #include <cstdlib>
-#include "ast.hpp"''' # 不要在最后加换行，否则会影响到gen.py的分割
+#include "../ast.hpp"''' # 不要在最后加换行，否则会影响到gen.py的分割
 
 priority = [
   { assoc = 'left', terms = ['Or'] },
@@ -61,7 +61,7 @@ start = 'Program'
 lhs = 'Program'
 ty = 'Program'
 rhs = [
-  { rhs = ['Program', 'Decl'], act = 'for (Decl &d : _2) { _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);' },
+  { rhs = ['Program', 'Decl'], act = 'for (Decl &d : _2) { d.is_glob = true; _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);' },
   { rhs = ['Program', 'Func'], act = '_1.glob.emplace_back(std::move(_2)); __ = std::move(_1);' },
   { rhs = [], act = '__ = Program{};' },
 ]
@@ -94,8 +94,8 @@ rhs = [
 lhs = 'Decl1'
 ty = 'Decl'
 rhs = [
-  { rhs = ['Ident', 'ArrayDims', 'Assign', 'InitList'], act = '__ = Decl{false, true, _1.piece, std::move(_2), std::move(_4)};' },
-  { rhs = ['Ident', 'ArrayDims'], act = '__ = Decl{false, false, _1.piece, std::move(_2), {}};' },
+  { rhs = ['Ident', 'ArrayDims', 'Assign', 'InitList'], act = '__ = Decl{false, false, true, _1.piece, std::move(_2), std::move(_4)};' },
+  { rhs = ['Ident', 'ArrayDims'], act = '__ = Decl{false, false, false, _1.piece, std::move(_2), {}};' },
 ]
 
 [[production]]
@@ -148,8 +148,8 @@ rhs = [
 lhs = 'Param'
 ty = 'Decl'
 rhs = [
-  { rhs = ['Int', 'Ident', 'ArrayDims0'], act = '__ = Decl{false, false, _2.piece, std::move(_3), nullptr};' },
-  { rhs = ['Int', 'Ident'], act = '__ = Decl{false, false, _2.piece, {}, nullptr};' },
+  { rhs = ['Int', 'Ident', 'ArrayDims0'], act = '__ = Decl{false, false, false, _2.piece, std::move(_3), nullptr};' },
+  { rhs = ['Int', 'Ident'], act = '__ = Decl{false, false, false, _2.piece, {}, nullptr};' },
 ]
 
 [[production]]

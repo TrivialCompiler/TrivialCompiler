@@ -74,6 +74,7 @@ struct InitList {
 
 struct Decl {
   bool is_const;
+  bool is_glob;
   bool has_init;  // 配合init使用
   std::string_view name;
   // 基本类型总是int，所以不记录，只记录数组维度
@@ -144,7 +145,7 @@ struct Func {
   // 返回类型只能是int/void，因此只记录是否是int
   bool is_int;
   std::string_view name;
-  // 只是用Decl来复用一下代码，其实不能算是Decl，is_const / has_init总是false
+  // 只是用Decl来复用一下代码，其实不能算是Decl，is_const / is_glob / has_init总是false
   std::vector<Decl> params;
   Block body;
 

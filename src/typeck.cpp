@@ -65,7 +65,7 @@ struct Env {
     }
     local_stk.emplace_back();  // 参数作用域就是第一层局部变量的作用域
     for (Decl &d : f->params) {
-      ck_decl(d, false);
+      ck_decl(d);
       if (!local_stk[0].insert({d.name, &d}).second) {
         ERR("duplicate param decl", STR(d.name));
       }
@@ -78,7 +78,7 @@ struct Env {
 
   // 数组和标量的初始化都会以flatten_init的形式存储
   // 即使没有初始化，全局变量也会以0初始化，而局部变量的flatten_init这时是空的
-  void ck_decl(Decl &d, bool is_glob) {
+  void ck_decl(Decl &d) {
     // 每个维度保存的result是包括它在内右边所有维度的乘积
     for (auto begin = d.dims.rbegin(), it = begin, end = d.dims.rend(); it < end; ++it) {
       Expr *e = *it;
@@ -105,7 +105,7 @@ struct Env {
       }
     } else if (d.is_const) {
       ERR("const decl has no initialization");
-    } else if (is_glob) {
+    } else if (d.is_glob) {
       d.flatten_init.resize(d.dims.empty() ? 1 : d.dims[0]->result, &IntConst::ZERO);
     }
   }
@@ -130,7 +130,7 @@ struct Env {
     } else if (auto x = dyn_cast<DeclStmt>(s)) {
       auto &top = local_stk.back();
       for (Decl &d : x->decls) {
-        ck_decl(d, false);
+        ck_decl(d);
         if (!top.insert({d.name, &d}).second) {
           ERR("duplicate local decl", STR(d.name));
         }
@@ -372,7 +372,7 @@ void type_check(Program &p) {
       env.ck_func(f);
     } else {
       Decl *d = std::get_if<1>(&g);
-      env.ck_decl(*d, true);
+      env.ck_decl(*d);
       // 变量定义在检查后加入符号表，不允许定义时引用自身
       if (!env.glob.insert({d->name, Symbol::mk_decl(d)}).second) {
         ERR("duplicate decl", STR(d->name));

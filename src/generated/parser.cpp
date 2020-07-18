@@ -64,7 +64,7 @@ std::variant<Program, Token> Parser::parse(Lexer &lexer) {
           case 0: {
 [[maybe_unused]] std::vector<Decl> _2(std::move(*std::get_if<std::vector<Decl>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Program _1(std::move(*std::get_if<Program>(&stk.back().first))); stk.pop_back();
-for (Decl &d : _2) { _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);
+for (Decl &d : _2) { d.is_glob = true; _1.glob.emplace_back(std::move(d)); } __ = std::move(_1);
 break;
 }
 case 1: {
@@ -118,13 +118,13 @@ case 9: {
 [[maybe_unused]] Token _3(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] std::vector<Expr *> _2(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = Decl{false, true, _1.piece, std::move(_2), std::move(_4)};
+__ = Decl{false, false, true, _1.piece, std::move(_2), std::move(_4)};
 break;
 }
 case 10: {
 [[maybe_unused]] std::vector<Expr *> _2(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = Decl{false, false, _1.piece, std::move(_2), {}};
+__ = Decl{false, false, false, _1.piece, std::move(_2), {}};
 break;
 }
 case 11: {
@@ -209,13 +209,13 @@ case 23: {
 [[maybe_unused]] std::vector<Expr *> _3(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = Decl{false, false, _2.piece, std::move(_3), nullptr};
+__ = Decl{false, false, false, _2.piece, std::move(_3), nullptr};
 break;
 }
 case 24: {
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = Decl{false, false, _2.piece, {}, nullptr};
+__ = Decl{false, false, false, _2.piece, {}, nullptr};
 break;
 }
 case 25: {
