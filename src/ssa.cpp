@@ -12,6 +12,11 @@ Value *convert_expr(IrFunc *func, Expr *expr, BasicBlock *bb) {
     return inst;
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
+  } else if (auto x = dyn_cast<Index>(expr)) {
+    // TODO dim
+    auto value = func->decls[x->lhs_sym];
+    auto inst = new LoadInst(value, bb);
+    return inst;
   }
   return nullptr;
 }
@@ -50,12 +55,16 @@ void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *bb) {
 
     convert_stmt(func, x->on_true, bb_then);
     if (x->on_false) {
-        convert_stmt(func, x->on_false, bb_else);
+      convert_stmt(func, x->on_false, bb_else);
     }
-    
+
     // jump to end bb
     auto inst_then = new JumpInst(bb_end, bb_then);
     auto inst_else = new JumpInst(bb_end, bb_else);
+  } else if (auto x = dyn_cast<Block>(stmt)) {
+    for (auto &stmt : x->stmts) {
+      convert_stmt(func, stmt, bb);
+    }
   }
 }
 

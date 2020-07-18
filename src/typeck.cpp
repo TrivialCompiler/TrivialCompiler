@@ -251,6 +251,7 @@ struct Env {
     } else if (auto x = dyn_cast<Index>(e)) {
       // 这里允许不完全解引用数组
       Decl *d = lookup_decl(x->name);
+      x->lhs_sym = d;
       if (x->dims.size() > d->dims.size()) {
         ERR("index operator expect array operand");
       }

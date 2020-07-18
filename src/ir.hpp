@@ -123,6 +123,7 @@ struct LoadInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Load);
   Use arr;
   std::vector<Use> dims;
+  LoadInst(Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), arr(arr, this)  {}
 };
 
 struct StoreInst : Inst {

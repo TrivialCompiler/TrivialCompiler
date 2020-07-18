@@ -7,6 +7,8 @@
 
 #include "common.hpp"
 
+struct Decl;
+
 struct Expr {
   enum {
     Add,
@@ -55,6 +57,7 @@ struct Index : Expr {
   std::string_view name;
   // dims为空时即是直接访问普通变量
   std::vector<Expr *> dims;
+  Decl *lhs_sym;  // typeck前是nullptr，若typeck成功则非空
 };
 
 struct IntConst : Expr {

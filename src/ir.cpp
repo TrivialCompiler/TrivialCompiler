@@ -61,6 +61,9 @@ void debug_print(IrProgram *p) {
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
           cout << "store %" << v_index.get(x->data.value) << ", %" << v_index.get(x->arr.value) << endl;
+        } else if (auto x = dyn_cast<LoadInst>(inst)) {
+          // TODO: dims
+          cout << "%" << index << " = load %" << v_index.get(x->arr.value) << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const char *op = "unknown";
           switch (x->tag) {
@@ -107,7 +110,7 @@ void debug_print(IrProgram *p) {
               break;
           }
 
-          cout << "%" << v_index.get(inst) << " = %" << v_index.get(x->lhs.value) << " " << op << " "
+          cout << "%" << index << " = %" << v_index.get(x->lhs.value) << " " << op << " %"
                << v_index.get(x->rhs.value) << endl;
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           cout << "j _" << bb_index.get(x->next) << endl;
