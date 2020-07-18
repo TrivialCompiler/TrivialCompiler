@@ -93,7 +93,7 @@ void debug_print(IrProgram *p) {
     for (auto &p : f->func->params) {
       cout << "i32 %" << p.name;
       if (&p != &f->func->params.back()) {
-        // last element
+        // not last element
         cout << ", ";
       }
     }
@@ -181,8 +181,7 @@ void debug_print(IrProgram *p) {
         } else if (auto x = dyn_cast<UnaryInst>(inst)) {
           switch (x->tag) {
             case Value::Neg:
-              cout << pv(v_index, inst) << " = sub i32 0, "
-                   << pv(v_index, x->rhs.value) << endl;
+              cout << pv(v_index, inst) << " = sub i32 0, " << pv(v_index, x->rhs.value) << endl;
               break;
             default:
               UNREACHABLE();
@@ -203,11 +202,17 @@ void debug_print(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           if (x->func->is_int) {
-            cout << pv(v_index, inst) << " = ";
+            cout << pv(v_index, inst) << " = call i32";
+          } else {
+            cout << "call void";
           }
-          cout << "call i32 @" << x->func->name << "(";
-          for (auto &p: x->args) {
+          cout << " @" << x->func->name << "(";
+          for (auto &p : x->args) {
             cout << "i32 " << pv(v_index, p.value);
+            if (&p != &x->args.back()) {
+              // not last element
+              cout << ", ";
+            }
           }
           cout << ")" << endl;
         } else {
