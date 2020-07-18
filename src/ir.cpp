@@ -149,6 +149,8 @@ void debug_print(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           cout << pv(v_index, inst) << " = call i32 @" << x->func->func->name << "()" << endl;
+        } else if (auto x = dyn_cast<LoadAddrInst>(inst)) {
+          cout << pv(v_index, inst) << " = @" << x->label << endl;
         } else {
           UNREACHABLE();
         }

@@ -7,6 +7,17 @@ struct SsaContext {
   IrProgram *program;
   IrFunc *func;
   BasicBlock *bb;
+
+  Value *getDecl(Decl *decl) {
+    auto it = func->decls.find(decl);
+    if (it == func->decls.end()) {
+      // not found, must be a global variable
+      auto inst = new LoadAddrInst(decl, bb);
+      return inst;
+    } else {
+      return it->second;
+    }
+  }
 };
 
 Value *convert_expr(SsaContext *ctx, Expr *expr) {
@@ -20,7 +31,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {
     // TODO dim
-    auto value = ctx->func->decls[x->lhs_sym];
+    auto value = ctx->getDecl(x->lhs_sym);
     auto inst = new LoadInst(value, ctx->bb);
     return inst;
   } else if (auto x = dyn_cast<Call>(expr)) {
@@ -34,14 +45,14 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
 
 void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   if (auto x = dyn_cast<DeclStmt>(stmt)) {
-    // local variables
     for (auto &decl : x->decls) {
+      // local variables
       auto inst = new AllocaInst(ctx->bb);
       ctx->func->decls[&decl] = inst;
     }
   } else if (auto x = dyn_cast<Assign>(stmt)) {
     // lhs
-    auto value = ctx->func->decls[x->lhs_sym];
+    auto value = ctx->getDecl(x->lhs_sym);
     // rhs
     auto rhs = convert_expr(ctx, x->rhs);
     auto inst = new StoreInst(value, rhs, ctx->bb);
@@ -99,11 +110,7 @@ IrProgram *convert_ssa(Program &p) {
       ret->func.insertAtEnd(func);
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
-      SsaContext ctx = {
-        .program = ret,
-        .func = func,
-        .bb = entryBB
-      };
+      SsaContext ctx = {.program = ret, .func = func, .bb = entryBB};
       for (auto &stmt : f->body.stmts) {
         convert_stmt(&ctx, stmt);
       }

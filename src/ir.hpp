@@ -148,6 +148,8 @@ struct CallInst : Inst {
 struct LoadAddrInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == LoadAddr);
   std::string_view label;
+
+  LoadAddrInst(Decl *decl, BasicBlock *insertAtEnd) : Inst(LoadAddr, insertAtEnd), label(decl->name) {}
 };
 
 struct BranchInst : Inst {
