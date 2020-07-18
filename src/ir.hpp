@@ -1,14 +1,18 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string_view>
 #include <vector>
 
+#include "ast.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
 
 struct Value;
 struct Inst;
+struct BasicBlock;
+struct IrFunc;
 
 struct Use {
   DEFINE_ILIST(Use)
@@ -57,9 +61,19 @@ struct Value {
   void killUse(Use *u);
 };
 
-struct IrFunc {};
+struct IrProgram {
+  ilist<IrFunc> func;
+};
+
+struct IrFunc {
+  DEFINE_ILIST(IrFunc)
+  ilist<BasicBlock> bb;
+  // mapping from decl to its value in this function
+  std::map<Decl *, Value *> decls;
+};
 
 struct BasicBlock {
+  DEFINE_ILIST(BasicBlock)
   ilist<Inst> insts;
 };
 
@@ -106,9 +120,12 @@ struct LoadInst : Inst {
 
 struct StoreInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Store);
-  Use arr;
-  std::vector<Use> dims;
-  Use data;
+  Use *arr;
+  std::vector<Use *> dims;
+  Use *data;
+
+  StoreInst(BasicBlock *insertAtEnd)
+      : Inst(Store, insertAtEnd), arr(nullptr), data(nullptr) {}
 };
 
 struct CallInst : Inst {
@@ -139,4 +156,6 @@ struct ReturnInst : Inst {
 
 struct AllocaInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Alloca);
+
+  AllocaInst(BasicBlock *insertBefore) : Inst(Alloca, insertBefore) {}
 };
