@@ -48,12 +48,13 @@ struct Value {
     Mv,  // Unary
     Branch,
     Jump,
-    Return,
+    Return, // Control flow
     Load,
-    Store,
-    Call,
+    Store, // Memory
     Const,
     Global,
+    Param, // Reference
+    Call,
     Alloca,
   } tag;
 
@@ -95,6 +96,13 @@ struct GlobalRef : Value {
   Decl *decl;
 
   GlobalRef(Decl *decl) : Value(Global), decl(decl) {}
+};
+
+struct ParamRef : Value {
+  DEFINE_CLASSOF(Value, p->tag == Param);
+  Decl *decl;
+
+  ParamRef(Decl *decl) : Value(Param), decl(decl) {}
 };
 
 struct Inst : Value {

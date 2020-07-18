@@ -124,6 +124,12 @@ IrProgram *convert_ssa(Program &p) {
       IrFunc *func = new IrFunc;
       func->func = f;
       ret->func.insertAtEnd(func);
+
+      // setup param ref
+      for (auto &p: f->params) {
+        func->decls[&p] = new ParamRef(&p);
+      }
+
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
       SsaContext ctx = {.program = ret, .func = func, .bb = entryBB};

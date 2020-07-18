@@ -87,7 +87,11 @@ void debug_print(IrProgram *p) {
     } else {
       cout << "define void @";
     }
-    cout << f->func->name << "() {" << endl;
+    cout << f->func->name << "(";
+    for (auto &p : f->func->params) {
+      cout << "i32 @" << p.name << ",";
+    }
+    cout << ") {" << endl;
 
     IndexMapper<BasicBlock> bb_index;
     IndexMapper<Value> v_index;
