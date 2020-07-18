@@ -29,6 +29,7 @@ foreach(case_file ${all_test_cases})
             COMMAND ./${project_name} "${case_file}")
     add_test(NAME check_emit_llvm_${case_name}
             COMMAND ./${project_name} -l "${case_file}")
+
     add_custom_command(OUTPUT "${case_name}.bc"
             COMMAND ./${project_name} -l "${case_file}" > "${case_name}.bc"
 	    DEPENDS ./${project_name})
@@ -39,6 +40,7 @@ foreach(case_file ${all_test_cases})
 	    COMMAND arm-linux-gnueabihf-gcc -mthumb -mfpu=neon -mfloat-abi=hard -static "${case_name}.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}"
 	    DEPENDS "${case_name}.o")
     string(REGEX REPLACE ".sy$" ".in" case_input ${case_file})
+    string(REGEX REPLACE ".sy$" ".out" case_output ${case_file})
     if (EXISTS ${case_input})
         add_custom_target("run_${case_name}"
 	    COMMAND qemu-arm "${case_name}" < "${case_input}" || true
@@ -48,4 +50,6 @@ foreach(case_file ${all_test_cases})
 	    COMMAND qemu-arm "${case_name}" || true
 	    DEPENDS "${case_name}")
     endif()
+    add_test(NAME check_run_llvm_${case_name}
+	    COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" ${case_name} ${case_input} "${case_name}.out" ${case_output})
 endforeach()
