@@ -36,7 +36,7 @@ struct IndexMapper {
   u32 alloc() { return index_max++; }
 
   u32 get(T *t) {
-    auto[it, inserted] = mapping.insert({t, index_max});
+    auto [it, inserted] = mapping.insert({t, index_max});
     index_max += inserted;
     return it->second;
   }
@@ -65,132 +65,127 @@ const char *pv(IndexMapper<Value> &v_index, Value *v) {
   return "";
 }
 
-void debug_print(IrProgram *p) {
-  using namespace std;
+
+// output IR
+std::ostream& operator<<(std::ostream& os, const IrProgram& p) {
+  using std::endl;
   // builtin functions
-  cout << "declare i32 @getint()" << endl;
-  cout << "declare void @putint(i32)" << endl;
-  for (auto &d : p->glob_decl) {
+  os << "declare i32 @getint()" << endl;
+  os << "declare void @putint(i32)" << endl;
+  for (auto &d : p.glob_decl) {
     if (d->has_init) {
       if (d->init.val1) {
-        cout << "@" << d->name << " = global i32 " << d->init.val1->result << endl;
+        os << "@" << d->name << " = global i32 " << d->init.val1->result << endl;
       }
     } else {
       // default 0 initialized
-      cout << "@" << d->name << " = global i32 0" << endl;
+      os << "@" << d->name << " = global i32 0" << endl;
     }
   }
 
-  for (auto f = p->func.head; f != nullptr; f = f->next) {
+  for (auto f = p.func.head; f != nullptr; f = f->next) {
     if (f->func->is_int) {
-      cout << "define i32 @";
+      os << "define i32 @";
     } else {
-      cout << "define void @";
+      os << "define void @";
     }
-    cout << f->func->name << "(";
+    os << f->func->name << "(";
     for (auto &p : f->func->params) {
-      cout << "i32 %" << p.name;
+      os << "i32 %" << p.name;
       if (&p != &f->func->params.back()) {
         // not last element
-        cout << ", ";
+        os << ", ";
       }
     }
-    cout << ") {" << endl;
+    os << ") {" << endl;
 
     IndexMapper<BasicBlock> bb_index;
     IndexMapper<Value> v_index;
     for (auto bb = f->bb.head; bb != nullptr; bb = bb->next) {
       u32 index = bb_index.get(bb);
-      cout << "_" << index << ":" << endl;
+      os << "_" << index << ":" << endl;
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
-        cout << "\t";
+        os << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
-          cout << pv(v_index, inst) << " = alloca i32, align 4" << endl;
+          os << pv(v_index, inst) << " = alloca i32, align 4" << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
-          cout << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
+          os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
                << endl;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           // TODO: dims
-          cout << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+          os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const static char *OPS[] = {
-            [Value::Add] = "add",
-            [Value::Sub] = "sub",
-            [Value::Mul] = "mul",
-            [Value::Div] = "sdiv",
-            [Value::Mod] = "srem",
-            [Value::Lt] = "icmp slt",
-            [Value::Le] = "icmp sle",
-            [Value::Ge] = "icmp sge",
-            [Value::Gt] = "icmp sgt",
-            [Value::Eq] = "icmp eq",
-            [Value::Ne] = "icmp ne",
-            [Value::And] = "and",
-            [Value::Or] = "or",
+              [Value::Add] = "add",     [Value::Sub] = "sub",     [Value::Mul] = "mul",     [Value::Div] = "sdiv",
+              [Value::Mod] = "srem",    [Value::Lt] = "icmp slt", [Value::Le] = "icmp sle", [Value::Ge] = "icmp sge",
+              [Value::Gt] = "icmp sgt", [Value::Eq] = "icmp eq",  [Value::Ne] = "icmp ne",  [Value::And] = "and",
+              [Value::Or] = "or",
           };
           const char *op = OPS[x->tag];
           bool conversion = Value::Lt <= x->tag && x->tag <= Value::Ne;
           // add comment
-          cout << "; " << pv(v_index, inst) << " = " << pv(v_index, x->lhs.value) << " " << op << " " << pv(v_index, x->rhs.value)
-               << endl;
+          os << "; " << pv(v_index, inst) << " = " << pv(v_index, x->lhs.value) << " " << op << " "
+               << pv(v_index, x->rhs.value) << endl;
           if (conversion) {
             u32 temp = v_index.alloc();
-            cout << "\t%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << "\t%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                  << pv(v_index, x->rhs.value) << endl;
-            cout << "\t" << pv(v_index, inst) << " = "
+            os << "\t" << pv(v_index, inst) << " = "
                  << "zext i1 "
                  << "%t" << temp << " to i32" << endl;
           } else {
-            cout << "\t" << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << "\t" << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                  << pv(v_index, x->rhs.value) << endl;
           }
         } else if (auto x = dyn_cast<UnaryInst>(inst)) {
           switch (x->tag) {
             case Value::Neg:
-              cout << pv(v_index, inst) << " = sub i32 0, " << pv(v_index, x->rhs.value) << endl;
+              os << pv(v_index, inst) << " = sub i32 0, " << pv(v_index, x->rhs.value) << endl;
               break;
             default:
               UNREACHABLE();
               break;
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
-          cout << "br label %_" << bb_index.get(x->next) << endl;
+          os << "br label %_" << bb_index.get(x->next) << endl;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           // add comment
-          cout << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.get(x->left) << " else _" << bb_index.get(x->right)
-               << endl;
+          os << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.get(x->left) << " else _"
+               << bb_index.get(x->right) << endl;
           u32 temp = v_index.alloc();
-          cout << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
-          cout << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_"
+          os << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
+          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_"
                << bb_index.get(x->right) << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
-            cout << "ret i32 " << pv(v_index, x->ret.value) << endl;
+            os << "ret i32 " << pv(v_index, x->ret.value) << endl;
           } else {
-            cout << "ret void" << endl;
+            os << "ret void" << endl;
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           if (x->func->is_int) {
-            cout << pv(v_index, inst) << " = call i32";
+            os << pv(v_index, inst) << " = call i32";
           } else {
-            cout << "call void";
+            os << "call void";
           }
-          cout << " @" << x->func->name << "(";
+          os << " @" << x->func->name << "(";
           for (auto &p : x->args) {
-            cout << "i32 " << pv(v_index, p.value);
+            os << "i32 " << pv(v_index, p.value);
             if (&p != &x->args.back()) {
               // not last element
-              cout << ", ";
+              os << ", ";
             }
           }
-          cout << ")" << endl;
+          os << ")" << endl;
         } else {
           UNREACHABLE();
         }
       }
     }
 
-    cout << "}" << endl << endl;
+    os << "}" << endl << endl;
   }
+
+  return os;
 }

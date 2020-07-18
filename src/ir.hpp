@@ -48,12 +48,12 @@ struct Value {
     Mv,  // Unary
     Branch,
     Jump,
-    Return, // Control flow
+    Return,  // Control flow
     Load,
-    Store, // Memory
+    Store,  // Memory
     Const,
     Global,
-    Param, // Reference
+    Param,  // Reference
     Call,
     Alloca,
   } tag;
@@ -69,7 +69,10 @@ struct IrProgram {
   std::vector<Decl *> glob_decl;
 
   IrFunc *findFunc(Func *func);
+  friend std::ostream& operator<<(std::ostream& os, const IrProgram& dt);
 };
+
+std::ostream& operator<<(std::ostream& os, const IrProgram& dt);
 
 struct IrFunc {
   DEFINE_ILIST(IrFunc)
@@ -135,8 +138,7 @@ struct UnaryInst : Inst {
   DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
   // operands
   Use rhs;
-  UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd)
-      : Inst(tag, insertAtEnd), rhs(rhs, this) {}
+  UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd) : Inst(tag, insertAtEnd), rhs(rhs, this) {}
 };
 
 struct LoadInst : Inst {
@@ -195,5 +197,3 @@ struct AllocaInst : Inst {
 
   AllocaInst(BasicBlock *insertBefore) : Inst(Alloca, insertBefore) {}
 };
-
-void debug_print(IrProgram *p);

@@ -340,7 +340,7 @@ struct Env {
     } else if (auto x = dyn_cast<Index>(e)) {
       Decl *d = lookup_decl(x->name);
       if (!d->is_const) {
-        ERR("non-constant variable",  STR(x->name), "used in constant expr");
+        ERR("non-constant variable", STR(x->name), "used in constant expr");
       }
       // 常量表达式中必须完全解引用数组
       if (d->dims.size() != x->dims.size()) {

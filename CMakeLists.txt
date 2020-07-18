@@ -28,10 +28,10 @@ foreach(case_file ${all_test_cases})
     add_test(NAME check_parse_${case_name}
             COMMAND ./${project_name} "${case_file}")
     add_test(NAME check_emit_llvm_${case_name}
-            COMMAND ./${project_name} -l "${case_file}")
+            COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}")
 
     add_custom_command(OUTPUT "${case_name}.bc"
-            COMMAND ./${project_name} -l "${case_file}" > "${case_name}.bc"
+            COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}"
 	    DEPENDS ./${project_name})
     add_custom_command(OUTPUT "${case_name}.o"
             COMMAND llc -march=thumb -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}.o"

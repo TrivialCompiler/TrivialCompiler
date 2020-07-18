@@ -5,26 +5,26 @@
 
 #include <cstdio>
 #include <cstring>
+#include <fstream>
 #include <string>
 
 #include "ast.hpp"
 #include "generated/parser.hpp"
-#include "typeck.hpp"
 #include "ssa.hpp"
+#include "typeck.hpp"
 
 int main(int argc, char *argv[]) {
-
-  bool opt = false, print_usage = false, emit_llvm = false;
-  char *src = nullptr, *output = nullptr;
+  bool opt = false, print_usage = false;
+  char *src = nullptr, *output = nullptr, *ir_file = nullptr;
 
   // parse command line options and check
-  for (int ch; (ch = getopt(argc, argv, "Slo:O:h")) != -1;) {
+  for (int ch; (ch = getopt(argc, argv, "Sl:o:O:h")) != -1;) {
     switch (ch) {
       case 'S':
         // do nothing
         break;
       case 'l':
-        emit_llvm = true;
+        ir_file = strdup(optarg);
         break;
       case 'o':
         output = strdup(optarg);
@@ -44,13 +44,12 @@ int main(int argc, char *argv[]) {
     src = argv[optind];
   }
 
-  dbg(src, output, opt, print_usage);
+  dbg(src, output, ir_file, opt, print_usage);
 
   if (src == nullptr || print_usage) {
     fprintf(stderr, "Usage: %s [-l] [-S] [-o output_file] [-O level] input_file\n", argv[0]);
     return !print_usage && SYSTEM_ERROR;
   }
-
 
   // open input file
   int fd = open(src, O_RDONLY);
@@ -62,20 +61,18 @@ int main(int argc, char *argv[]) {
   fstat(fd, &st);
   char *input = (char *)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
 
-
   // run lexer
   Lexer l(std::string_view(input, st.st_size));
   auto result = Parser{}.parse(l);
-
 
   // run parser
   if (Program *p = std::get_if<0>(&result)) {
     dbg("parsing success");
     type_check(*p);  // 失败时直接就exit(1)了
     dbg("type_check success");
-    IrProgram *ir = convert_ssa(*p);
-    if (emit_llvm) {
-      debug_print(ir);
+    auto *ir = convert_ssa(*p);
+    if (ir_file != nullptr) {
+      std::ofstream(ir_file) << *ir;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
@@ -86,10 +83,10 @@ int main(int argc, char *argv[]) {
     // TODO
   }
 
-
   // post-precess
   munmap(input, st.st_size);
   free(output);
+  free(ir_file);
 
   return 0;
 }

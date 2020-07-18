@@ -187,7 +187,7 @@ IrProgram *convert_ssa(Program &p) {
         auto store_inst = new StoreInst(inst, new ParamRef(&p), entryBB);
       }
 
-      SsaContext ctx = {.program = ret, .func = func, .bb = entryBB};
+      SsaContext ctx{.program = ret, .func = func, .bb = entryBB};
       for (auto &stmt : f->body.stmts) {
         convert_stmt(&ctx, stmt);
       }
