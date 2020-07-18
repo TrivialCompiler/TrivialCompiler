@@ -21,7 +21,7 @@ Value *convert_expr(IrFunc *func, Expr *expr, BasicBlock *bb) {
   return nullptr;
 }
 
-void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *bb) {
+void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *&bb) {
   if (auto x = dyn_cast<DeclStmt>(stmt)) {
     // local variables
     for (auto &decl : x->decls) {
@@ -61,9 +61,18 @@ void convert_stmt(IrFunc *func, Stmt *stmt, BasicBlock *bb) {
     // jump to end bb
     auto inst_then = new JumpInst(bb_end, bb_then);
     auto inst_else = new JumpInst(bb_end, bb_else);
+
+    bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
       convert_stmt(func, stmt, bb);
+    }
+  } else if (auto x = dyn_cast<Return>(stmt)) {
+    if (x->val) {
+      auto value = convert_expr(func, x->val, bb);
+      auto inst = new ReturnInst(value, bb);
+    } else {
+      auto inst = new ReturnInst(nullptr, bb);
     }
   }
 }
@@ -72,8 +81,6 @@ IrProgram *convert_ssa(Program &p) {
   IrProgram *ret = new IrProgram;
   for (auto &g : p.glob) {
     if (Func *f = std::get_if<0>(&g)) {
-      dbg(f->name);
-
       IrFunc *func = new IrFunc;
       func->func = f;
       ret->func.insertAtEnd(func);

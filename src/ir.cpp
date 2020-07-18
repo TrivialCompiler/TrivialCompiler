@@ -110,13 +110,19 @@ void debug_print(IrProgram *p) {
               break;
           }
 
-          cout << "%" << index << " = %" << v_index.get(x->lhs.value) << " " << op << " %"
-               << v_index.get(x->rhs.value) << endl;
+          cout << "%" << index << " = %" << v_index.get(x->lhs.value) << " " << op << " %" << v_index.get(x->rhs.value)
+               << endl;
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           cout << "j _" << bb_index.get(x->next) << endl;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           cout << "br %" << v_index.get(x->cond.value) << ", _" << bb_index.get(x->left) << ", _"
                << bb_index.get(x->right) << endl;
+        } else if (auto x = dyn_cast<ReturnInst>(inst)) {
+          if (x->ret.value) {
+            cout << "return _" << v_index.get(x->ret.value) << endl;
+          } else {
+            cout << "return" << endl;
+          }
         } else {
           UNREACHABLE();
         }

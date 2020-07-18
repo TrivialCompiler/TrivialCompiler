@@ -169,6 +169,9 @@ struct JumpInst : Inst {
 struct ReturnInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Return);
   Use ret;
+
+  ReturnInst(Value *ret, BasicBlock *insertAtEnd)
+    :Inst(Return, insertAtEnd), ret(ret, this) {}
 };
 
 struct AllocaInst : Inst {
