@@ -53,6 +53,53 @@ IrFunc *IrProgram::findFunc(Func *f) {
   return nullptr;
 }
 
+void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
+  if (dims == dims_end) {
+    os << "i32 ";
+  } else {
+    for (Expr **d = dims; d != dims_end; d++) {
+      int dim = d[0]->result;
+      if (d + 1 != dims_end) {
+        dim /= d[1]->result;
+      }
+
+      os << "[" << dim << " x ";
+    }
+    os << "i32";
+    for (Expr **d = dims; d != dims_end; d++) {
+      os << "] ";
+    }
+  }
+}
+
+void print_flatten_init(std::ostream &os, Expr **dims, Expr **dims_end, Expr **flatten_init, Expr **flatten_init_end) {
+  if (dims == dims_end) {
+    // last dim
+    os << flatten_init[0]->result;
+  } else {
+    // one or more dims
+    os << "[";
+    int count = dims[0]->result;
+    int element = 1;
+    if (dims + 1 != dims_end) {
+      count /= dims[1]->result;
+      element = dims[1]->result;
+    }
+
+    for (int i = 0; i < count; i++) {
+      // print type from dims[1]
+      print_dims(os, dims + 1, dims_end);
+      // recursive
+      print_flatten_init(os, dims + 1, dims_end, flatten_init + i * element, flatten_init_end);
+
+      if (i + 1 < count) {
+        os << ", ";
+      }
+    }
+    os << "]";
+  }
+}
+
 // output IR
 std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   using std::endl;
@@ -76,14 +123,17 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare i32 @getint()" << endl;
   os << "declare void @putint(i32)" << endl;
   for (auto &d : p.glob_decl) {
+    os << "@" << d->name << " = global ";
+    // type
+    print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
     if (d->has_init) {
-      if (d->init.val1) {
-        os << "@" << d->name << " = global i32 " << d->init.val1->result << endl;
-      }
+      print_flatten_init(os, d->dims.data(), d->dims.data() + d->dims.size(), d->flatten_init.data(),
+                         d->flatten_init.data() + d->flatten_init.size());
     } else {
       // default 0 initialized
-      os << "@" << d->name << " = global i32 0" << endl;
+      os << "zeroinitializer" << endl;
     }
+    os << endl;
   }
 
   for (auto f = p.func.head; f != nullptr; f = f->next) {

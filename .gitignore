@@ -5,3 +5,4 @@ performance_test
 tmp
 build
 parser.cpp
+.vscode
