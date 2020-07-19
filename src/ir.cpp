@@ -3,6 +3,8 @@
 
 #include <sstream>
 
+UndefValue UndefValue::INSTANCE;
+
 template <class T>
 struct IndexMapper {
   std::map<T *, u32> mapping;
@@ -90,6 +92,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
       ss << "@" << x->decl->name;
     } else if (auto x = dyn_cast<ParamRef>(v)) {
       ss << "%" << x->decl->name;
+    } else if (auto x = dyn_cast<UndefValue>(v)) {
+      ss << "undef";
     } else {
       ss << "%x" << v_index.get(v);
     }

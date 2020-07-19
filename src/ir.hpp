@@ -3,8 +3,8 @@
 #include <array>
 #include <cstdint>
 #include <map>
-#include <unordered_set>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "ast.hpp"
@@ -13,20 +13,9 @@
 #include "ilist.hpp"
 #include "typeck.hpp"
 
-struct Value;
 struct Inst;
-struct BasicBlock;
 struct IrFunc;
-
-struct Use {
-  DEFINE_ILIST(Use)
-
-  Value *value;
-  Inst *user;
-
-  inline Use(Value *v, Inst *u);
-  inline ~Use();
-};
+struct Use;
 
 struct Value {
   // value is used by ...
@@ -54,30 +43,51 @@ struct Value {
     Return,  // Control flow
     Load,
     Store,  // Memory
-    Const,
-    Global,
-    Param,  // Reference
     Call,
     Alloca,
-    Phi
+    Phi,
+    Const,
+    Global,
+    Param,
+    Undef,  // Const ~ Undef: Reference
   } tag;
 
   Value(Tag tag) : tag(tag) {}
 
   void addUse(Use *u) { uses.insertAtEnd(u); }
   void killUse(Use *u) { uses.remove(u); }
+
+  // 将对自身所有的使用替换成对v的使用
+  inline void replaceAllUseWith(Value *v);
 };
 
-Use::Use(Value *v, Inst *u) : value(v), user(u) {
-  if (value) {
-    value->addUse(this);
-  }
-}
+struct Use {
+  DEFINE_ILIST(Use)
 
-Use::~Use() {
-  if (value) {
-    value->killUse(this);
+  Value *value;
+  Inst *user;
+
+  // 这个构造函数没有初始化prev和next，这没有关系
+  // 因为prev和next永远不会从一个Use开始被主动使用，而是在遍历Use链表的时候用到
+  // 而既然这个Use已经被加入了一个链表，它的prev和next也就已经被赋值了
+  Use(Value *v, Inst *u) : value(v), user(u) {
+    if (v) v->addUse(this);
   }
+
+  void set(Value *v) {
+    if (value) value->killUse(this);
+    value = v;
+    if (v) v->addUse(this);
+  }
+
+  ~Use() {
+    if (value) value->killUse(this);
+  }
+};
+
+void Value::replaceAllUseWith(Value *v) {
+  // head->set会将head从链表中移除
+  while (uses.head) uses.head->set(v);
 }
 
 struct IrProgram {
@@ -85,10 +95,20 @@ struct IrProgram {
   std::vector<Decl *> glob_decl;
 
   IrFunc *findFunc(Func *func);
-  friend std::ostream& operator<<(std::ostream& os, const IrProgram& dt);
+  friend std::ostream &operator<<(std::ostream &os, const IrProgram &dt);
 };
 
-std::ostream& operator<<(std::ostream& os, const IrProgram& dt);
+std::ostream &operator<<(std::ostream &os, const IrProgram &dt);
+
+struct BasicBlock {
+  DEFINE_ILIST(BasicBlock)
+  std::vector<BasicBlock *> pred;
+  std::unordered_set<BasicBlock *> dom;  // 支配它的节点集
+  BasicBlock *idom;                      // 直接支配它的节点
+  ilist<Inst> insts;
+
+  inline std::array<BasicBlock *, 2> succ();
+};
 
 struct IrFunc {
   DEFINE_ILIST(IrFunc)
@@ -96,16 +116,6 @@ struct IrFunc {
   ilist<BasicBlock> bb;
   // mapping from decl to its value in this function
   std::map<Decl *, Value *> decls;
-};
-
-struct BasicBlock {
-  DEFINE_ILIST(BasicBlock)
-  std::vector<BasicBlock *> pred;
-  std::unordered_set<BasicBlock *> dom; // 支配它的节点集
-  BasicBlock *idom; // 直接支配它的节点
-  ilist<Inst> insts;
-
-  inline std::array<BasicBlock *, 2> succ();
 };
 
 struct ConstValue : Value {
@@ -127,6 +137,14 @@ struct ParamRef : Value {
   Decl *decl;
 
   ParamRef(Decl *decl) : Value(Param), decl(decl) {}
+};
+
+struct UndefValue : Value {
+  DEFINE_CLASSOF(Value, p->tag == Undef);
+
+  UndefValue() : Value(Undef) {}
+  // 这是一个全局可变变量，不过反正也不涉及多线程，不会有冲突
+  static UndefValue INSTANCE;
 };
 
 struct Inst : Value {
@@ -173,7 +191,8 @@ struct LoadInst : Inst {
   Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
+      : Inst(Load, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
 };
 
 struct StoreInst : Inst {
@@ -231,17 +250,27 @@ struct AllocaInst : Inst {
 struct PhiInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Phi);
 
-  // 构建完成后incoming_values.size() == incoming_bbs.size()
+  // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
-  std::vector<BasicBlock *> *incoming_bbs; // todo: 指向拥有它的bb的pred，这是正确的吗？
+  std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
 
-  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore), incoming_bbs(&insertBefore->pred) {}
+  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore), incoming_bbs(&insertBefore->pred) {
+    incoming_values.reserve(insertBefore->pred.size());
+    for (u32 i = 0; i < insertBefore->pred.size(); ++i) {
+      // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
+      incoming_values.emplace_back(nullptr, this);
+    }
+  }
 };
 
 std::array<BasicBlock *, 2> BasicBlock::succ() {
-  Inst *end = insts.tail; // 必须非空
-  if (auto x = dyn_cast<BranchInst>(end))return {x->left, x->right};
-  else if (auto x = dyn_cast<JumpInst>(end)) return {x->next, nullptr};
-  else if (auto x = dyn_cast<ReturnInst>(end)) return {nullptr, nullptr};
-  else UNREACHABLE();
+  Inst *end = insts.tail;  // 必须非空
+  if (auto x = dyn_cast<BranchInst>(end))
+    return {x->left, x->right};
+  else if (auto x = dyn_cast<JumpInst>(end))
+    return {x->next, nullptr};
+  else if (auto x = dyn_cast<ReturnInst>(end))
+    return {nullptr, nullptr};
+  else
+    UNREACHABLE();
 }
