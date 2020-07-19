@@ -194,15 +194,22 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
 
             // temp ptr
             u32 temp = v_index.alloc();
-            os << "\t%t" << temp << " = getelementptr inbounds";
+            os << "\t%t" << temp << " = getelementptr inbounds ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << "* " << pv(v_index, x->arr.value) << ",";
-            // first dimension is always 0
-            os << " i32 0";
+            if (x->lhs_sym->dims.size() > 0 && x->lhs_sym->dims[0] == nullptr) {
+              // array param
+            } else {
+              // otherwise first dimension is always 0
+              os << " i32 0, ";
+            }
             for (auto &dim : x->dims) {
-              os << ", i32 " << pv(v_index, dim.value);
+              os << "i32 " << pv(v_index, dim.value);
+              if (&dim != &x->dims.back()) {
+                os << ", ";
+              }
             }
             os << endl;
             os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
