@@ -84,6 +84,14 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
       }
     }
   } else if (auto x = dyn_cast<Assign>(stmt)) {
+    // evaluate dims first
+    std::vector<Value *> dims;
+    dims.reserve(x->dims.size());
+    for (auto &expr : x->dims) {
+      auto dim = convert_expr(ctx, expr);
+      dims.push_back(dim);
+    }
+
     // lhs
     auto value = ctx->getDecl(x->lhs_sym);
     // rhs
@@ -92,8 +100,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
     // dims
     inst->dims.reserve(x->dims.size());
-    for (auto &expr : x->dims) {
-      auto dim = convert_expr(ctx, expr);
+    for (auto &dim : dims) {
       inst->dims.emplace_back(dim, inst);
     }
 

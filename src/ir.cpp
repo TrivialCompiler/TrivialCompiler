@@ -168,7 +168,16 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
                << endl;
           } else {
             // dimension
-            os << "store i32 " << pv(v_index, x->data.value) << ", i32* getelementptr inbounds (";
+            // comments
+            os << "; " << pv(v_index, x->arr.value);
+            for (auto &dim: x->dims) {
+              os << "[" << pv(v_index, dim.value) << "]";
+            }
+            os << " = " << pv(v_index, x->data.value) << endl;
+
+            // temp ptr
+            u32 temp = v_index.alloc();
+            os << "\t%t" << temp << " = getelementptr inbounds";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
@@ -178,7 +187,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             for (auto &dim : x->dims) {
               os << ", i32 " << pv(v_index, dim.value);
             }
-            os << "), align 4" << endl;
+            os << endl;
+            os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
           }
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           if (x->dims.size() == 0) {
