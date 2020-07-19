@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <map>
+#include <unordered_set>
 #include <string_view>
 #include <vector>
 
@@ -84,6 +85,9 @@ struct IrFunc {
 
 struct BasicBlock {
   DEFINE_ILIST(BasicBlock)
+  std::vector<BasicBlock *> pred;
+  std::unordered_set<BasicBlock *> dom; // 支配它的节点集
+  BasicBlock *idom; // 直接支配它的节点
   ilist<Inst> insts;
 };
 
