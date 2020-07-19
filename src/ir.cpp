@@ -126,6 +126,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   // builtin functions
   os << "declare i32 @getint()" << endl;
   os << "declare void @putint(i32)" << endl;
+  os << "declare void @putch(i32)" << endl;
   for (auto &d : p.glob_decl) {
     os << "@" << d->name << " = global ";
     // type
@@ -174,7 +175,9 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
-          os << pv(v_index, inst) << " = alloca i32, align 4" << endl;
+          os << pv(v_index, inst) << " = alloca ";
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          os << ", align 4 " << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           if (x->dims.size() == 0) {
             // simple case
@@ -244,6 +247,13 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << "* " << pv(v_index, x->arr.value) << ", ";
+
+            if (auto p = dyn_cast<AllocaInst>(x->arr.value)) {
+              // if it's a local array
+              // first dimension is 0
+              os << "i32 0, ";
+            }
+
             for (int i = 0; i < x->lhs_sym->dims.size(); i++) {
               if (i < x->dims.size()) {
                 // use index from inst
@@ -314,7 +324,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "call void";
           }
           os << " @" << x->func->name << "(";
-          for (int i = 0; i < x->args.size();i++) {
+          for (int i = 0; i < x->args.size(); i++) {
             // type
             if (x->func->params[i].dims.size() == 0) {
               // simple

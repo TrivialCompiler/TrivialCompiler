@@ -78,7 +78,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   if (auto x = dyn_cast<DeclStmt>(stmt)) {
     for (auto &decl : x->decls) {
       // local variables
-      auto inst = new AllocaInst(ctx->bb);
+      auto inst = new AllocaInst(&decl, ctx->bb);
       ctx->func->decls[&decl] = inst;
 
       // handle init expr
@@ -206,7 +206,7 @@ IrProgram *convert_ssa(Program &p) {
           func->decls[&p] = ref;
         } else {
           // alloca for each non-array param
-          auto inst = new AllocaInst(entryBB);
+          auto inst = new AllocaInst(&p, entryBB);
           func->decls[&p] = inst;
           // then copy param into it
           auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), entryBB);

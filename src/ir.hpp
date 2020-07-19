@@ -205,7 +205,8 @@ struct ReturnInst : Inst {
 struct AllocaInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Alloca);
 
-  AllocaInst(BasicBlock *insertBefore) : Inst(Alloca, insertBefore) {}
+  Decl *sym;
+  AllocaInst(Decl *sym, BasicBlock *insertBefore) : Inst(Alloca, insertBefore), sym(sym) {}
 };
 
 std::array<BasicBlock *, 2> BasicBlock::succ() {
