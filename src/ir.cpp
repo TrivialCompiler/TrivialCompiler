@@ -278,18 +278,15 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           };
           const char *op = OPS[x->tag];
           bool conversion = Value::Lt <= x->tag && x->tag <= Value::Ne;
-          // add comment
-          os << "; " << pv(v_index, inst) << " = " << pv(v_index, x->lhs.value) << " " << op << " "
-             << pv(v_index, x->rhs.value) << endl;
           if (conversion) {
             u32 temp = v_index.alloc();
-            os << "\t%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << "%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                << pv(v_index, x->rhs.value) << endl;
             os << "\t" << pv(v_index, inst) << " = "
                << "zext i1 "
                << "%t" << temp << " to i32" << endl;
           } else {
-            os << "\t" << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                << pv(v_index, x->rhs.value) << endl;
           }
         } else if (auto x = dyn_cast<UnaryInst>(inst)) {
@@ -299,7 +296,6 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
               break;
             default:
               UNREACHABLE();
-              break;
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           os << "br label %_" << bb_index.find(x->next)->second << endl;
@@ -326,7 +322,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           os << " @" << x->func->name << "(";
           for (int i = 0; i < x->args.size(); i++) {
             // type
-            if (x->func->params[i].dims.size() == 0) {
+            if (x->func->params[i].dims.empty()) {
               // simple
               os << "i32 ";
             } else {

@@ -1,6 +1,5 @@
 #include "mem2reg.hpp"
 #include <algorithm>
-#include <cassert>
 #include <unordered_map>
 
 // 计算支配边界DF，这里用一个map来存每个bb的df，其实是很随意的选择，把它放在BasicBlock里面也不是不行
@@ -55,30 +54,25 @@ static std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> comput
   return std::move(df);
 }
 
-struct AllocaInfo {
-  std::unordered_set<BasicBlock *> defs; // 用于阶段1，记录所有包含store给这个alloca的基本快
-  Value *recent_value = &UndefValue::INSTANCE; // 用于阶段2，记录这个地址当前的值，一开始是未定义
-};
-
 void mem2reg(IrFunc *f) {
-  std::unordered_map<AllocaInst *, AllocaInfo> allocas;
+  std::unordered_map<AllocaInst *, u32> alloca_ids; // 把alloca映射到整数，后面有好几个vector用这个做下标
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
       if (auto a = dyn_cast<AllocaInst>(i)) {
         if (a->sym->dims.empty()) { // 局部int变量
-          allocas.insert({a, AllocaInfo()});
+          alloca_ids.insert({a, (u32) alloca_ids.size()});
         }
       }
     }
   }
+  std::vector<std::unordered_set<BasicBlock *>> alloca_defs(alloca_ids.size());
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
       if (auto x = dyn_cast<StoreInst>(i)) {
         if (auto a = dyn_cast<AllocaInst>(x->arr.value)) { // store的目标是我们考虑的地址
-          auto it = allocas.find(a);
-          if (it != allocas.end()) {
-            assert(x->dims.empty());
-            it->second.defs.insert(bb);
+          auto it = alloca_ids.find(a);
+          if (it != alloca_ids.end()) {
+            alloca_defs[it->second].insert(bb);
           }
         }
       }
@@ -89,15 +83,15 @@ void mem2reg(IrFunc *f) {
   // 这两个变量定义在循环外面，而且在两步中都用到了，其实没有任何关系，只是为了减少申请内存的次数
   std::unordered_set<BasicBlock *> vis;
   std::vector<BasicBlock *> worklist; // 用stack还是queue在这里没有本质区别
-  std::unordered_map<PhiInst *, AllocaInst *> phis; // 记录加入的phi属于的alloca
-  for (auto &[alloca, info] : allocas) {
-    for (BasicBlock *bb : info.defs) { worklist.push_back(bb); }
+  std::unordered_map<PhiInst *, u32> phis; // 记录加入的phi属于的alloca的id
+  for (auto &[alloca, id] : alloca_ids) {
+    for (BasicBlock *bb : alloca_defs[id]) { worklist.push_back(bb); }
     while (!worklist.empty()) {
       BasicBlock *x = worklist.back();
       worklist.pop_back();
       for (BasicBlock *y : df[x]) {
         if (vis.insert(y).second) {
-          phis.insert({new PhiInst(y), alloca});
+          phis.insert({new PhiInst(y), id});
           worklist.push_back(y);
         }
       }
@@ -105,45 +99,50 @@ void mem2reg(IrFunc *f) {
     vis.clear();
   }
   // mem2reg算法阶段2：变量重命名，即删除Load，把对Load结果的引用换成对寄存器的引用，把Store改成寄存器赋值
-  worklist.push_back(f->bb.head);
-  while (!worklist.empty()) {
-    BasicBlock *bb = worklist.back();
-    worklist.pop_back();
+  std::vector<std::pair<BasicBlock *, std::vector<Value *>>> worklist2{{f->bb.head, std::vector<Value *>(alloca_ids.size(), &UndefValue::INSTANCE)}};
+  while (!worklist2.empty()) {
+    BasicBlock *bb = worklist2.back().first;
+    std::vector<Value *> values = std::move(worklist2.back().second);
+    worklist2.pop_back();
     if (vis.insert(bb).second) {
       for (Inst *i = bb->insts.head; i; i = i->next) {
-        if (auto l = dyn_cast<LoadInst>(i)) {
-          if (auto a = dyn_cast<AllocaInst>(l->arr.value)) {
-            auto it = allocas.find(a);
-            if (it != allocas.end()) {
-              l->replaceAllUseWith(it->second.recent_value);
-              bb->insts.remove(l);
+        if (auto x = dyn_cast<AllocaInst>(i)) {
+          if (alloca_ids.find(x) != alloca_ids.end()) {
+            bb->insts.remove(x);
+          }
+        } else if (auto x = dyn_cast<LoadInst>(i)) {
+          if (auto a = dyn_cast<AllocaInst>(x->arr.value)) {
+            auto it = alloca_ids.find(a);
+            if (it != alloca_ids.end()) {
+              x->replaceAllUseWith(values[it->second]);
+              bb->insts.remove(x);
             }
           }
-        } else if (auto s = dyn_cast<StoreInst>(i)) {
-          if (auto a = dyn_cast<AllocaInst>(s->arr.value)) {
-            auto it = allocas.find(a);
-            if (it != allocas.end()) {
-              it->second.recent_value = s->data.value;
-              bb->insts.remove(s);
+        } else if (auto x = dyn_cast<StoreInst>(i)) {
+          if (auto a = dyn_cast<AllocaInst>(x->arr.value)) {
+            auto it = alloca_ids.find(a);
+            if (it != alloca_ids.end()) {
+              values[it->second] = x->data.value;
+              bb->insts.remove(x);
               // todo: remove掉的指令会影响到use-def关系，是不是确实需要执行delete呢？
             }
           }
-        } else if (auto p = dyn_cast<PhiInst>(i)) {
-          auto it = phis.find(p); // 也许程序中本来就存在phi，所以phis不一定包含了所有的phi
+        } else if (auto x = dyn_cast<PhiInst>(i)) {
+          auto it = phis.find(x); // 也许程序中本来就存在phi，所以phis不一定包含了所有的phi
           if (it != phis.end()) {
-            allocas.find(it->second)->second.recent_value = p;
+            values[it->second] = x;
           }
         }
       }
       for (BasicBlock *x : bb->succ()) {
         if (x) {
-          worklist.push_back(x);
+          worklist2.emplace_back(x, values);
           for (Inst *i = x->insts.head; i; i = i->next) {
             if (auto p = dyn_cast<PhiInst>(i)) {
               auto it = phis.find(p);
               if (it != phis.end()) {
                 u32 idx = std::find(x->pred.begin(), x->pred.end(), bb) - x->pred.begin(); // bb是x的哪个pred?
-                p->incoming_values[idx].set(allocas.find(it->second)->second.recent_value);
+                p->incoming_values[idx].set(values[it->second]);
               }
             } else {
               break; // PhiInst一定是在指令序列的最前面，所以遇到第一个非PhiInst的指令就可以break了
