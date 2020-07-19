@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
     }
-    run_opt_passes(ir);
+    run_opt_passes(ir, opt);
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
   }
