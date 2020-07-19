@@ -100,7 +100,7 @@ struct Env {
         }
         d.flatten_init.push_back(d.init.val1);
       } else if (!d.init.val1) {  // 形如int x[1] = {}
-        flatten_init(d.init.val2, d.dims.data(), d.dims.data() + d.dims.size(), d.is_const, d.flatten_init);
+        flatten_init(d.init.val2, d.dims.data(), d.dims.data() + d.dims.size(), d.is_const | d.is_glob, d.flatten_init);
       } else {  // 另外两种搭配
         ERR("incompatible type and initialization");
       }
