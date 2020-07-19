@@ -1,7 +1,8 @@
-#include "casting.hpp"
 #include "ir.hpp"
 
 #include <sstream>
+
+#include "casting.hpp"
 
 UndefValue UndefValue::INSTANCE;
 
@@ -327,6 +328,19 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             }
           }
           os << ")" << endl;
+        } else if (auto x = dyn_cast<PhiInst>(inst)) {
+          os << pv(v_index, inst) << " = phi i32 ";
+          for (int i = 0; i < x->incoming_bbs->size(); i++) {
+            os << "[ ";
+            os << pv(v_index, x->incoming_values[i].value);
+            os << ", %_";
+            os << bb_index.get(x->incoming_bbs[0][i]);
+            os << " ]";
+            if (i + 1 < x->incoming_bbs->size()) {
+              os << ", ";
+            }
+          }
+          os << endl;
         } else {
           UNREACHABLE();
         }
