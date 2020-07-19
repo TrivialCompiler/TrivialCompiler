@@ -79,7 +79,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
         if (decl.init.val1) {
           // assign variable to expr
           auto init = convert_expr(ctx, decl.init.val1);
-          auto store_inst = new StoreInst(inst, init, ctx->bb);
+          auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
         }
       }
     }
@@ -88,7 +88,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     auto value = ctx->getDecl(x->lhs_sym);
     // rhs
     auto rhs = convert_expr(ctx, x->rhs);
-    auto inst = new StoreInst(value, rhs, ctx->bb);
+    auto inst = new StoreInst(x->lhs_sym, value, rhs, ctx->bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
@@ -190,7 +190,7 @@ IrProgram *convert_ssa(Program &p) {
         auto inst = new AllocaInst(entryBB);
         func->decls[&p] = inst;
         // then copy param into it
-        auto store_inst = new StoreInst(inst, new ParamRef(&p), entryBB);
+        auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), entryBB);
       }
 
       SsaContext ctx{.program = ret, .func = func, .bb = entryBB};

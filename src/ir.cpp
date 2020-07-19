@@ -162,9 +162,24 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         if (auto x = dyn_cast<AllocaInst>(inst)) {
           os << pv(v_index, inst) << " = alloca i32, align 4" << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
-          // TODO: dims
-          os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
-             << endl;
+          if (x->dims.size() == 0) {
+            // simple case
+            os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
+               << endl;
+          } else {
+            // dimension
+            os << "store i32 " << pv(v_index, x->data.value) << ", i32* getelementptr inbounds (";
+            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+            os << ", ";
+            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+            os << "* " << pv(v_index, x->arr.value) << ",";
+            // first dimension is always 0
+            os << " i32 0";
+            for (auto &dim : x->dims) {
+              os << ", i32 " << pv(v_index, dim.value);
+            }
+            os << "), align 4" << endl;
+          }
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           if (x->dims.size() == 0) {
             // simple case

@@ -151,12 +151,13 @@ struct LoadInst : Inst {
 
 struct StoreInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Store);
+  Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
   Use data;
 
-  StoreInst(Value *arr, Value *data, BasicBlock *insertAtEnd)
-      : Inst(Store, insertAtEnd), arr(arr, this), data(data, this) {}
+  StoreInst(Decl *lhs_sym, Value *arr, Value *data, BasicBlock *insertAtEnd)
+      : Inst(Store, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this), data(data, this) {}
 };
 
 struct CallInst : Inst {
