@@ -1,7 +1,8 @@
-#include "casting.hpp"
 #include "ir.hpp"
 
 #include <sstream>
+
+#include "casting.hpp"
 
 UndefValue UndefValue::INSTANCE;
 
