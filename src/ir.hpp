@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <map>
 #include <unordered_set>
@@ -7,6 +8,7 @@
 #include <vector>
 
 #include "ast.hpp"
+#include "casting.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
 #include "typeck.hpp"
@@ -89,6 +91,8 @@ struct BasicBlock {
   std::unordered_set<BasicBlock *> dom; // 支配它的节点集
   BasicBlock *idom; // 直接支配它的节点
   ilist<Inst> insts;
+
+  inline std::array<BasicBlock *, 2> succ();
 };
 
 struct ConstValue : Value {
@@ -203,3 +207,11 @@ struct AllocaInst : Inst {
 
   AllocaInst(BasicBlock *insertBefore) : Inst(Alloca, insertBefore) {}
 };
+
+std::array<BasicBlock *, 2> BasicBlock::succ() {
+  Inst *end = insts.tail; // 必须非空
+  if (auto x = dyn_cast<BranchInst>(end))return {x->left, x->right};
+  else if (auto x = dyn_cast<JumpInst>(end)) return {x->next, nullptr};
+  else if (auto x = dyn_cast<ReturnInst>(end)) return {nullptr, nullptr};
+  else UNREACHABLE();
+}

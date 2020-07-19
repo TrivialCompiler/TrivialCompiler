@@ -1,5 +1,5 @@
 #pragma once
 
-#include "ir.hpp"
+#include "../ir.hpp"
 
 void mem2reg(IrFunc *f);

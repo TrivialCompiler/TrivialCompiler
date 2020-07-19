@@ -42,7 +42,5 @@ struct ilist {
     } else {
       tail = node->prev;
     }
-
-    node->prev = node->next = nullptr;
   }
 };
