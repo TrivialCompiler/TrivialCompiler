@@ -16,7 +16,7 @@ static std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> comput
       for (auto it = bb->dom.begin(); it != bb->dom.end();) {
         BasicBlock *x = *it;
         // 如果bb的任何一个pred的dom不包含x，那么bb的dom也不应该包含x
-        if (std::any_of(bb->pred.begin(), bb->pred.end(), [x](BasicBlock *p) { return p->dom.find(x) == p->dom.end(); })) {
+        if (x != bb && std::any_of(bb->pred.begin(), bb->pred.end(), [x](BasicBlock *p) { return p->dom.find(x) == p->dom.end(); })) {
           changed = true;
           it = bb->dom.erase(it);
         } else {
@@ -29,18 +29,16 @@ static std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> comput
   // 计算idom
   entry->idom = nullptr;
   for (BasicBlock *bb = entry->next; bb; bb = bb->next) {
-    bb->idom = nullptr;
     for (BasicBlock *d : bb->dom) {
       // 已知d dom bb，若d != bb，则d strictly dom bb
       // 若还有：d不strictly dom任何strictly dom bb的节点，则d idom bb
       if (d != bb && std::all_of(bb->dom.begin(), bb->dom.end(), [d, bb](BasicBlock *x) {
         return x == bb || x == d || x->dom.find(d) == x->dom.end();
       })) {
-        bb->idom = d;
+        bb->idom = d; // 若实现正确，这里恰好会执行一次(即使没有break)
         break;
       }
     }
-    assert(bb->idom != nullptr);
   }
   std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> df;
   for (BasicBlock *from = entry; from; from = from->next) {
@@ -130,6 +128,11 @@ void mem2reg(IrFunc *f) {
               // todo: remove掉的指令会影响到use-def关系，是不是确实需要执行delete呢？
             }
           }
+        } else if (auto p = dyn_cast<PhiInst>(i)) {
+          auto it = phis.find(p); // 也许程序中本来就存在phi，所以phis不一定包含了所有的phi
+          if (it != phis.end()) {
+            allocas.find(it->second)->second.recent_value = p;
+          }
         }
       }
       for (BasicBlock *x : bb->succ()) {
@@ -137,7 +140,7 @@ void mem2reg(IrFunc *f) {
           worklist.push_back(x);
           for (Inst *i = x->insts.head; i; i = i->next) {
             if (auto p = dyn_cast<PhiInst>(i)) {
-              auto it = phis.find(p); // 也许程序中本来就存在phi，所以phis不一定包含了所有的phi
+              auto it = phis.find(p);
               if (it != phis.end()) {
                 u32 idx = std::find(x->pred.begin(), x->pred.end(), bb) - x->pred.begin(); // bb是x的哪个pred?
                 p->incoming_values[idx].set(allocas.find(it->second)->second.recent_value);

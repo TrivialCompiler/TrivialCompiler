@@ -151,11 +151,26 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
     }
     os << ") {" << endl;
 
-    IndexMapper<BasicBlock> bb_index;
+    // bb的标号没有必要用IndexMapper，而且IndexMapper的编号是先到先得，这看着并不是很舒服
+    std::map<BasicBlock*, u32> bb_index;
     IndexMapper<Value> v_index;
-    for (auto bb = f->bb.head; bb != nullptr; bb = bb->next) {
-      u32 index = bb_index.get(bb);
-      os << "_" << index << ":" << endl;
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      u32 idx = bb_index.size();
+      bb_index.insert({bb, idx});
+    }
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      u32 index = bb_index.find(bb)->second;
+      os << "_" << index << ": ; preds = ";
+      for (u32 i = 0; i < bb->pred.size(); ++i) {
+        if (i != 0) os << ", ";
+        os << "%_" << bb_index.find(bb->pred[i])->second;
+      }
+      os << ", dom = ";
+      for (auto begin = bb->dom.begin(), it = begin, end = bb->dom.end(); it != end; ++it) {
+        if (it != begin) os << ", ";
+        os << "%_" << bb_index.find(*it)->second;
+      }
+      os << endl;
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
@@ -286,14 +301,14 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
               break;
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
-          os << "br label %_" << bb_index.get(x->next) << endl;
+          os << "br label %_" << bb_index.find(x->next)->second << endl;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           // add comment
-          os << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.get(x->left) << " else _"
-             << bb_index.get(x->right) << endl;
+          os << "; if " << pv(v_index, x->cond.value) << " then _" << bb_index.find(x->left)->second << " else _"
+             << bb_index.find(x->right)->second << endl;
           u32 temp = v_index.alloc();
           os << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
-          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.get(x->left) << ", label %_" << bb_index.get(x->right)
+          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.find(x->left)->second << ", label %_" << bb_index.find(x->right)->second
              << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
@@ -327,6 +342,13 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             }
           }
           os << ")" << endl;
+        } else if (auto x = dyn_cast<PhiInst>(inst)) {
+          os << pv(v_index, inst) << " = phi i32 ";
+          for (u32 i = 0; i < x->incoming_values.size(); ++i) {
+            if (i != 0) os << ", ";
+            os << "[" << pv(v_index, x->incoming_values[i].value) << ", %_" << bb_index.find((*x->incoming_bbs)[i])->second << "]";
+          }
+          os << endl;
         } else {
           UNREACHABLE();
         }

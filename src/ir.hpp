@@ -156,14 +156,12 @@ struct Inst : Value {
   BasicBlock *bb;
 
   // insert this inst before `insertBefore`
-  Inst(Tag tag, Inst *insertBefore) : Value(tag) {
-    bb = insertBefore->bb;
+  Inst(Tag tag, Inst *insertBefore) : Value(tag), bb(insertBefore->bb) {
     bb->insts.insertBefore(this, insertBefore);
   }
 
   // insert this inst at the end of `insertAtEnd`
-  Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag) {
-    bb = insertAtEnd;
+  Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag), bb(insertAtEnd) {
     bb->insts.insertAtEnd(this);
   }
 };
@@ -255,9 +253,9 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
 
-  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore), incoming_bbs(&insertBefore->pred) {
-    incoming_values.reserve(insertBefore->pred.size());
-    for (u32 i = 0; i < insertBefore->pred.size(); ++i) {
+  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+    incoming_values.reserve(insertAtFront->pred.size());
+    for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
       incoming_values.emplace_back(nullptr, this);
     }
