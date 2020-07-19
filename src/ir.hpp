@@ -24,8 +24,8 @@ struct Use {
   Value *value;
   Inst *user;
 
-  Use(Value *v, Inst *u);
-  ~Use();
+  inline Use(Value *v, Inst *u);
+  inline ~Use();
 };
 
 struct Value {
@@ -59,13 +59,26 @@ struct Value {
     Param,  // Reference
     Call,
     Alloca,
+    Phi
   } tag;
 
   Value(Tag tag) : tag(tag) {}
 
-  void addUse(Use *u);
-  void killUse(Use *u);
+  void addUse(Use *u) { uses.insertAtEnd(u); }
+  void killUse(Use *u) { uses.remove(u); }
 };
+
+Use::Use(Value *v, Inst *u) : value(v), user(u) {
+  if (value) {
+    value->addUse(this);
+  }
+}
+
+Use::~Use() {
+  if (value) {
+    value->killUse(this);
+  }
+}
 
 struct IrProgram {
   ilist<IrFunc> func;
@@ -124,10 +137,16 @@ struct Inst : Value {
   BasicBlock *bb;
 
   // insert this inst before `insertBefore`
-  Inst(Tag tag, Inst *insertBefore);
+  Inst(Tag tag, Inst *insertBefore) : Value(tag) {
+    bb = insertBefore->bb;
+    bb->insts.insertBefore(this, insertBefore);
+  }
 
   // insert this inst at the end of `insertAtEnd`
-  Inst(Tag tag, BasicBlock *insertAtEnd);
+  Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag) {
+    bb = insertAtEnd;
+    bb->insts.insertAtEnd(this);
+  }
 };
 
 struct BinaryInst : Inst {
@@ -207,6 +226,16 @@ struct AllocaInst : Inst {
 
   Decl *sym;
   AllocaInst(Decl *sym, BasicBlock *insertBefore) : Inst(Alloca, insertBefore), sym(sym) {}
+};
+
+struct PhiInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Phi);
+
+  // 构建完成后incoming_values.size() == incoming_bbs.size()
+  std::vector<Use> incoming_values;
+  std::vector<BasicBlock *> *incoming_bbs; // todo: 指向拥有它的bb的pred，这是正确的吗？
+
+  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore), incoming_bbs(&insertBefore->pred) {}
 };
 
 std::array<BasicBlock *, 2> BasicBlock::succ() {
