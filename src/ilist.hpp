@@ -29,6 +29,19 @@ struct ilist {
     }
   }
 
+  // insert newNode at the begin of ilist
+  void insertAtBegin(Node *newNode) {
+    newNode->prev = nullptr;
+    newNode->next = head;
+
+    if (head == nullptr) {
+      head = tail = newNode;
+    } else {
+      head->prev = newNode;
+      head = newNode;
+    }
+  }
+
   // remove node from ilist
   void remove(Node *node) {
     if (node->prev != nullptr) {

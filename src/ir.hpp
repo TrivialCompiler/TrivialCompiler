@@ -166,6 +166,12 @@ struct Inst : Value {
     bb = insertAtEnd;
     bb->insts.insertAtEnd(this);
   }
+
+  // insert this inst at the begin of `insertAtBegin`
+  Inst(Tag tag, BasicBlock *insertAtBegin, int) : Value(tag) {
+    bb = insertAtBegin;
+    bb->insts.insertAtBegin(this);
+  }
 };
 
 struct BinaryInst : Inst {
@@ -255,7 +261,7 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
 
-  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore), incoming_bbs(&insertBefore->pred) {
+  explicit PhiInst(BasicBlock *insertBefore) : Inst(Phi, insertBefore, 0), incoming_bbs(&insertBefore->pred) {
     incoming_values.reserve(insertBefore->pred.size());
     for (u32 i = 0; i < insertBefore->pred.size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
