@@ -166,8 +166,23 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
              << endl;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
-          // TODO: dims
-          os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+          if (x->dims.size() == 0) {
+            // simple case
+            os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+          } else {
+            // dimension
+            os << pv(v_index, inst) << " = load i32, i32* getelementptr inbounds (";
+            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+            os << ", ";
+            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+            os << "* " << pv(v_index, x->arr.value) << ",";
+            // first dimension is always 0
+            os << " i32 0";
+            for (auto &dim : x->dims) {
+              os << ", i32 " << pv(v_index, dim.value);
+            }
+            os << "), align 4" << endl;
+          }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const static char *OPS[] = {
               [Value::Add] = "add",     [Value::Sub] = "sub",     [Value::Mul] = "mul",     [Value::Div] = "sdiv",

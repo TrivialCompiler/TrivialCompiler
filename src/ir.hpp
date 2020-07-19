@@ -143,9 +143,10 @@ struct UnaryInst : Inst {
 
 struct LoadInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Load);
+  Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
-  LoadInst(Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), arr(arr, this) {}
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : Inst(Load, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
 };
 
 struct StoreInst : Inst {

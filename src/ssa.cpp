@@ -36,9 +36,15 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {
-    // TODO dim
     auto value = ctx->getDecl(x->lhs_sym);
-    auto inst = new LoadInst(value, ctx->bb);
+    auto inst = new LoadInst(x->lhs_sym, value, ctx->bb);
+
+    // dims
+    inst->dims.reserve(x->dims.size());
+    for (auto &p : x->dims) {
+      auto value = convert_expr(ctx, p);
+      inst->dims.emplace_back(value, inst);
+    }
     return inst;
   } else if (auto x = dyn_cast<Call>(expr)) {
     // must evaluate args before calling
