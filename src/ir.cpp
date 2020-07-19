@@ -260,27 +260,20 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << "* " << pv(v_index, x->arr.value) << ", ";
+            os << "* " << pv(v_index, x->arr.value);
 
             // if it's a local array or global array
             if (dyn_cast<AllocaInst>(x->arr.value) || dyn_cast<GlobalRef>(x->arr.value)) {
               // first dimension is 0
-              os << "i32 0, ";
+              os << ", i32 0";
             }
 
-            for (int i = 0; i < x->lhs_sym->dims.size(); i++) {
-              if (i < x->dims.size()) {
-                // use index from inst
-                os << "i32 " << pv(v_index, x->dims[i].value);
-              } else {
-                // zero otherwise
-                os << "i32 0";
-              }
-
-              if (i + 1 < x->lhs_sym->dims.size()) {
-                os << ", ";
-              }
+            for (int i = 0; i < x->dims.size(); i++) {
+              os << ", i32 " << pv(v_index, x->dims[i].value);
             }
+
+            // first element
+            os << ", i32 0";
             os << endl;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
