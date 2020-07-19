@@ -6,5 +6,13 @@ if [ -e "$2" ]; then
 else
     qemu-arm $1 > $3
 fi
-echo $? >> $3
+res=$?
+if [ -z "$(tail -c 1 "$3")" ]
+then
+    # newline at eof
+    echo "${res}" >> $3
+else
+    # no newline at eof
+    echo -n "\n${res}" >> $3
+fi
 diff -u $3 $4
