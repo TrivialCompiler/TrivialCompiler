@@ -15,4 +15,10 @@ build_and_test:
     - mkdir -p build && cd build
     - cmake ..
     - make
-    - make test
+    - env CTEST_OUTPUT_ON_FAILURE=1 make test
+    - python3 ../extract_result.py Testing/Temporary/LastTest.log
+  artifacts:
+    paths:
+      - build/Testing/Temporary/*.log
+    expire_in: 1 year
+    when: always
