@@ -59,6 +59,8 @@ struct Value {
 
   // 将对自身所有的使用替换成对v的使用
   inline void replaceAllUseWith(Value *v);
+  // 调用deleteValue语义上相当于delete掉它，但是按照现在的实现不能直接delete它
+  void deleteValue();
 };
 
 struct Use {
@@ -109,6 +111,7 @@ struct BasicBlock {
 
   inline std::array<BasicBlock *, 2> succ();
   inline bool valid();
+  inline ~BasicBlock();
 };
 
 struct IrFunc {
@@ -149,21 +152,17 @@ struct UndefValue : Value {
 };
 
 struct Inst : Value {
-  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Alloca);
+  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Phi);
   // instruction linked list
   DEFINE_ILIST(Inst)
   // basic block
   BasicBlock *bb;
 
   // insert this inst before `insertBefore`
-  Inst(Tag tag, Inst *insertBefore) : Value(tag), bb(insertBefore->bb) {
-    bb->insts.insertBefore(this, insertBefore);
-  }
+  Inst(Tag tag, Inst *insertBefore) : Value(tag), bb(insertBefore->bb) { bb->insts.insertBefore(this, insertBefore); }
 
   // insert this inst at the end of `insertAtEnd`
-  Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag), bb(insertAtEnd) {
-    bb->insts.insertAtEnd(this);
-  }
+  Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag), bb(insertAtEnd) { bb->insts.insertAtEnd(this); }
 };
 
 struct BinaryInst : Inst {
@@ -183,6 +182,32 @@ struct UnaryInst : Inst {
   // operands
   Use rhs;
   UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd) : Inst(tag, insertAtEnd), rhs(rhs, this) {}
+};
+
+struct BranchInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Branch);
+  Use cond;
+  // true
+  BasicBlock *left;
+  // false
+  BasicBlock *right;
+
+  BranchInst(Value *cond, BasicBlock *left, BasicBlock *right, BasicBlock *insertAtEnd)
+      : Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
+};
+
+struct JumpInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Jump);
+  BasicBlock *next;
+
+  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd) : Inst(Jump, insertAtEnd), next(next) {}
+};
+
+struct ReturnInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Return);
+  Use ret;
+
+  ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Return, insertAtEnd), ret(ret, this) {}
 };
 
 struct LoadInst : Inst {
@@ -213,32 +238,6 @@ struct CallInst : Inst {
   CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
 };
 
-struct BranchInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Branch);
-  Use cond;
-  // true
-  BasicBlock *left;
-  // false
-  BasicBlock *right;
-
-  BranchInst(Value *cond, BasicBlock *left, BasicBlock *right, BasicBlock *insertAtEnd)
-      : Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
-};
-
-struct JumpInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Jump);
-  BasicBlock *next;
-
-  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd) : Inst(Jump, insertAtEnd), next(next) {}
-};
-
-struct ReturnInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Return);
-  Use ret;
-
-  ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Return, insertAtEnd), ret(ret, this) {}
-};
-
 struct AllocaInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Alloca);
 
@@ -253,7 +252,8 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
 
-  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+  explicit PhiInst(BasicBlock *insertAtFront)
+      : Inst(Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
     incoming_values.reserve(insertAtFront->pred.size());
     for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
@@ -277,4 +277,8 @@ std::array<BasicBlock *, 2> BasicBlock::succ() {
 bool BasicBlock::valid() {
   Inst *end = insts.tail;
   return end && (isa<BranchInst>(end) || isa<JumpInst>(end) || isa<ReturnInst>(end));
+}
+
+BasicBlock::~BasicBlock() {
+  for (Inst *i = insts.head; i; i = i->next) i->deleteValue();
 }

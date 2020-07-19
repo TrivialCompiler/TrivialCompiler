@@ -4,6 +4,37 @@
 
 #include "casting.hpp"
 
+void Value::deleteValue() {
+  if (auto x = dyn_cast<BinaryInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<UnaryInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<BranchInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<JumpInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<ReturnInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<LoadInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<StoreInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<CallInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<AllocaInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<PhiInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<ConstValue>(this))
+    delete x;
+  else if (auto x = dyn_cast<GlobalRef>(this))
+    delete x;
+  else if (auto x = dyn_cast<ParamRef>(this))
+    delete x;
+  else  // 假定永远只使用UndefValue::INSTANCE，且永远不会调用deleteValue
+    UNREACHABLE();
+}
+
 UndefValue UndefValue::INSTANCE;
 
 template <class T>
@@ -153,7 +184,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
     os << ") {" << endl;
 
     // bb的标号没有必要用IndexMapper，而且IndexMapper的编号是先到先得，这看着并不是很舒服
-    std::map<BasicBlock*, u32> bb_index;
+    std::map<BasicBlock *, u32> bb_index;
     IndexMapper<Value> v_index;
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       u32 idx = bb_index.size();
@@ -305,8 +336,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
              << bb_index.find(x->right)->second << endl;
           u32 temp = v_index.alloc();
           os << "\t%t" << temp << " = icmp ne i32 " << pv(v_index, x->cond.value) << ", 0" << endl;
-          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.find(x->left)->second << ", label %_" << bb_index.find(x->right)->second
-             << endl;
+          os << "\tbr i1 %t" << temp << ", label %_" << bb_index.find(x->left)->second << ", label %_"
+             << bb_index.find(x->right)->second << endl;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             os << "ret i32 " << pv(v_index, x->ret.value) << endl;
@@ -343,7 +374,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           os << pv(v_index, inst) << " = phi i32 ";
           for (u32 i = 0; i < x->incoming_values.size(); ++i) {
             if (i != 0) os << ", ";
-            os << "[" << pv(v_index, x->incoming_values[i].value) << ", %_" << bb_index.find((*x->incoming_bbs)[i])->second << "]";
+            os << "[" << pv(v_index, x->incoming_values[i].value) << ", %_"
+               << bb_index.find((*x->incoming_bbs)[i])->second << "]";
           }
           os << endl;
         } else {
