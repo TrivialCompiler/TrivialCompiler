@@ -125,6 +125,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
 
   // builtin functions
   os << "declare i32 @getint()" << endl;
+  os << "declare i32 @getch()" << endl;
   os << "declare void @putint(i32)" << endl;
   os << "declare void @putch(i32)" << endl;
   for (auto &d : p.glob_decl) {
