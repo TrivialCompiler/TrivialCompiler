@@ -191,10 +191,13 @@ struct Env {
         if (++cnt == elem_size) {
           cnt = 0;
         }
-      } else {  // 遇到了一个新的列表，它必须恰好填充一个元素
+      } else { 
+        // 遇到了一个新的列表，它必须恰好填充一个元素
         // 给前一个未填满的元素补0
-        dst.resize(dst.size() + elem_size - cnt, &IntConst::ZERO);
-        cnt = 0;
+        if (cnt != 0) {
+          dst.resize(dst.size() + elem_size - cnt, &IntConst::ZERO);
+          cnt = 0;
+        }
         if (dims < dims_end) {
           flatten_init(l.val2, dims + 1, dims_end, need_eval, dst);
         } else {
