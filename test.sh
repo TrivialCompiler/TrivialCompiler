@@ -15,4 +15,4 @@ else
     # no newline at eof
     echo -n "\n${res}" >> $3
 fi
-diff -u $3 $4
+diff -w -B -u $3 $4

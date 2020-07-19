@@ -34,7 +34,7 @@ foreach(case_file ${all_test_cases})
             COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}"
 	    DEPENDS ./${project_name})
     add_custom_command(OUTPUT "${case_name}.o"
-            COMMAND llc -march=thumb -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}.o"
+            COMMAND llc -O1 -march=thumb -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}.o"
 	    DEPENDS "${case_name}.bc")
     add_custom_target("${case_name}"
 	    COMMAND arm-linux-gnueabihf-gcc -mthumb -mfpu=neon -mfloat-abi=hard -static "${case_name}.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}"

@@ -98,8 +98,15 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
 
   // builtin functions
   os << "declare i32 @getint()" << endl;
+  os << "declare i32 @getch()" << endl;
   os << "declare void @putint(i32)" << endl;
   os << "declare void @putch(i32)" << endl;
+  os << "declare void @putarray(i32, i32*)" << endl;
+  os << "declare void @_sysy_starttime()" << endl;
+  os << "declare void @_sysy_stoptime()" << endl;
+  os << "define void @starttime() { _0:\n call void @_sysy_starttime() \n ret void }" << endl;
+  os << "define void @stoptime() { _0:\n call void @_sysy_starttime() \n ret void }" << endl;
+
   for (auto &d : p.glob_decl) {
     os << "@" << d->name << " = global ";
     // type
@@ -167,15 +174,22 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
 
             // temp ptr
             u32 temp = v_index.alloc();
-            os << "\t%t" << temp << " = getelementptr inbounds";
+            os << "\t%t" << temp << " = getelementptr inbounds ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << "* " << pv(v_index, x->arr.value) << ",";
-            // first dimension is always 0
-            os << " i32 0";
+            if (x->lhs_sym->dims.size() > 0 && x->lhs_sym->dims[0] == nullptr) {
+              // array param
+            } else {
+              // otherwise first dimension is always 0
+              os << " i32 0, ";
+            }
             for (auto &dim : x->dims) {
-              os << ", i32 " << pv(v_index, dim.value);
+              os << "i32 " << pv(v_index, dim.value);
+              if (&dim != &x->dims.back()) {
+                os << ", ";
+              }
             }
             os << endl;
             os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
@@ -219,27 +233,20 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << "* " << pv(v_index, x->arr.value) << ", ";
+            os << "* " << pv(v_index, x->arr.value);
 
-            if (auto p = dyn_cast<AllocaInst>(x->arr.value)) {
-              // if it's a local array
+            // if it's a local array or global array
+            if (dyn_cast<AllocaInst>(x->arr.value) || dyn_cast<GlobalRef>(x->arr.value)) {
               // first dimension is 0
-              os << "i32 0, ";
+              os << ", i32 0";
             }
 
-            for (int i = 0; i < x->lhs_sym->dims.size(); i++) {
-              if (i < x->dims.size()) {
-                // use index from inst
-                os << "i32 " << pv(v_index, x->dims[i].value);
-              } else {
-                // zero otherwise
-                os << "i32 0";
-              }
-
-              if (i + 1 < x->lhs_sym->dims.size()) {
-                os << ", ";
-              }
+            for (int i = 0; i < x->dims.size(); i++) {
+              os << ", i32 " << pv(v_index, x->dims[i].value);
             }
+
+            // first element
+            os << ", i32 0";
             os << endl;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
