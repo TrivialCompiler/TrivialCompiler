@@ -56,6 +56,9 @@ IrFunc *IrProgram::findFunc(Func *f) {
 void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
   if (dims == dims_end) {
     os << "i32 ";
+  } else if (dims[0] == nullptr) {
+    // just skip
+    print_dims(os, dims + 1, dims_end);
   } else {
     for (Expr **d = dims; d != dims_end; d++) {
       int dim = d[0]->result;
@@ -67,8 +70,9 @@ void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
     }
     os << "i32";
     for (Expr **d = dims; d != dims_end; d++) {
-      os << "] ";
+      os << "]";
     }
+    os << " ";
   }
 }
 
@@ -144,7 +148,17 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
     }
     os << f->func->name << "(";
     for (auto &p : f->func->params) {
-      os << "i32 %" << p.name;
+      if (p.dims.size() == 0) {
+        // simple case
+        os << "i32 ";
+      } else {
+        // array arg
+        // the first dimension becomes pointer
+        print_dims(os, p.dims.data() + 1, p.dims.data() + p.dims.size());
+        os << "* ";
+      }
+
+      os << "%" << p.name;
       if (&p != &f->func->params.back()) {
         // not last element
         os << ", ";
@@ -170,7 +184,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             // dimension
             // comments
             os << "; " << pv(v_index, x->arr.value);
-            for (auto &dim: x->dims) {
+            for (auto &dim : x->dims) {
               os << "[" << pv(v_index, dim.value) << "]";
             }
             os << " = " << pv(v_index, x->data.value) << endl;
@@ -191,22 +205,59 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
           }
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
-          if (x->dims.size() == 0) {
-            // simple case
-            os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+          if (x->dims.size() == x->lhs_sym->dims.size()) {
+            // first case: access to item
+            if (x->dims.size() == 0) {
+              // simple case
+              os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+            } else {
+              // handle dimension
+              u32 temp = v_index.alloc();
+              os << "%t" << temp << " = getelementptr inbounds ";
+              print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+              os << ", ";
+              print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
+              os << "* " << pv(v_index, x->arr.value) << ", ";
+              if (x->lhs_sym->dims.size() > 0 && x->lhs_sym->dims[0] == nullptr) {
+                // array param
+                for (auto &dim : x->dims) {
+                  os << "i32 " << pv(v_index, dim.value);
+                  if (&dim != &x->dims.back()) {
+                    os << ", ";
+                  }
+                }
+              } else {
+                // first dimension is always 0
+                os << "i32 0";
+                for (auto &dim : x->dims) {
+                  os << ", i32 " << pv(v_index, dim.value);
+                }
+              }
+              os << endl;
+              os << "\t" << pv(v_index, inst) << " = load i32, i32* "
+                 << "%t" << temp << ", align 4" << endl;
+            }
           } else {
-            // dimension
-            os << pv(v_index, inst) << " = load i32, i32* getelementptr inbounds (";
+            // second case: item is an array, get array address
+            os << pv(v_index, inst) << " = getelementptr inbounds ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
             os << ", ";
             print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << "* " << pv(v_index, x->arr.value) << ",";
-            // first dimension is always 0
-            os << " i32 0";
-            for (auto &dim : x->dims) {
-              os << ", i32 " << pv(v_index, dim.value);
+            os << "* " << pv(v_index, x->arr.value) << ", ";
+            for (int i = 0; i < x->lhs_sym->dims.size(); i++) {
+              if (i < x->dims.size()) {
+                // use index from inst
+                os << "i32 " << pv(v_index, x->dims[i].value);
+              } else {
+                // zero otherwise
+                os << "i32 0";
+              }
+
+              if (i + 1 < x->lhs_sym->dims.size()) {
+                os << ", ";
+              }
             }
-            os << "), align 4" << endl;
+            os << endl;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const static char *OPS[] = {
@@ -263,9 +314,20 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "call void";
           }
           os << " @" << x->func->name << "(";
-          for (auto &p : x->args) {
-            os << "i32 " << pv(v_index, p.value);
-            if (&p != &x->args.back()) {
+          for (int i = 0; i < x->args.size();i++) {
+            // type
+            if (x->func->params[i].dims.size() == 0) {
+              // simple
+              os << "i32 ";
+            } else {
+              // array param
+              print_dims(os, x->func->params[i].dims.data(),
+                         x->func->params[i].dims.data() + x->func->params[i].dims.size());
+              os << "* ";
+            }
+            // arg
+            os << pv(v_index, x->args[i].value);
+            if (i + 1 < x->args.size()) {
               // not last element
               os << ", ";
             }

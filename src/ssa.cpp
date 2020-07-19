@@ -36,14 +36,21 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {
+    // evalulate dims first
+    std::vector<Value *> dims;
+    dims.reserve(x->dims.size());
+    for (auto &p : x->dims) {
+      auto value = convert_expr(ctx, p);
+      dims.push_back(value);
+    }
+
     auto value = ctx->getDecl(x->lhs_sym);
     auto inst = new LoadInst(x->lhs_sym, value, ctx->bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
-    for (auto &p : x->dims) {
-      auto value = convert_expr(ctx, p);
-      inst->dims.emplace_back(value, inst);
+    for (auto &dim : dims) {
+      inst->dims.emplace_back(dim, inst);
     }
     return inst;
   } else if (auto x = dyn_cast<Call>(expr)) {
@@ -193,11 +200,17 @@ IrProgram *convert_ssa(Program &p) {
 
       // setup params
       for (auto &p : f->params) {
-        // alloca for each param
-        auto inst = new AllocaInst(entryBB);
-        func->decls[&p] = inst;
-        // then copy param into it
-        auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), entryBB);
+        if (p.dims.size()) {
+          // there is no need to alloca for array param
+          auto ref = new ParamRef(&p);
+          func->decls[&p] = ref;
+        } else {
+          // alloca for each non-array param
+          auto inst = new AllocaInst(entryBB);
+          func->decls[&p] = inst;
+          // then copy param into it
+          auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), entryBB);
+        }
       }
 
       SsaContext ctx{.program = ret, .func = func, .bb = entryBB};
