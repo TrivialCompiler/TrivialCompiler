@@ -106,6 +106,7 @@ struct BasicBlock {
   ilist<Inst> insts;
 
   inline std::array<BasicBlock *, 2> succ();
+  inline bool valid();
 };
 
 struct ConstValue : Value {
@@ -244,4 +245,14 @@ std::array<BasicBlock *, 2> BasicBlock::succ() {
   else if (auto x = dyn_cast<JumpInst>(end)) return {x->next, nullptr};
   else if (auto x = dyn_cast<ReturnInst>(end)) return {nullptr, nullptr};
   else UNREACHABLE();
+}
+
+bool BasicBlock::valid() {
+  if (insts.tail) {
+    Inst *end = insts.tail;
+    if (auto x = dyn_cast<BranchInst>(end))return true;
+    else if (auto x = dyn_cast<JumpInst>(end)) return true;
+    else if (auto x = dyn_cast<ReturnInst>(end)) return true;
+  }
+  return false;
 }
