@@ -72,10 +72,10 @@ int main(int argc, char *argv[]) {
     type_check(*p);  // 失败时直接就exit(1)了
     dbg("type_check success");
     auto *ir = convert_ssa(*p);
+    run_opt_passes(ir, opt);
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
     }
-    run_opt_passes(ir, opt);
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
   }

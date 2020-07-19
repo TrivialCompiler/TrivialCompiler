@@ -108,6 +108,7 @@ struct BasicBlock {
   ilist<Inst> insts;
 
   inline std::array<BasicBlock *, 2> succ();
+  inline bool valid();
 };
 
 struct IrFunc {
@@ -273,4 +274,9 @@ std::array<BasicBlock *, 2> BasicBlock::succ() {
     return {nullptr, nullptr};
   else
     UNREACHABLE();
+}
+
+bool BasicBlock::valid() {
+  Inst *end = insts.tail;
+  return end && (isa<BranchInst>(end) || isa<JumpInst>(end) || isa<ReturnInst>(end));
 }

@@ -129,13 +129,18 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     ctx->bb = bb_then;
     convert_stmt(ctx, x->on_true);
     // jump to end bb
-    auto inst_then = new JumpInst(bb_end, ctx->bb);
+    if (!ctx->bb->valid()) {
+      auto inst_then = new JumpInst(bb_end, ctx->bb);
+    }
     // else
     ctx->bb = bb_else;
     if (x->on_false) {
       convert_stmt(ctx, x->on_false);
     }
-    auto inst_else = new JumpInst(bb_end, ctx->bb);
+    // jump to end bb
+    if (!ctx->bb->valid()) {
+      auto inst_else = new JumpInst(bb_end, ctx->bb);
+    }
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<While>(stmt)) {
@@ -163,7 +168,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     convert_stmt(ctx, x->body);
     ctx->loop_stk.pop_back();
     // jump to cond bb
-    auto inst_continue = new JumpInst(bb_cond, ctx->bb);
+    if (!ctx->bb->valid()) {
+      auto inst_continue = new JumpInst(bb_cond, ctx->bb);
+    }
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
@@ -219,11 +226,13 @@ IrProgram *convert_ssa(Program &p) {
       }
 
       // add extra return statement to avoid undefined behavior
-      if (func->func->is_int) {
-        auto value = new ConstValue(0);
-        auto inst = new ReturnInst(value, ctx.bb);
-      } else {
-        auto inst = new ReturnInst(nullptr, ctx.bb);
+      if (!ctx.bb->valid()) {
+        if (func->func->is_int) {
+          auto value = new ConstValue(0);
+          auto inst = new ReturnInst(value, ctx.bb);
+        } else {
+          auto inst = new ReturnInst(nullptr, ctx.bb);
+        }
       }
     } else {
       Decl *d = std::get_if<1>(&g);
