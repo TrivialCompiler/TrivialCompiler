@@ -110,6 +110,7 @@ struct BasicBlock {
   ilist<Inst> insts;
 
   inline std::array<BasicBlock *, 2> succ();
+  inline std::array<BasicBlock **, 2> succ_ref(); // 想修改succ时使用
   inline bool valid();
   inline ~BasicBlock();
 };
@@ -268,6 +269,18 @@ std::array<BasicBlock *, 2> BasicBlock::succ() {
     return {x->left, x->right};
   else if (auto x = dyn_cast<JumpInst>(end))
     return {x->next, nullptr};
+  else if (auto x = dyn_cast<ReturnInst>(end))
+    return {nullptr, nullptr};
+  else
+    UNREACHABLE();
+}
+
+std::array<BasicBlock **, 2> BasicBlock::succ_ref() {
+  Inst *end = insts.tail;
+  if (auto x = dyn_cast<BranchInst>(end))
+    return {&x->left, &x->right};
+  else if (auto x = dyn_cast<JumpInst>(end))
+    return {&x->next, nullptr};
   else if (auto x = dyn_cast<ReturnInst>(end))
     return {nullptr, nullptr};
   else
