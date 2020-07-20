@@ -4,6 +4,7 @@
 #include <string_view>
 #include <variant>
 #include <vector>
+#include <map>
 
 #include "common.hpp"
 
@@ -11,7 +12,7 @@ struct Decl;
 struct Func;
 
 struct Expr {
-  enum {
+  enum Tag {
     Add,
     Sub,
     Mul,
@@ -47,13 +48,6 @@ struct Unary : Expr {
   Expr *rhs;
 };
 
-struct Call : Expr {
-  DEFINE_CLASSOF(Expr, p->tag == Expr::Call);
-  std::string_view func;
-  std::vector<Expr *> args;
-  Func *f;  // typeck前是nullptr，若typeck成功则非空
-};
-
 struct Index : Expr {
   DEFINE_CLASSOF(Expr, p->tag == Expr::Index);
   std::string_view name;
@@ -66,6 +60,44 @@ struct IntConst : Expr {
   DEFINE_CLASSOF(Expr, p->tag == Expr::IntConst);
   i32 val;
   static IntConst ZERO;  // 值为0的IntConst，很多地方会用到，所以做个单例
+};
+
+struct Call : Expr {
+  DEFINE_CLASSOF(Expr, p->tag == Expr::Call);
+  std::string_view func;
+  std::vector<Expr *> args;
+  u32 line_no; // builtin timer function need this
+  Func *f;  // typeck前是nullptr，若typeck成功则非空
+
+  // do some simple preprocess in constructor
+  explicit Call(Expr::Tag tag, i32 result, std::string_view func, std::vector<Expr *> args, u32 line_no) {
+    this->tag = tag;
+    this->result = result;
+
+    // map some builtin function names
+    const static std::map<std::string_view, std::string> func_mapping{
+      {"starttime", "_sysy_starttime"},
+      {"stoptime", "_sysy_stoptime"},
+      {"putf", "printf"}
+    };
+
+    auto it = func_mapping.find(func);
+    if (it != func_mapping.end()) {
+      dbg("Function name replaced from", STR(func), "to", it->second);
+      this->func = it->second;
+    } else {
+      this->func = func;
+    }
+
+    // modify parameters
+    if (this->func == "_sysy_starttime" || this->func == "_sysy_stoptime") {
+      // manually add line number as parameter
+      this->args.push_back(new ::IntConst{Expr::Tag::IntConst, 0, (i32) line_no});
+    } else {
+      this->args = std::move(args);
+    }
+  }
+
 };
 
 struct InitList {

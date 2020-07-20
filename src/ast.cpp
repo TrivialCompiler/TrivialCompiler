@@ -11,6 +11,6 @@ Func Func::BUILTIN[8] = {
     Func{false, "putint", {Decl{false, false, false, "a"}}},
     Func{false, "putch", {Decl{false, false, false, "a"}}},
     Func{false, "putarray", {Decl{false, false, false, "n"}, Decl{false, false, false, "a", {nullptr}}}},
-    Func{false, "starttime"},
-    Func{false, "stoptime"},
+    Func{false, "_sysy_starttime", {Decl{false, false, false, "a"}}},
+    Func{false, "_sysy_stoptime", {Decl{false, false, false, "a"}}},
 };

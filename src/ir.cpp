@@ -138,10 +138,9 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare void @putint(i32)" << endl;
   os << "declare void @putch(i32)" << endl;
   os << "declare void @putarray(i32, i32*)" << endl;
-  os << "declare void @_sysy_starttime()" << endl;
-  os << "declare void @_sysy_stoptime()" << endl;
-  os << "define void @starttime() { _0:\n call void @_sysy_starttime() \n ret void }" << endl;
-  os << "define void @stoptime() { _0:\n call void @_sysy_starttime() \n ret void }" << endl;
+  os << "declare void @_sysy_starttime(i32)" << endl;
+  os << "declare void @_sysy_stoptime(i32)" << endl;
+
 
   for (auto &d : p.glob_decl) {
     os << "@" << d->name << " = global ";
