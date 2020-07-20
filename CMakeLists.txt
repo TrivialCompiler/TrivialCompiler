@@ -51,7 +51,7 @@ foreach(case_file ${all_test_cases})
 	    DEPENDS "${case_name}")
     endif()
     add_custom_target("test_${case_name}"
-        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" ${case_name} ${case_input} "${case_name}.out" ${case_output}
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "${case_name}" "${case_input}" "${case_name}.out" "${case_output}"
         DEPENDS "${case_name}")
     add_test(NAME check_run_llvm_${case_name}
 	    COMMAND make "test_${case_name}")
