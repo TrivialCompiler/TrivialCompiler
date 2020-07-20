@@ -24,7 +24,15 @@ MachineProgram *run_codegen(IrProgram *p) {
     std::map<Decl *, MachineOperand> glob_map;
     i32 virtual_max = 0;
     auto resolve = [&](Value *value) {
-      if (auto x = dyn_cast<GlobalRef>(value)) {
+      if (auto x = dyn_cast<ParamRef>(value)) {
+        // TODO: more than 4 args?
+        for (int i = 0; i < f->func->params.size(); i++) {
+          if (&f->func->params[i] == x->decl) {
+            return MachineOperand{.state = MachineOperand::PreColored, .value = i};
+          }
+        }
+        UNREACHABLE();
+      } else if (auto x = dyn_cast<GlobalRef>(value)) {
         auto it = glob_map.find(x->decl);
         if (it == glob_map.end()) {
           // load global addr in entry bb

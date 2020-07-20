@@ -69,7 +69,7 @@ struct MachineOperand {
     if (op.state == PreColored || op.state == Allocated) {
       os << "r" << op.value;
     } else if (op.state == op.Virtual) {
-      os << "r" << op.value;
+      os << "v" << op.value;
     } else if (op.state == Immediate) {
       os << "#" << op.value;
     }
