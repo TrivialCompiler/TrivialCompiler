@@ -7,9 +7,6 @@
 
 enum { SYSTEM_ERROR = 1, PARSING_ERROR, TYPE_CHECK_ERROR };
 
-// 让string_view可以传递给C接口，这个结果不能保存在变量中，只能立即使用，因为临时的string在语句结束后就析构了
-#define STR(sv) std::string(sv)
-#define CSTR(sv) std::string(sv).c_str()
 #define ERR_EXIT(code, ...) \
   do {                      \
     dbg(__VA_ARGS__);       \

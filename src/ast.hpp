@@ -78,7 +78,7 @@ struct Call : Expr {
 
     for (auto [origin, replace] : func_mapping) {
       if (func == origin) {
-        dbg("Function name replaced from", STR(func), "to", replace);
+        dbg("Function name replaced from", func, "to", replace);
         this->func = replace;
       }
     }

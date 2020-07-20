@@ -1,7 +1,4 @@
 #include "ir.hpp"
-
-#include <sstream>
-
 #include "casting.hpp"
 
 void Value::deleteValue() {
@@ -111,26 +108,30 @@ void print_flatten_init(std::ostream &os, Expr **dims, Expr **dims_end, Expr **f
   }
 }
 
+// print value according to type
+struct pv {
+  IndexMapper<Value> &v_index;
+  Value *v;
+  pv(IndexMapper<Value> &v_index, Value *v) : v_index(v_index), v(v) {}
+  friend std::ostream &operator<<(std::ostream &os, const pv &pv) {
+    if (auto x = dyn_cast<ConstValue>(pv.v)) {
+      os << x->imm;
+    } else if (auto x = dyn_cast<GlobalRef>(pv.v)) {
+      os << "@" << x->decl->name;
+    } else if (auto x = dyn_cast<ParamRef>(pv.v)) {
+      os << "%" << x->decl->name;
+    } else if (auto x = dyn_cast<UndefValue>(pv.v)) {
+      os << "undef";
+    } else {
+      os << "%x" << pv.v_index.get(pv.v);
+    }
+    return os;
+  }
+};
+
 // output IR
 std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   using std::endl;
-
-  // print value according to type
-  auto pv = [&os](IndexMapper<Value> &v_index, Value *v) -> std::string {
-    std::stringstream ss;
-    if (auto x = dyn_cast<ConstValue>(v)) {
-      ss << x->imm;
-    } else if (auto x = dyn_cast<GlobalRef>(v)) {
-      ss << "@" << x->decl->name;
-    } else if (auto x = dyn_cast<ParamRef>(v)) {
-      ss << "%" << x->decl->name;
-    } else if (auto x = dyn_cast<UndefValue>(v)) {
-      ss << "undef";
-    } else {
-      ss << "%x" << v_index.get(v);
-    }
-    return ss.str();
-  };
 
   // builtin functions
   os << "declare i32 @getint()" << endl;
@@ -140,7 +141,6 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare void @putarray(i32, i32*)" << endl;
   os << "declare void @_sysy_starttime(i32)" << endl;
   os << "declare void @_sysy_stoptime(i32)" << endl;
-
 
   for (auto &d : p.glob_decl) {
     os << "@" << d->name << " = global ";

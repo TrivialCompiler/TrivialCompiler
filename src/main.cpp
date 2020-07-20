@@ -15,6 +15,7 @@
 #include "passes/pass_manager.hpp"
 
 int main(int argc, char *argv[]) {
+  dbg(std::string_view("123"));
   bool opt = false, print_usage = false;
   char *src = nullptr, *output = nullptr, *ir_file = nullptr;
 
@@ -77,7 +78,7 @@ int main(int argc, char *argv[]) {
       std::ofstream(ir_file) << *ir;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
-    ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, STR(t->piece));
+    ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, t->piece);
   }
 
   // write output
