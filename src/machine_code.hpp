@@ -1,5 +1,7 @@
 #pragma once
 
+#include <iostream>
+
 #include "ast.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
@@ -37,7 +39,10 @@ enum ArmReg {
 struct MachineProgram {
   ilist<MachineFunc> func;
   std::vector<Decl *> glob_decl;
+  friend std::ostream &operator<<(std::ostream &os, const MachineProgram &dt);
 };
+
+std::ostream &operator<<(std::ostream &os, const MachineProgram &dt);
 
 struct MachineFunc {
   DEFINE_ILIST(MachineFunc)

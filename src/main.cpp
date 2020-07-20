@@ -13,9 +13,9 @@
 #include "ssa.hpp"
 #include "typeck.hpp"
 #include "passes/pass_manager.hpp"
+#include "codegen.hpp"
 
 int main(int argc, char *argv[]) {
-  dbg(std::string_view("123"));
   bool opt = false, print_usage = false;
   char *src = nullptr, *output = nullptr, *ir_file = nullptr;
 
@@ -49,7 +49,7 @@ int main(int argc, char *argv[]) {
   dbg(src, output, ir_file, opt, print_usage);
 
   if (src == nullptr || print_usage) {
-    fprintf(stderr, "Usage: %s [-l] [-S] [-o output_file] [-O level] input_file\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-o output_file] [-O level] input_file\n", argv[0]);
     return !print_usage && SYSTEM_ERROR;
   }
 
@@ -76,6 +76,10 @@ int main(int argc, char *argv[]) {
     run_opt_passes(ir, opt);
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
+    }
+    auto *gen = run_codegen(ir);
+    if (output != nullptr) {
+      std::ofstream(output) << *gen;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, t->piece);

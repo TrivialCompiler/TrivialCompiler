@@ -1,3 +1,5 @@
+#pragma once
+
 template <class Node>
 struct ilist {
   Node *head;
