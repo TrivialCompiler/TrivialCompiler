@@ -4,7 +4,6 @@
 #include <string_view>
 #include <variant>
 #include <vector>
-#include <map>
 
 #include "common.hpp"
 
@@ -66,33 +65,28 @@ struct Call : Expr {
   DEFINE_CLASSOF(Expr, p->tag == Expr::Call);
   std::string_view func;
   std::vector<Expr *> args;
-  u32 line_no; // builtin timer function need this
-  Func *f;  // typeck前是nullptr，若typeck成功则非空
+  Func *f = nullptr;  // typeck前是nullptr，若typeck成功则非空
 
   // do some simple preprocess in constructor
-  explicit Call(Expr::Tag tag, i32 result, std::string_view func, std::vector<Expr *> args, u32 line_no) {
-    this->tag = tag;
-    this->result = result;
-
+  explicit Call(std::string_view func, std::vector<Expr *> args, u32 line_no) : Expr{Expr::Call, 0}, func(func) {
     // map some builtin function names
-    const static std::map<std::string_view, std::string> func_mapping{
+    constexpr static std::pair<std::string_view, std::string_view> func_mapping[3] {
       {"starttime", "_sysy_starttime"},
       {"stoptime", "_sysy_stoptime"},
       {"putf", "printf"}
     };
 
-    auto it = func_mapping.find(func);
-    if (it != func_mapping.end()) {
-      dbg("Function name replaced from", STR(func), "to", it->second);
-      this->func = it->second;
-    } else {
-      this->func = func;
+    for (auto [origin, replace] : func_mapping) {
+      if (func == origin) {
+        dbg("Function name replaced from", STR(func), "to", replace);
+        this->func = replace;
+      }
     }
 
     // modify parameters
     if (this->func == "_sysy_starttime" || this->func == "_sysy_stoptime") {
       // manually add line number as parameter
-      this->args.push_back(new ::IntConst{Expr::Tag::IntConst, 0, (i32) line_no});
+      this->args.push_back(new ::IntConst{Expr::IntConst, 0, (i32) line_no});
     } else {
       this->args = std::move(args);
     }

@@ -433,7 +433,7 @@ case 57: {
 [[maybe_unused]] std::vector<Expr *> _3(std::move(*std::get_if<std::vector<Expr *>>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _2(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Call{Expr::Call, 0, _1.piece, std::move(_3), _1.line};
+__ = new Call{_1.piece, std::move(_3), _1.line};
 break;
 }
 case 58: {

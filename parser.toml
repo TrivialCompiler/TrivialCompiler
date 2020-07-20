@@ -206,7 +206,7 @@ rhs = [
   { rhs = ['Sub', 'Expr'], act = '__ = new Unary{Expr::Neg, 0, _2};', prec = 'Unary' },
   { rhs = ['Not', 'Expr'], act = '__ = new Unary{Expr::Not, 0, _2};', prec = 'Unary' },
   { rhs = ['LPar', 'Expr', 'RPar'], act = '__ = _2;' },
-  { rhs = ['Ident', 'LPar', 'ExprList', 'RPar'], act = '__ = new Call{Expr::Call, 0, _1.piece, std::move(_3), _1.line};' },
+  { rhs = ['Ident', 'LPar', 'ExprList', 'RPar'], act = '__ = new Call{_1.piece, std::move(_3), _1.line};' },
   { rhs = ['Ident', 'ArrayDims'], act = '__ = new Index{Expr::Index, 0, _1.piece, std::move(_2)};' },
   { rhs = ['IntConst'], act = '__ = new IntConst{Expr::IntConst, 0, atoi(_1.piece.data())};' },
 ]
