@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 
 #define DBG_MACRO_NO_WARNING
 #include "thirdparty/dbg.h"
@@ -23,3 +24,17 @@ using u32 = uint32_t;
 #define DEFINE_ILIST(cls) \
   cls *prev;              \
   cls *next;
+
+template <class T>
+struct IndexMapper {
+  std::map<T *, u32> mapping;
+  u32 index_max = 0;
+
+  u32 alloc() { return index_max++; }
+
+  u32 get(T *t) {
+    auto [it, inserted] = mapping.insert({t, index_max});
+    index_max += inserted;
+    return it->second;
+  }
+};

@@ -5,6 +5,7 @@
 #include "ast.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
+#include "ir.hpp"
 
 struct MachineFunc;
 struct MachineBB;
@@ -47,21 +48,33 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &dt);
 struct MachineFunc {
   DEFINE_ILIST(MachineFunc)
   ilist<MachineBB> bb;
+  IrFunc *func;
 };
 
 struct MachineBB {
   DEFINE_ILIST(MachineBB)
-  ilist<MachineInst> bb;
+  ilist<MachineInst> insts;
 };
 
 struct MachineOperand {
-  enum State {
+  enum {
     PreColored,
     Allocated,
     Virtual,
     Immediate,
   } state;
   i32 value;
+
+  friend std::ostream &operator<<(std::ostream &os, MachineOperand &op) {
+    if (op.state == PreColored || op.state == Allocated) {
+      os << "r" << op.value;
+    } else if (op.state == op.Virtual) {
+      os << "r" << op.value;
+    } else if (op.state == Immediate) {
+      os << "#" << op.value;
+    }
+    return os;
+  }
 };
 
 struct MachineInst {
@@ -85,12 +98,16 @@ struct MachineInst {
     Not,
     Mv,  // Unary
     Branch,
+    Jump,
     Return,  // Control flow
     Load,
     Store,  // Memory
     Call,
     Global,
   } tag;
+
+  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag) { insertAtEnd->insts.insertAtEnd(this); }
+  MachineInst(Tag tag) : tag(tag) {}
 };
 
 struct MIBinary : MachineInst {
@@ -104,6 +121,8 @@ struct MIUnary : MachineInst {
   DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Mv);
   MachineOperand dst;
   MachineOperand rhs;
+
+  MIUnary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
 struct MIBranch : MachineInst {
@@ -113,8 +132,16 @@ struct MIBranch : MachineInst {
   MachineBB *target;
 };
 
+struct MIJump : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Jump);
+  MachineBB *target;
+
+  MIJump(MachineBB *target, MachineBB *insertAtEnd) : MachineInst(Jump, insertAtEnd), target(target) {}
+};
+
 struct MIReturn : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Return);
+  MIReturn(MachineBB *insertAtEnd) : MachineInst(Return, insertAtEnd) {}
 };
 
 struct MILoad : MachineInst {
@@ -127,6 +154,8 @@ struct MILoad : MachineInst {
   MachineOperand dst;
   MachineOperand addr;
   MachineOperand offset;
+
+  MILoad(MachineBB *insertAtEnd) : MachineInst(Load, insertAtEnd) {}
 };
 
 struct MIStore : MachineInst {
@@ -139,6 +168,8 @@ struct MIStore : MachineInst {
   MachineOperand data;
   MachineOperand addr;
   MachineOperand offset;
+
+  MIStore(MachineBB *insertAtEnd) : MachineInst(Store, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {
@@ -148,5 +179,10 @@ struct MICall : MachineInst {
 
 struct MIGlobal : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Global);
+  MachineOperand dst;
   Decl *sym;
+
+  MIGlobal(Decl *sym, MachineBB *insertAtBegin) : MachineInst(Global), sym(sym) {
+    insertAtBegin->insts.insertAtBegin(this);
+  }
 };

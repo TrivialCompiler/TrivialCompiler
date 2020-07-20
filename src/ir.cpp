@@ -34,20 +34,6 @@ void Value::deleteValue() {
 
 UndefValue UndefValue::INSTANCE;
 
-template <class T>
-struct IndexMapper {
-  std::map<T *, u32> mapping;
-  u32 index_max = 0;
-
-  u32 alloc() { return index_max++; }
-
-  u32 get(T *t) {
-    auto [it, inserted] = mapping.insert({t, index_max});
-    index_max += inserted;
-    return it->second;
-  }
-};
-
 IrFunc *IrProgram::findFunc(Func *f) {
   for (auto p = func.head; p; p = p->next) {
     if (p->func == f) {
