@@ -105,27 +105,29 @@ void mem2reg(IrFunc *f) {
     std::vector<Value *> values = std::move(worklist2.back().second);
     worklist2.pop_back();
     if (vis.insert(bb).second) {
-      for (Inst *i = bb->insts.head; i; i = i->next) {
-        if (auto x = dyn_cast<AllocaInst>(i)) {
-          if (alloca_ids.find(x) != alloca_ids.end()) {
-            bb->insts.remove(x);
-          }
+      for (Inst *i = bb->insts.head; i;) {
+        Inst *next = i->next;
+        // 这条指令不一定是AllocaInst，但是这里也只是转化一下，不会访问AllocaInst的成员，目的只是用它做map的key
+        if (auto it = alloca_ids.find(static_cast<AllocaInst *>(i)); it != alloca_ids.end()) {
+          bb->insts.remove(i);
+          delete static_cast<AllocaInst *>(i); // 但是这里就可以确定它是AllocaInst了
         } else if (auto x = dyn_cast<LoadInst>(i)) {
-          if (auto a = dyn_cast<AllocaInst>(x->arr.value)) {
-            auto it = alloca_ids.find(a);
-            if (it != alloca_ids.end()) {
-              x->replaceAllUseWith(values[it->second]);
-              bb->insts.remove(x);
-            }
+          // 这里不能，也不用再看x->arr.value是不是AllocaInst了
+          // 不能的原因是上面的if分支会delete掉alloca；不用的原因是只要alloca_ids里有，它就一定是AllocaInst
+          auto it = alloca_ids.find(static_cast<AllocaInst *>(x->arr.value));
+          if (it != alloca_ids.end()) {
+            x->replaceAllUseWith(values[it->second]);
+            bb->insts.remove(x);
+            x->arr.value = nullptr; // 它用到被delete的AllocaInst，已经不能再访问了
+            delete x; // 跟i->deleteValue()作用是一样的(但是跟delete i不一样)，逻辑上节省了一次dispatch的过程
           }
         } else if (auto x = dyn_cast<StoreInst>(i)) {
-          if (auto a = dyn_cast<AllocaInst>(x->arr.value)) {
-            auto it = alloca_ids.find(a);
-            if (it != alloca_ids.end()) {
-              values[it->second] = x->data.value;
-              bb->insts.remove(x);
-              // todo: remove掉的指令会影响到use-def关系，是不是确实需要执行delete呢？
-            }
+          auto it = alloca_ids.find(static_cast<AllocaInst *>(x->arr.value));
+          if (it != alloca_ids.end()) {
+            values[it->second] = x->data.value;
+            bb->insts.remove(x);
+            x->arr.value = nullptr;
+            delete x;
           }
         } else if (auto x = dyn_cast<PhiInst>(i)) {
           auto it = phis.find(x); // 也许程序中本来就存在phi，所以phis不一定包含了所有的phi
@@ -133,6 +135,7 @@ void mem2reg(IrFunc *f) {
             values[it->second] = x;
           }
         }
+        i = next;
       }
       for (BasicBlock *x : bb->succ()) {
         if (x) {

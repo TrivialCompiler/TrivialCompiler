@@ -280,5 +280,9 @@ bool BasicBlock::valid() {
 }
 
 BasicBlock::~BasicBlock() {
-  for (Inst *i = insts.head; i; i = i->next) i->deleteValue();
+  for (Inst *i = insts.head; i;) {
+    Inst *next = i->next;
+    i->deleteValue();
+    i = next;
+  }
 }
