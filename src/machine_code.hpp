@@ -69,7 +69,7 @@ struct MachineOperand {
     if (op.state == PreColored || op.state == Allocated) {
       os << "r" << op.value;
     } else if (op.state == op.Virtual) {
-      os << "v" << op.value;
+      os << "r" << op.value;
     } else if (op.state == Immediate) {
       os << "#" << op.value;
     }
@@ -115,6 +115,8 @@ struct MIBinary : MachineInst {
   MachineOperand dst;
   MachineOperand lhs;
   MachineOperand rhs;
+
+  MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
 struct MIUnary : MachineInst {

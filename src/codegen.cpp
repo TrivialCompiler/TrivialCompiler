@@ -1,6 +1,7 @@
+#include "codegen.hpp"
+
 #include <map>
 
-#include "codegen.hpp"
 #include "casting.hpp"
 #include "common.hpp"
 
@@ -54,6 +55,21 @@ MachineProgram *run_codegen(IrProgram *p) {
       }
     };
 
+    auto resolve_no_imm = [&](Value *value, MachineBB *mbb) {
+      if (auto y = dyn_cast<ConstValue>(value)) {
+        // can't store an immediate directly
+        i32 vreg = virtual_max++;
+        MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
+        // move val to vreg
+        auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
+        mv_inst->dst = res;
+        mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = y->imm};
+        return res;
+      } else {
+        return resolve(value);
+      }
+    };
+
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
@@ -69,20 +85,7 @@ MachineProgram *run_codegen(IrProgram *p) {
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
           auto arr = resolve(x->arr.value);
-
-          MachineOperand data;
-          if (auto y = dyn_cast<ConstValue>(x->data.value)) {
-            // can't store an immediate directly
-            i32 vreg = virtual_max++;
-            MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
-            // move val to vreg
-            auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
-            mv_inst->dst = res;
-            mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = y->imm};
-            data = res;
-          } else {
-            data = resolve(x->data.value);
-          }
+          auto data = resolve_no_imm(x->data.value, mbb);
 
           auto new_inst = new MIStore(mbb);
           new_inst->addr = arr;
@@ -95,6 +98,13 @@ MachineProgram *run_codegen(IrProgram *p) {
           mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
           mv_inst->rhs = val;
           auto new_inst = new MIReturn(mbb);
+        } else if (auto x = dyn_cast<BinaryInst>(inst)) {
+          auto lhs = resolve_no_imm(x->lhs.value, mbb);
+          auto rhs = resolve_no_imm(x->rhs.value, mbb);
+          auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
+          new_inst->dst = resolve(inst);
+          new_inst->lhs = lhs;
+          new_inst->rhs = rhs;
         }
       }
     }

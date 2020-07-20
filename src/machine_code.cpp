@@ -22,6 +22,14 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "str " << x->data << ", [" << x->addr << "]" << endl;
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
           os << "ldr " << x->dst << ", =" << x->sym->name << endl;
+        } else if (auto x = dyn_cast<MIBinary>(inst)) {
+          if (x->tag == MachineInst::Mul) {
+            os << "mul " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          } else if (x->tag == MachineInst::Add) {
+            os << "add " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          } else {
+            UNREACHABLE();
+          }
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
           if (x->tag == MachineInst::Mv) {
             os << "mov " << x->dst << ", " << x->rhs << endl;
