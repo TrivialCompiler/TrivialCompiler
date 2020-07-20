@@ -156,6 +156,7 @@ struct MILoad : MachineInst {
   MachineOperand dst;
   MachineOperand addr;
   MachineOperand offset;
+  i32 shift;
 
   MILoad(MachineBB *insertAtEnd) : MachineInst(Load, insertAtEnd) {}
 };

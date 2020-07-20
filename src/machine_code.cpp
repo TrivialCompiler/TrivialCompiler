@@ -17,7 +17,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         if (auto x = dyn_cast<MIJump>(inst)) {
           os << "b _" << bb_index.get(x->target) << endl;
         } else if (auto x = dyn_cast<MILoad>(inst)) {
-          os << "ldr " << x->dst << ", [" << x->addr << "]" << endl;
+          if (x->offset.state == MachineOperand::Immediate) {
+            i32 offset = x->offset.value << x->shift;
+            os << "ldr " << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
+          } else {
+            os << "ldr " << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
+          }
         } else if (auto x = dyn_cast<MIStore>(inst)) {
           os << "str " << x->data << ", [" << x->addr << "]" << endl;
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {

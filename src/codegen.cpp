@@ -85,11 +85,32 @@ MachineProgram *run_codegen(IrProgram *p) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           // TODO: dims
-          auto arr = resolve(x->arr.value);
-          auto new_inst = new MILoad(mbb);
-          new_inst->addr = arr;
-          new_inst->offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
-          new_inst->dst = resolve(inst);
+          if (x->dims.size() == x->lhs_sym->dims.size()) {
+            // access to element
+            auto arr = resolve(x->arr.value);
+            MachineOperand offset;
+            i32 shift = 0;
+            if (x->dims.size() == 0) {
+              // zero offset
+              offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            } else if (x->dims.size() == 1) {
+              // simple offset
+              offset = resolve(x->dims[0].value);
+              shift = 2;
+            } else {
+              // TODO
+              UNREACHABLE();
+            }
+
+            auto new_inst = new MILoad(mbb);
+            new_inst->addr = arr;
+            new_inst->offset = offset;
+            new_inst->dst = resolve(inst);
+            new_inst->shift = shift;
+          } else {
+            // TODO
+            UNREACHABLE();
+          }
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
           auto arr = resolve(x->arr.value);
@@ -100,11 +121,13 @@ MachineProgram *run_codegen(IrProgram *p) {
           new_inst->data = data;
           new_inst->offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
-          auto val = resolve(x->ret.value);
-          // move val to a0
-          auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
-          mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
-          mv_inst->rhs = val;
+          if (x->ret.value) {
+            auto val = resolve(x->ret.value);
+            // move val to a0
+            auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
+            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
+            mv_inst->rhs = val;
+          }
           auto new_inst = new MIReturn(mbb);
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
