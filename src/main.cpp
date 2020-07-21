@@ -85,11 +85,6 @@ int main(int argc, char *argv[]) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, t->piece);
   }
 
-  // write output
-  if (output != nullptr) {
-    // TODO
-  }
-
   // post-precess
   munmap(input, st.st_size);
   free(output);

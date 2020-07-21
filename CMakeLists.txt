@@ -5,7 +5,7 @@ project(${project_name})
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
 
 file(GLOB_RECURSE source_files "src/*.cpp")
 file(GLOB_RECURSE header_files "src/*.hpp")
@@ -22,39 +22,63 @@ file(GLOB perf_test_cases "sysyruntimelibrary/performance_test/*.sy")
 set(all_test_cases ${func_test_cases} ${perf_test_cases})
 
 
-# test parsing
+# create test cases
 foreach(case_file ${all_test_cases})
+
     get_filename_component(case_name "${case_file}" NAME_WE)
+    string(REGEX REPLACE ".sy$" ".in" case_input ${case_file})
+    string(REGEX REPLACE ".sy$" ".out" case_output ${case_file})
+
+    # check our compiler
     add_test(NAME check_parse_${case_name}
             COMMAND ./${project_name} "${case_file}")
     add_test(NAME check_emit_llvm_${case_name}
             COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}")
+    add_test(NAME check_emit_asm_${case_name}
+            COMMAND ./${project_name} -o "${case_name}.S" "${case_file}")
 
+    # use LLVM to generate exe
+    # .sy -> .bc
     add_custom_command(OUTPUT "${case_name}.bc"
             COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}"
-	    DEPENDS ./${project_name})
-    add_custom_command(OUTPUT "${case_name}.o"
-            COMMAND llc -O1 -march=arm -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}.o"
+            DEPENDS ./${project_name})
+    # .bc -> .o
+    add_custom_command(OUTPUT "${case_name}_llvm.o"
+            COMMAND llc -O1 -march=arm -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
 	    DEPENDS "${case_name}.bc")
-    add_custom_target("${case_name}"
-	    COMMAND arm-linux-gnueabihf-gcc -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}"
-	    DEPENDS "${case_name}.o")
-    string(REGEX REPLACE ".sy$" ".in" case_input ${case_file})
-    string(REGEX REPLACE ".sy$" ".out" case_output ${case_file})
-    if (EXISTS ${case_input})
-        add_custom_target("run_${case_name}"
-	    COMMAND qemu-arm "${case_name}" < "${case_input}" || true
-	    DEPENDS "${case_name}")
-    else()
-        add_custom_target("run_${case_name}"
-	    COMMAND qemu-arm "${case_name}" || true
-	    DEPENDS "${case_name}")
-    endif()
-    add_custom_target("test_${case_name}"
-        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "${case_name}" "${case_input}" "${case_name}.out" "${case_output}"
-        DEPENDS "${case_name}")
+    # .o -> exe
+    add_custom_target("${case_name}_llvm"
+	    COMMAND arm-linux-gnueabihf-gcc -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_llvm.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_llvm"
+	    DEPENDS "${case_name}_llvm.o")
+    # run exe with qemu to test
+    add_custom_target("test_${case_name}_llvm"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "${case_name}_llvm" "${case_input}" "${case_name}.out" "${case_output}"
+        DEPENDS "${case_name}_llvm")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_llvm_${case_name}
-            COMMAND make "test_${case_name}")
+            COMMAND make "test_${case_name}_llvm")
     endif()
+
+    # use our compiler to generate exe
+    # .sy -> .S
+    add_custom_command(OUTPUT "${case_name}.S"
+            COMMAND ./${project_name} -o "${case_name}.S" "${case_file}"
+            DEPENDS ./${project_name})
+    # .S -> .o
+    add_custom_command(OUTPUT "${case_name}_tc.o"
+            COMMAND arm-linux-gnueabihf-as -mfloat-abi=hard "${case_name}.S" -o "${case_name}_tc.o"
+            DEPENDS "${case_name}.S")
+    # .o -> exe
+    add_custom_target("${case_name}_tc"
+            COMMAND arm-linux-gnueabihf-gcc -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_tc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_tc"
+            DEPENDS "${case_name}_tc.o")
+    # run exe with qemu to test
+    add_custom_target("test_${case_name}_tc"
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "${case_name}_tc" "${case_input}" "${case_name}.out" "${case_output}"
+            DEPENDS "${case_name}_tc")
+    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        add_test(NAME check_run_tc_${case_name}
+                COMMAND make "test_${case_name}_tc")
+    endif()
+
 endforeach()

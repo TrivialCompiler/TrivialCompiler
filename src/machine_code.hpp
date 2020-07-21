@@ -132,7 +132,9 @@ struct MachineInst {
   } tag;
 
   MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) { insertAtEnd->insts.insertAtEnd(this); }
-  MachineInst(Tag tag, MachineInst *insertBefore) : tag(tag), bb(insertBefore->bb) { bb->insts.insertBefore(this, insertBefore); }
+  MachineInst(Tag tag, MachineInst *insertBefore) : tag(tag), bb(insertBefore->bb) {
+    bb->insts.insertBefore(this, insertBefore);
+  }
   MachineInst(Tag tag) : tag(tag) {}
 };
 
