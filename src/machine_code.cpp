@@ -35,6 +35,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "add";
           } else if (x->tag == MachineInst::Sub) {
             op = "sub";
+          } else if (x->tag == MachineInst::Mod) {
+            op = "mod";
           } else {
             UNREACHABLE();
           }

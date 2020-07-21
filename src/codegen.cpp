@@ -5,7 +5,7 @@
 #include "casting.hpp"
 #include "common.hpp"
 
-MachineProgram *run_codegen(IrProgram *p) {
+MachineProgram *machine_code_selection(IrProgram *p) {
   MachineProgram *ret = new MachineProgram;
   ret->glob_decl = p->glob_decl;
   for (auto f = p->func.head; f; f = f->next) {

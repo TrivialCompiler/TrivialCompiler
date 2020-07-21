@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
     }
-    auto *gen = run_codegen(ir);
+    auto *gen = machine_code_selection(ir);
     if (output != nullptr) {
       std::ofstream(output) << *gen;
     }
