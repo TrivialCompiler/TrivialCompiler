@@ -143,9 +143,21 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             if (x->tag == BinaryInst::Gt) {
               cond = Gt;
               opposite = Le;
+            } else if (x->tag == BinaryInst::Ge) {
+              cond = Ge;
+              opposite = Lt;
+            } else if (x->tag == BinaryInst::Le) {
+              cond = Le;
+              opposite = Gt;
+            } else if (x->tag == BinaryInst::Lt) {
+              cond = Lt;
+              opposite = Ge;
             } else if (x->tag == BinaryInst::Eq) {
               cond = Eq;
               opposite = Ne;
+            } else if (x->tag == BinaryInst::Ne) {
+              cond = Ne;
+              opposite = Eq;
             } else {
               UNREACHABLE();
             }
