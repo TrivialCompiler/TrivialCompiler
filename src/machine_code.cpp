@@ -35,6 +35,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "add";
           } else if (x->tag == MachineInst::Sub) {
             op = "sub";
+          } else if (x->tag == MachineInst::Mod) {
+            op = "mod";
           } else {
             UNREACHABLE();
           }
@@ -45,6 +47,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           } else {
             UNREACHABLE();
           }
+        } else if (auto x = dyn_cast<MICompare>(inst)) {
+          os << "cmp " << x->lhs << ", " << x->rhs << endl;
+        } else if (auto x = dyn_cast<MIBranch>(inst)) {
+          os << "b" << x->cond << ", _" << bb_index.get(x->target) << endl;
+        } else if (auto x = dyn_cast<MIMove>(inst)) {
+          os << "mov" << x->cond << " " << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           os << "bx lr" << endl;
         }

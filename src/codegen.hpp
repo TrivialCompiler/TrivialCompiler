@@ -3,4 +3,4 @@
 #include "machine_code.hpp"
 #include "ir.hpp"
 
-MachineProgram *run_codegen(IrProgram *p);
+MachineProgram *machine_code_selection(IrProgram *p);

@@ -37,6 +37,29 @@ enum ArmReg {
   r15,
 };
 
+enum ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
+
+static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
+  if (cond == Eq) {
+    os << "eq";
+  } else if (cond == Ne) {
+    os << "ne";
+  } else if (cond == Any) {
+    os << "";
+  } else if (cond == Gt) {
+    os << "gt";
+  } else if (cond == Ge) {
+    os << "ge";
+  } else if (cond == Lt) {
+    os << "lt";
+  } else if (cond == Le) {
+    os << "le";
+  } else {
+    UNREACHABLE();
+  }
+  return os;
+}
+
 struct MachineProgram {
   ilist<MachineFunc> func;
   std::vector<Decl *> glob_decl;
@@ -95,13 +118,14 @@ struct MachineInst {
     And,
     Or,  // Binary
     Neg,
-    Not,
-    Mv,  // Unary
+    Not,  // Unary
+    Mv,
     Branch,
     Jump,
     Return,  // Control flow
     Load,
     Store,  // Memory
+    Compare,
     Call,
     Global,
   } tag;
@@ -120,18 +144,27 @@ struct MIBinary : MachineInst {
 };
 
 struct MIUnary : MachineInst {
-  DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Mv);
+  DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Not);
   MachineOperand dst;
   MachineOperand rhs;
 
   MIUnary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
+struct MIMove : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Mv);
+  ArmCond cond;
+  MachineOperand dst;
+  MachineOperand rhs;
+
+  MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
+};
+
 struct MIBranch : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Branch);
-  MachineOperand cond;
-  // TODO: condition code
+  ArmCond cond;
   MachineBB *target;
+  MIBranch(MachineBB *insertAtEnd) : MachineInst(Branch, insertAtEnd) {}
 };
 
 struct MIJump : MachineInst {
@@ -173,6 +206,14 @@ struct MIStore : MachineInst {
   MachineOperand offset;
 
   MIStore(MachineBB *insertAtEnd) : MachineInst(Store, insertAtEnd) {}
+};
+
+struct MICompare : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Compare);
+  MachineOperand lhs;
+  MachineOperand rhs;
+
+  MICompare(MachineBB *insertAtEnd) : MachineInst(Compare, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {

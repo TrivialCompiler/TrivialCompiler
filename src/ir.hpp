@@ -36,8 +36,7 @@ struct Value {
     And,
     Or,  // Binary
     Neg,
-    Not,
-    Mv,  // Unary
+    Not,  // Unary
     Branch,
     Jump,
     Return,  // Control flow
@@ -187,7 +186,7 @@ struct BinaryInst : Inst {
 };
 
 struct UnaryInst : Inst {
-  DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Mv);
+  DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Not);
   // operands
   Use rhs;
   UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd) : Inst(tag, insertAtEnd), rhs(rhs, this) {}
