@@ -138,8 +138,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new_inst->rhs = rhs;
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           auto cond = resolve_no_imm(x->cond.value, mbb);
+          // if cond != 0
+          auto cmp_inst = new MICompare(mbb);
+          cmp_inst->lhs = cond;
+          cmp_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
           auto new_inst = new MIBranch(mbb);
-          new_inst->cond = cond;
+          new_inst->cond = MIBranch::Ne;
           new_inst->target = bb_map[x->left];
           auto fallback_inst = new MIJump(bb_map[x->right], mbb);
         }

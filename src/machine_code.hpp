@@ -102,6 +102,7 @@ struct MachineInst {
     Return,  // Control flow
     Load,
     Store,  // Memory
+    Compare,
     Call,
     Global,
   } tag;
@@ -129,8 +130,14 @@ struct MIUnary : MachineInst {
 
 struct MIBranch : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Branch);
-  MachineOperand cond;
-  // TODO: condition code
+  enum {
+    Eq,
+    Ne,
+    Ge,
+    Gt,
+    Le,
+    Lt
+  } cond;
   MachineBB *target;
   MIBranch(MachineBB *insertAtEnd) : MachineInst(Branch, insertAtEnd) {}
 };
@@ -174,6 +181,14 @@ struct MIStore : MachineInst {
   MachineOperand offset;
 
   MIStore(MachineBB *insertAtEnd) : MachineInst(Store, insertAtEnd) {}
+};
+
+struct MICompare : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Compare);
+  MachineOperand lhs;
+  MachineOperand rhs;
+
+  MICompare(MachineBB *insertAtEnd) : MachineInst(Compare, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {
