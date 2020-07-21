@@ -136,6 +136,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new_inst->dst = resolve(inst);
           new_inst->lhs = lhs;
           new_inst->rhs = rhs;
+        } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          auto cond = resolve_no_imm(x->cond.value, mbb);
+          auto new_inst = new MIBranch(mbb);
+          new_inst->cond = cond;
+          new_inst->target = bb_map[x->left];
+          auto fallback_inst = new MIJump(bb_map[x->right], mbb);
         }
       }
     }

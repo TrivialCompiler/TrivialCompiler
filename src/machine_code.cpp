@@ -59,6 +59,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           } else {
             UNREACHABLE();
           }
+        } else if (auto x = dyn_cast<MIBranch>(inst)) {
+          os << "cmp " << x->cond << ", #0" << endl;
+          os << "\tbne _" << bb_index.get(x->target) << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           os << "bx lr" << endl;
         }

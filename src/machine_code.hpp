@@ -132,6 +132,7 @@ struct MIBranch : MachineInst {
   MachineOperand cond;
   // TODO: condition code
   MachineBB *target;
+  MIBranch(MachineBB *insertAtEnd) : MachineInst(Branch, insertAtEnd) {}
 };
 
 struct MIJump : MachineInst {
