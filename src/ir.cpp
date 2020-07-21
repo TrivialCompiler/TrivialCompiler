@@ -182,8 +182,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         if (i != 0) os << ", ";
         os << "%_" << bb_index.find(bb->pred[i])->second;
       }
-      os << ", dom = ";
-      for (auto begin = bb->dom.begin(), it = begin, end = bb->dom.end(); it != end; ++it) {
+      os << ", dom_by = ";
+      for (auto begin = bb->dom_by.begin(), it = begin, end = bb->dom_by.end(); it != end; ++it) {
         if (it != begin) os << ", ";
         os << "%_" << bb_index.find(*it)->second;
       }

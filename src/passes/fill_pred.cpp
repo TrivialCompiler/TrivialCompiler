@@ -1,12 +1,10 @@
 #include "fill_pred.hpp"
-#include <unordered_set>
 
-static void dfs(std::unordered_set<BasicBlock *> &vis, BasicBlock *bb) {
-  if (vis.insert(bb).second) { // 如果insert成功，证明未曾访问过
+static void dfs(BasicBlock *bb) {
+  if (!bb->vis) {
+    bb->vis = true;
     for (BasicBlock *x : bb->succ()) {
-      if (x) {
-        dfs(vis, x);
-      }
+      if (x) dfs(x);
     }
   }
 }
@@ -28,11 +26,11 @@ void fill_pred(IrFunc *f) {
       }
     }
   }
-  std::unordered_set<BasicBlock *> vis;
-  dfs(vis, f->bb.head);
+  f->clear_all_vis();
+  dfs(f->bb.head);
   for (BasicBlock *bb = f->bb.head; bb;) {
     BasicBlock *next = bb->next;
-    if (vis.find(bb) == vis.end()) {
+    if (!bb->vis) {
       f->bb.remove(bb);
       delete bb;
     } else {
@@ -42,9 +40,7 @@ void fill_pred(IrFunc *f) {
   }
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (BasicBlock *x : bb->succ()) {
-      if (x) {
-        x->pred.push_back(bb);
-      }
+      if (x) x->pred.push_back(bb);
     }
   }
 }

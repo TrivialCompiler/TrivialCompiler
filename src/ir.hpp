@@ -105,12 +105,15 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &dt);
 struct BasicBlock {
   DEFINE_ILIST(BasicBlock)
   std::vector<BasicBlock *> pred;
-  std::unordered_set<BasicBlock *> dom;  // 支配它的节点集
-  BasicBlock *idom;                      // 直接支配它的节点
+  BasicBlock *idom;
+  std::unordered_set<BasicBlock *> dom_by;  // 支配它的节点集
+  std::vector<BasicBlock *> doms;           // 它支配的节点集
+  u32 dom_level;                            // dom树中的深度，根深度为0
+  bool vis;  // 各种算法中用到，标记是否访问过，算法开头应把所有vis置false(调用IrFunc::clear_all_vis)
   ilist<Inst> insts;
 
   inline std::array<BasicBlock *, 2> succ();
-  inline std::array<BasicBlock **, 2> succ_ref(); // 想修改succ时使用
+  inline std::array<BasicBlock **, 2> succ_ref();  // 想修改succ时使用
   inline bool valid();
   inline ~BasicBlock();
 };
@@ -121,6 +124,11 @@ struct IrFunc {
   ilist<BasicBlock> bb;
   // mapping from decl to its value in this function
   std::map<Decl *, Value *> decls;
+
+  // 将所有bb的vis置false
+  void clear_all_vis() {
+    for (BasicBlock *b = bb.head; b; b = b->next) b->vis = false;
+  }
 };
 
 struct ConstValue : Value {
