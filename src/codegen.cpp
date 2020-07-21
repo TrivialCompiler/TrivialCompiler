@@ -89,27 +89,62 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // access to element
             auto arr = resolve(x->arr.value);
             MachineOperand offset;
-            i32 shift = 0;
             if (x->dims.size() == 0) {
               // zero offset
               offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
             } else if (x->dims.size() == 1) {
               // simple offset
               offset = resolve(x->dims[0].value);
-              shift = 2;
             } else {
-              // TODO
-              UNREACHABLE();
+              // sum of index * number of elements
+              // allocate two registers: multiply and add
+              i32 mul_vreg = virtual_max++;
+              i32 add_vreg = virtual_max++;
+
+              // mov add_vreg, 0
+              auto mv_inst = new MIMove(mbb);
+              mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+              mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+
+              for (int i = 0; i < x->dims.size(); i++) {
+                // number of elements
+                i32 imm = 1;
+                if (i + 1 < x->dims.size()) {
+                  imm = x->lhs_sym->dims[i + 1]->result;
+                }
+
+                // mov mul_vreg, imm
+                auto mv_inst = new MIMove(mbb);
+                mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+                mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = imm};
+
+                // mul mul_vreg, mul_vreg, dim
+                auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
+                mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+                mul_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+                mul_inst->rhs = resolve(x->dims[i].value);
+
+                // add add_vreg, add_vreg, mul_vreg
+                auto add_inst = new MIBinary(MachineInst::Add, mbb);
+                add_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+                add_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+                add_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+              }
+
+              offset = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
             }
 
             auto new_inst = new MILoad(mbb);
             new_inst->addr = arr;
             new_inst->offset = offset;
             new_inst->dst = resolve(inst);
-            new_inst->shift = shift;
+            new_inst->shift = 2;
           } else {
+            // get addr of sub array
             // TODO
-            UNREACHABLE();
+            auto mv_inst = new MIMove(mbb);
+            mv_inst->dst = resolve(inst);
+            mv_inst->rhs = resolve(x->arr.value);
           }
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           // TODO: dims
