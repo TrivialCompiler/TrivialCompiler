@@ -2,8 +2,8 @@ image: "debian:bullseye"
 
 default:
   before_script:
-    - echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye main" > /etc/apt/sources.list &&
-      echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian bullseye-updates main" >> /etc/apt/sources.list
+    - echo "deb http://mirrors.bfsu.edu.cn/debian bullseye main" > /etc/apt/sources.list &&
+      echo "deb http://mirrors.bfsu.edu.cn/debian bullseye-updates main" >> /etc/apt/sources.list
     - apt-get update
     - env DEBIAN_FRONTEND=noninteractive apt-get install -y make cmake g++ git llvm qemu-user g++-arm-linux-gnueabihf python3-tabulate
     - cp .gitmodules-ci .gitmodules
@@ -17,7 +17,7 @@ build_and_test:
     - make
     - env CTEST_OUTPUT_ON_FAILURE=1 make test
   after_script:
-    - python3 ../extract_result.py Testing/Temporary/LastTest.log
+    - python3 extract_result.py build/Testing/Temporary/LastTest.log
   artifacts:
     paths:
       - build/Testing/Temporary/*.log
