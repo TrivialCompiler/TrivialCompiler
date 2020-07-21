@@ -37,6 +37,21 @@ enum ArmReg {
   r15,
 };
 
+enum ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
+
+static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
+  if (cond == Eq) {
+    os << "eq";
+  } else if (cond == Ne) {
+    os << "ne";
+  } else if (cond == Any) {
+    os << "";
+  } else {
+    UNREACHABLE();
+  }
+  return os;
+}
+
 struct MachineProgram {
   ilist<MachineFunc> func;
   std::vector<Decl *> glob_decl;
@@ -95,8 +110,8 @@ struct MachineInst {
     And,
     Or,  // Binary
     Neg,
-    Not,
-    Mv,  // Unary
+    Not,  // Unary
+    Mv,
     Branch,
     Jump,
     Return,  // Control flow
@@ -121,23 +136,25 @@ struct MIBinary : MachineInst {
 };
 
 struct MIUnary : MachineInst {
-  DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Mv);
+  DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Not);
   MachineOperand dst;
   MachineOperand rhs;
 
   MIUnary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
+struct MIMove : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Mv);
+  ArmCond cond;
+  MachineOperand dst;
+  MachineOperand rhs;
+
+  MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
+};
+
 struct MIBranch : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Branch);
-  enum {
-    Eq,
-    Ne,
-    Ge,
-    Gt,
-    Le,
-    Lt
-  } cond;
+  ArmCond cond;
   MachineBB *target;
   MIBranch(MachineBB *insertAtEnd) : MachineInst(Branch, insertAtEnd) {}
 };

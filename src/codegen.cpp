@@ -69,7 +69,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         i32 vreg = virtual_max++;
         MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
         // move val to vreg
-        auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
+        auto mv_inst = new MIMove(mbb);
         mv_inst->dst = res;
         mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = y->imm};
         return res;
@@ -124,7 +124,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value);
             // move val to a0
-            auto mv_inst = new MIUnary(MachineInst::Mv, mbb);
+            auto mv_inst = new MIMove(mbb);
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
             mv_inst->rhs = val;
           }
@@ -132,10 +132,35 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           auto rhs = resolve_no_imm(x->rhs.value, mbb);
-          auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
-          new_inst->dst = resolve(inst);
-          new_inst->lhs = lhs;
-          new_inst->rhs = rhs;
+          if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
+            // transform compare instructions
+            auto dst = resolve(inst);
+            auto new_inst = new MICompare(mbb);
+            new_inst->lhs = lhs;
+            new_inst->rhs = rhs;
+
+            ArmCond cond, opposite;
+            if (x->tag == BinaryInst::Gt) {
+              cond = Gt;
+              opposite = Le;
+            } else {
+              UNREACHABLE();
+            }
+
+            auto mv1_inst = new MIMove(mbb);
+            mv1_inst->dst = dst;
+            mv1_inst->cond = cond;
+            mv1_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            auto mv0_inst = new MIMove(mbb);
+            mv0_inst->dst = dst;
+            mv0_inst->cond = opposite;
+            mv0_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+          } else {
+            auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
+            new_inst->dst = resolve(inst);
+            new_inst->lhs = lhs;
+            new_inst->rhs = rhs;
+          }
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
           auto cond = resolve_no_imm(x->cond.value, mbb);
           // if cond != 0
@@ -143,7 +168,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           cmp_inst->lhs = cond;
           cmp_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
           auto new_inst = new MIBranch(mbb);
-          new_inst->cond = MIBranch::Ne;
+          new_inst->cond = ArmCond::Ne;
           new_inst->target = bb_map[x->left];
           auto fallback_inst = new MIJump(bb_map[x->right], mbb);
         }

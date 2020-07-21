@@ -29,8 +29,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "ldr " << x->dst << ", =" << x->sym->name << endl;
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
-          const char *opposite = "unknown";
-          bool compare = false;
           if (x->tag == MachineInst::Mul) {
             op = "mul";
           } else if (x->tag == MachineInst::Add) {
@@ -39,20 +37,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "sub";
           } else if (x->tag == MachineInst::Mod) {
             op = "mod";
-          } else if (x->tag == MachineInst::Gt) {
-            compare = true;
-            op = "gt";
-            opposite = "le";
           } else {
             UNREACHABLE();
           }
-          if (compare) {
-            os << "cmp " << x->lhs << ", " << x->rhs << endl;
-            os << "\tmov" << op << " " << x->dst << ", #1" << endl;
-            os << "\tmov" << opposite << " " << x->dst << ", #0" << endl;
-          } else {
-            os << op << " " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
-          }
+          os << op << " " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
           if (x->tag == MachineInst::Mv) {
             os << "mov " << x->dst << ", " << x->rhs << endl;
@@ -62,15 +50,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
-          const char *op = "unknown";
-          if (x->cond == MIBranch::Eq) {
-            op = "eq";
-          } else if (x->cond == MIBranch::Ne) {
-            op = "ne";
-          } else {
-            UNREACHABLE();
-          }
-          os << "b" << op << ", _" << bb_index.get(x->target) << endl;
+          os << "b" << x->cond << ", _" << bb_index.get(x->target) << endl;
+        } else if (auto x = dyn_cast<MIMove>(inst)) {
+          os << "mov" << x->cond << " " << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           os << "bx lr" << endl;
         }
