@@ -102,6 +102,7 @@ struct MachineOperand {
 
 struct MachineInst {
   DEFINE_ILIST(MachineInst)
+  MachineBB *bb;
 
   enum Tag {
     Add,
@@ -130,7 +131,8 @@ struct MachineInst {
     Global,
   } tag;
 
-  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag) { insertAtEnd->insts.insertAtEnd(this); }
+  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) { insertAtEnd->insts.insertAtEnd(this); }
+  MachineInst(Tag tag, MachineInst *insertBefore) : tag(tag), bb(insertBefore->bb) { bb->insts.insertBefore(this, insertBefore); }
   MachineInst(Tag tag) : tag(tag) {}
 };
 
@@ -158,6 +160,7 @@ struct MIMove : MachineInst {
   MachineOperand rhs;
 
   MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
+  MIMove(MachineInst *insertBefore) : MachineInst(Mv, insertBefore), cond(Any) {}
 };
 
 struct MIBranch : MachineInst {

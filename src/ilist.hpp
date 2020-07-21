@@ -11,6 +11,9 @@ struct ilist {
   void insertBefore(Node *newNode, Node *insertBefore) {
     newNode->prev = insertBefore->prev;
     newNode->next = insertBefore;
+    if (insertBefore->prev) {
+      insertBefore->prev->next = newNode;
+    }
     insertBefore->prev = newNode;
 
     if (head == insertBefore) {

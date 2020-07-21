@@ -5,6 +5,18 @@
 #include "casting.hpp"
 #include "common.hpp"
 
+// list of assignments (lhs, rhs)
+using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
+
+void insert_parallel_mv(ParMv &movs, MachineInst *insertBefore) {
+  // TODO: serialization
+  for (auto &[lhs, rhs] : movs) {
+    auto inst = new MIMove(insertBefore);
+    inst->dst = lhs;
+    inst->rhs = rhs;
+  }
+}
+
 MachineProgram *machine_code_selection(IrProgram *p) {
   MachineProgram *ret = new MachineProgram;
   ret->glob_decl = p->glob_decl;
@@ -12,12 +24,15 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     auto mf = new MachineFunc;
     ret->func.insertAtEnd(mf);
     mf->func = f;
+
+    // 1. create machine bb 1-to-1
     std::map<BasicBlock *, MachineBB *> bb_map;
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = new MachineBB;
       mf->bb.insertAtEnd(mbb);
       bb_map[bb] = mbb;
     }
+
     // map value to MachineOperand
     std::map<Value *, MachineOperand> val_map;
     // map global decl to MachineOperand
@@ -78,6 +93,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       }
     };
 
+    // 2. translate instructions except phi
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
@@ -222,6 +238,43 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new_inst->target = bb_map[x->left];
           auto fallback_inst = new MIJump(bb_map[x->right], mbb);
         }
+      }
+    }
+
+    // 3. handle phi nodes
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      auto mbb = bb_map[bb];
+      // collect phi node information
+      // (lhs, vreg) assignments
+      ParMv lhs;
+      // each bb has a list of (vreg, rhs) parallel moves
+      std::map<BasicBlock *, ParMv> mv;
+      for (auto inst = bb->insts.head; inst; inst = inst->next) {
+        // phi insts must appear at the beginning of bb
+        if (auto x = dyn_cast<PhiInst>(inst)) {
+          // for each phi:
+          // lhs = phi [r1 bb1], [r2 bb2] ...
+          // 1. create vreg for each inst
+          // 2. add parallel mv (lhs1, ...) = (vreg1, ...)
+          // 3. add parallel mv in each bb: (vreg1, ...) = (r1, ...)
+          i32 vreg = virtual_max++;
+          MachineOperand vr = {.state = MachineOperand::Virtual, .value = vreg};
+          lhs.emplace_back(resolve(inst), vr);
+          for (int i = 0; i < x->incoming_bbs->size(); i++) {
+            auto pred_bb = x->incoming_bbs->at(i);
+            auto val = resolve(x->incoming_values[i].value);
+            mv[pred_bb].emplace_back(vr, val);
+          }
+        } else {
+          break;
+        }
+      }
+      // insert parallel mv at the beginning of current mbb
+      insert_parallel_mv(lhs, mbb->insts.head);
+      // insert parallel mv before the last instruction of pred mbb
+      for (auto &[bb, movs] : mv) {
+        auto mbb = bb_map[bb];
+        insert_parallel_mv(movs, mbb->insts.tail);
       }
     }
   }
