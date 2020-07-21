@@ -1,11 +1,12 @@
 #include "pass_manager.hpp"
 
 #include "fill_pred.hpp"
+#include "cfg.hpp"
 #include "mem2reg.hpp"
 
 typedef void (*FuncPass)(IrFunc *f);
 
-static FuncPass passes[] = {fill_pred, mem2reg};
+static FuncPass passes[] = {fill_pred, compute_dom_info, mem2reg};
 static FuncPass opt_passes[] = {};
 
 void run_opt_passes(IrProgram *p, bool opt) {
