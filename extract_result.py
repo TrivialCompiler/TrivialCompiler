@@ -12,21 +12,24 @@ if __name__ == '__main__':
 
     results = {}
 
-    try:
-        for compiler, name, h, m, s, us in pattern.findall(content):
-            h, m, s, us = int(h), int(m), int(s), int(us)
-            if name not in results:
-                results[name] = {}
-            results[name][compiler] = ((h * 60 + m) * 60 + s) * 1e6 + us
-    except:
-        pass
+    # split by test cases
+    for case in content.split('----------------------------------------------------------\n\n'):
+        try:
+            for compiler, name, h, m, s, us in pattern.findall(case):
+                h, m, s, us = int(h), int(m), int(s), int(us)
+                if name not in results:
+                    results[name] = {}
+                results[name][compiler] = ((h * 60 + m) * 60 + s) * 1e6 + us
+        except:
+            continue
 
     data = []
 
     for case, time in results.items():
-        time_llvm = time['llvm'] if 'llvm' in time else float('nan')
-        time_tc = time['tc'] if 'tc' in time else float('nan')
-        ratio = f'+{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'nan'
-        data.append([case, time_llvm, time_tc, ratio])
+        nan = float('nan')
+        time_llvm = time['llvm'] if 'llvm' in time else nan
+        time_tc = time['tc'] if 'tc' in time else nan
+        ratio = f'{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'N/A'
+        data.append([case, time_llvm / 1e6, time_tc / 1e6, ratio])
 
     print(tabulate(data, headers=["Case", "LLVM", "TC", "Ratio"]))
