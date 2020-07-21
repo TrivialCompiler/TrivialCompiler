@@ -24,9 +24,9 @@ if __name__ == '__main__':
     data = []
 
     for case, time in results.items():
-        time_llvm = time['llvm']
-        time_tc = time['tc'] if 'tc' in time else float('inf')
-        ratio = f'+{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'NaN'
+        time_llvm = time['llvm'] if 'llvm' in time else float('nan')
+        time_tc = time['tc'] if 'tc' in time else float('nan')
+        ratio = f'+{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'nan'
         data.append([case, time_llvm, time_tc, ratio])
 
     print(tabulate(data, headers=["Case", "LLVM", "TC", "Ratio"]))
