@@ -46,6 +46,14 @@ static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
     os << "ne";
   } else if (cond == Any) {
     os << "";
+  } else if (cond == Gt) {
+    os << "gt";
+  } else if (cond == Ge) {
+    os << "ge";
+  } else if (cond == Lt) {
+    os << "lt";
+  } else if (cond == Le) {
+    os << "le";
   } else {
     UNREACHABLE();
   }

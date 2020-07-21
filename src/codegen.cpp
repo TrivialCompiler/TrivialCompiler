@@ -150,11 +150,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto mv1_inst = new MIMove(mbb);
             mv1_inst->dst = dst;
             mv1_inst->cond = cond;
-            mv1_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            mv1_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
             auto mv0_inst = new MIMove(mbb);
             mv0_inst->dst = dst;
             mv0_inst->cond = opposite;
-            mv0_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+            mv0_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
           } else {
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
             new_inst->dst = resolve(inst);
