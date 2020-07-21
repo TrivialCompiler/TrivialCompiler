@@ -1,4 +1,5 @@
 #include "cfg.hpp"
+#include <cassert>
 
 // 计算dom_level
 static void dfs(BasicBlock *bb, u32 dom_level) {
@@ -50,4 +51,74 @@ void compute_dom_info(IrFunc *f) {
     }
   }
   dfs(entry, 0);
+}
+
+// 在dom tree上后序遍历，识别所有循环
+// 在所有递归调用中用的是同一个worklist，这只是为了减少内存申请，它们之间没有任何关系
+static void collect_loops(LoopInfo &info, std::vector<BasicBlock *> &worklist, BasicBlock *header) {
+  for (BasicBlock *s : header->doms) {
+    if (s) collect_loops(info, worklist, s);
+  }
+  assert(worklist.empty());
+  for (BasicBlock *p : header->pred) { // 存在p到header的边
+    if (p->dom_by.find(header) != p->dom_by.end()) { // ...且header支配p，这是回边
+      worklist.push_back(p);
+    }
+  }
+  if (!worklist.empty()) {
+    Loop *l = new Loop(header);
+    while (!worklist.empty()) {
+      BasicBlock *pred = worklist.back();
+      worklist.pop_back();
+      if (auto[it, inserted] = info.loop_of_bb.insert({pred, l}); inserted) {
+        // 插入成功意味着pred原先不属于任何loop，现在它属于这个loop了
+        if (pred != header) {
+          worklist.insert(worklist.end(), pred->pred.begin(), pred->pred.end());
+        }
+      } else {
+        // 这是一个已经发现的loop
+        Loop *sub = it->second;
+        while (Loop *p = sub->parent) sub = p; // 找到已发现的最外层的loop
+        if (sub != l) {
+          sub->parent = l;
+          // 只需考虑sub的header的pred，因为根据循环的性质，循环中其他bb的pred必然都在循环内
+          for (BasicBlock *pred : sub->header()->pred) {
+            auto it = info.loop_of_bb.find(pred);
+            if (it == info.loop_of_bb.end() || it->second != sub) {
+              worklist.push_back(pred);
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// 填充Loop::bbs, sub_loops, LoopInfo::top_level
+// todo: llvm是依据bb的后序遍历来填的，这个顺序不会影响任何内容的存在与否，只会影响内容的顺序，那么这个顺序重要吗？
+static void populate(LoopInfo &info, BasicBlock *bb) {
+  if (bb->vis) return;
+  bb->vis = true;
+  for (BasicBlock *s : bb->succ()) {
+    if (s) populate(info, s);
+  }
+  auto it = info.loop_of_bb.find(bb);
+  Loop *sub = it == info.loop_of_bb.end() ? nullptr : it->second;
+  if (sub && sub->header() == bb) {
+    (sub->parent ? sub->parent->sub_loops : info.top_level).push_back(sub);
+    std::reverse(sub->bbs.begin() + 1, sub->bbs.end());
+    std::reverse(sub->sub_loops.begin() + 1, sub->sub_loops.end());
+    sub = sub->parent;
+  }
+  for (; sub; sub = sub->parent)
+    sub->bbs.push_back(bb);
+}
+
+LoopInfo compute_loop_info(IrFunc *f) {
+  LoopInfo info;
+  std::vector<BasicBlock *> worklist;
+  collect_loops(info, worklist, f->bb.head);
+  f->clear_all_vis();
+  populate(info, f->bb.head);
+  return std::move(info);
 }
