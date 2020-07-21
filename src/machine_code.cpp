@@ -29,6 +29,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "ldr " << x->dst << ", =" << x->sym->name << endl;
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
+          const char *opposite = "unknown";
+          bool compare = false;
           if (x->tag == MachineInst::Mul) {
             op = "mul";
           } else if (x->tag == MachineInst::Add) {
@@ -37,10 +39,20 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "sub";
           } else if (x->tag == MachineInst::Mod) {
             op = "mod";
+          } else if (x->tag == MachineInst::Gt) {
+            compare = true;
+            op = "gt";
+            opposite = "le";
           } else {
             UNREACHABLE();
           }
-          os << op << " " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          if (compare) {
+            os << "cmp " << x->lhs << ", " << x->rhs << endl;
+            os << "\tmov" << op << " " << x->dst << ", #1" << endl;
+            os << "\tmov" << opposite << " " << x->dst << ", #0" << endl;
+          } else {
+            os << op << " " << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          }
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
           if (x->tag == MachineInst::Mv) {
             os << "mov " << x->dst << ", " << x->rhs << endl;
