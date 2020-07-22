@@ -1,16 +1,16 @@
-#include "machine_code.hpp"
+#include <iomanip>
 
-#include "casting.hpp"
+#include "machine_code.hpp"
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
   static const std::string BB_PREFIX = "_BB";
 
   // code section
-  os << "\t.section\t.text" << endl;
+  os << ".section .text" << endl;
   for (auto f = p.func.head; f; f = f->next) {
     // generate symbol for function
-    os << "\t.global\t" << f->func->func->name << endl;
+    os << endl << ".global " << f->func->func->name << endl;
     os << "\t"
        << ".type"
        << "\t" << f->func->func->name << ", %function" << endl;
@@ -23,7 +23,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     };
     // generate code for each BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
-      os << pb(bb) << ": \\\\ pred:";
+      os << pb(bb) << ":" << endl;
+      os << "@ pred:";
       for (auto &pred : bb->pred) {
         os << " " << pb(pred);
       }
@@ -53,7 +54,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
 
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         if (inst == bb->control_transter_inst) {
-          os << "\t\\\\ control transfer" << endl;
+          os << "@ control transfer" << endl;
         }
         os << "\t";
         if (auto x = dyn_cast<MIJump>(inst)) {
@@ -106,14 +107,47 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     }
   }
   // data section
-  os << "\t.section\t.data" << endl;
+  os << endl << endl << ".section .data" << endl;
+  os << ".align 4" << endl;
   for (auto &decl : p.glob_decl) {
-    os << "\t.global\t" << decl->name << endl;
+    os << endl << ".global " << decl->name << endl;
+    os << "\t"
+       << ".type"
+       << "\t" << decl->name << ", %object" << endl;
     os << decl->name << ":" << endl;
+
+    // output values
+    int count = 0;
+    bool initialized = false;
+    i32 last = 0;
+
+    auto print_values = [&](){
+      using std::hex;
+      using std::dec;
+      // TODO: print in hex?
+      if (count > 1) {
+        os << "\t"
+           << ".fill" << "\t" << count << ", 4, " << last << endl;
+      } else {
+        os << "\t"
+           << ".long" << "\t" << last << endl;
+      }
+    };
+
     for (auto expr : decl->flatten_init) {
-      os << "\t"
-         << ".long " << expr->result << endl;
+      if (!initialized) {
+        initialized = true;
+        last = expr->result;
+      }
+      if (expr->result == last) {
+        ++count;
+      } else {
+        print_values();
+        last = expr->result;
+        count = 1;
+      }
     }
+    print_values();
   }
   return os;
 }

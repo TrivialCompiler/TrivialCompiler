@@ -574,6 +574,7 @@ void register_allocate(MachineProgram *p) {
       if (!spill_worklist.empty()) {
         // select_spill();
       }
-    } while (simplify_worklist.size() || worklist_moves.size() || freeze_worklist.size() || spill_worklist.size());
+    } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
+             !spill_worklist.empty());
   }
 }
