@@ -33,14 +33,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << " " << pb(succ);
         }
       }
-      os << ", liveuse:";
-      for (auto &use : bb->liveuse) {
-        os << " " << use;
-      }
-      os << ", def:";
-      for (auto &def : bb->def) {
-        os << " " << def;
-      }
       os << ", livein:";
       for (auto &op : bb->livein) {
         os << " " << op;
@@ -48,6 +40,14 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       os << ", liveout:";
       for (auto &op : bb->liveout) {
         os << " " << op;
+      }
+      os << ", liveuse:";
+      for (auto &use : bb->liveuse) {
+        os << " " << use;
+      }
+      os << ", def:";
+      for (auto &def : bb->def) {
+        os << " " << def;
       }
       os << endl;
 

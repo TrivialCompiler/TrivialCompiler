@@ -305,36 +305,41 @@ MachineProgram *machine_code_selection(IrProgram *p) {
   return ret;
 }
 
+std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use(MachineInst *inst) {
+  MachineOperand *def = nullptr;
+  std::vector<MachineOperand *> use;
+
+  if (auto x = dyn_cast<MIBinary>(inst)) {
+    def = &x->dst;
+    use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MIUnary>(inst)) {
+    def = &x->dst;
+    use = {&x->rhs};
+  } else if (auto x = dyn_cast<MIMove>(inst)) {
+    def = &x->dst;
+    use = {&x->rhs};
+  } else if (auto x = dyn_cast<MILoad>(inst)) {
+    def = &x->dst;
+    use = {&x->addr, &x->offset};
+  } else if (auto x = dyn_cast<MIStore>(inst)) {
+    use = {&x->data, &x->addr, &x->offset};
+  } else if (auto x = dyn_cast<MICompare>(inst)) {
+    use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MICall>(inst)) {
+    // TODO
+  } else if (auto x = dyn_cast<MIGlobal>(inst)) {
+    def = &x->dst;
+  }
+  return {def, use};
+}
+
 void liveness_analysis(MachineProgram *p) {
   for (auto f = p->func.head; f; f = f->next) {
     // calculate LiveUse and Def sets for each bb
     // each elements is a virtual register
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
-        MachineOperand *def = nullptr;
-        std::vector<MachineOperand *> use;
-
-        if (auto x = dyn_cast<MIBinary>(inst)) {
-          def = &x->dst;
-          use = {&x->lhs, &x->rhs};
-        } else if (auto x = dyn_cast<MIUnary>(inst)) {
-          def = &x->dst;
-          use = {&x->rhs};
-        } else if (auto x = dyn_cast<MIMove>(inst)) {
-          def = &x->dst;
-          use = {&x->rhs};
-        } else if (auto x = dyn_cast<MILoad>(inst)) {
-          def = &x->dst;
-          use = {&x->addr, &x->offset};
-        } else if (auto x = dyn_cast<MIStore>(inst)) {
-          use = {&x->data, &x->addr, &x->offset};
-        } else if (auto x = dyn_cast<MICompare>(inst)) {
-          use = {&x->lhs, &x->rhs};
-        } else if (auto x = dyn_cast<MICall>(inst)) {
-          // TODO
-        } else if (auto x = dyn_cast<MIGlobal>(inst)) {
-          def = &x->dst;
-        }
+        auto [def, use] = get_def_use(inst);
 
         // liveuse
         for (auto &u : use) {
@@ -378,5 +383,39 @@ void liveness_analysis(MachineProgram *p) {
         }
       }
     };
+  }
+}
+
+void register_allocate(MachineProgram *p) {
+  for (auto f = p->func.head; f; f = f->next) {
+    // interference graph
+    // adjacent list
+    std::map<MachineOperand, std::set<MachineOperand>> graph;
+    for (auto bb = f->bb.tail; bb; bb = bb->prev) {
+      // calculate live set before each instruction
+      auto live = bb->liveout;
+      for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
+        auto [def, use] = get_def_use(inst);
+
+        // update live set
+        if (def && def->is_virtual()) {
+          live.erase(*def);
+        }
+        for (auto &u: use) {
+          if (u->is_virtual() && live.insert(*u).second) {
+            // new element inserted
+            // it interfere with existing elements
+            for (auto &e: live) {
+              if (e != *u) {
+                // interfere
+                std::cout << e << " interfere with " << *u << std::endl;
+                graph[e].insert(*u);
+                graph[*u].insert(e);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 }

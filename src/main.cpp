@@ -79,6 +79,7 @@ int main(int argc, char *argv[]) {
     }
     auto *gen = machine_code_selection(ir);
     liveness_analysis(gen);
+    register_allocate(gen);
     if (output != nullptr) {
       std::ofstream(output) << *gen;
     }
