@@ -7,38 +7,49 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   static const std::string BB_PREFIX = "_BB";
 
   // code section
-  os << ".section .text" << endl;
+  os << "\t.section\t.text" << endl;
   for (auto f = p.func.head; f; f = f->next) {
     // generate symbol for function
-    os << ".global " << f->func->func->name << endl;
+    os << "\t.global\t" << f->func->func->name << endl;
+    os << "\t"
+       << ".type"
+       << "\t" << f->func->func->name << ", %function" << endl;
     os << f->func->func->name << ":" << endl;
-    os << "\t" << ".type" << "\t" << f->func->func->name << ", %function" << endl;
 
     IndexMapper<MachineBB> bb_index;
+    auto pb = [&](MachineBB *bb) {
+      os << BB_PREFIX << bb_index.get(bb);
+      return "";
+    };
     // generate code for each BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
-      os << BB_PREFIX << bb_index.get(bb) << ": \\\\ pred: ";
+      os << pb(bb) << ": \\\\ pred: ";
       for (auto &pred : bb->pred) {
-        os << BB_PREFIX << bb_index.get(pred) << " ";
+        os << pb(pred) << " ";
       }
       os << endl;
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<MIJump>(inst)) {
-          os << "b" << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
+          os << "b"
+             << "\t" << pb(x->target) << endl;
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
-          os << "b" << x->cond << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
+          os << "b" << x->cond << "\t" << pb(x->target) << endl;
         } else if (auto x = dyn_cast<MILoad>(inst)) {
           if (x->offset.state == MachineOperand::Immediate) {
             i32 offset = x->offset.value << x->shift;
-            os << "ldr" << "\t" << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
+            os << "ldr"
+               << "\t" << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
           } else {
-            os << "ldr" << "\t" << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
+            os << "ldr"
+               << "\t" << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
           }
         } else if (auto x = dyn_cast<MIStore>(inst)) {
-          os << "str" << "\t" << x->data << ", [" << x->addr << "]" << endl;
+          os << "str"
+             << "\t" << x->data << ", [" << x->addr << "]" << endl;
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
-          os << "ldr" << "\t" << x->dst << ", =" << x->sym->name << endl;
+          os << "ldr"
+             << "\t" << x->dst << ", =" << x->sym->name << endl;
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
           if (x->tag == MachineInst::Mul) {
@@ -56,11 +67,14 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
           UNREACHABLE();
         } else if (auto x = dyn_cast<MICompare>(inst)) {
-          os << "cmp" << "\t" << x->lhs << ", " << x->rhs << endl;
+          os << "cmp"
+             << "\t" << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIMove>(inst)) {
           os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
-          os << "bx" << "\t" << "lr" << endl;
+          os << "bx"
+             << "\t"
+             << "lr" << endl;
         }
       }
     }
