@@ -77,9 +77,9 @@ int main(int argc, char *argv[]) {
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
     }
-    auto *gen = machine_code_selection(ir);
-    register_allocate(gen);
     if (output != nullptr) {
+      auto *gen = machine_code_selection(ir);
+      register_allocate(gen);
       std::ofstream(output) << *gen;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
