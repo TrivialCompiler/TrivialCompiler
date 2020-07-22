@@ -78,6 +78,7 @@ int main(int argc, char *argv[]) {
       std::ofstream(ir_file) << *ir;
     }
     auto *gen = machine_code_selection(ir);
+    liveness_analysis(gen);
     if (output != nullptr) {
       std::ofstream(output) << *gen;
     }

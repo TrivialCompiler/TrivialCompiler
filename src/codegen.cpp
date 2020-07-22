@@ -1,7 +1,7 @@
-#include "codegen.hpp"
-
 #include <map>
+#include <optional>
 
+#include "codegen.hpp"
 #include "casting.hpp"
 #include "common.hpp"
 
@@ -302,4 +302,50 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     }
   }
   return ret;
+}
+
+void liveness_analysis(MachineProgram *p) {
+  // calculate LiveUse and Def sets for each bb
+  // each elements is a virtual register
+  for (auto f = p->func.head; f; f = f->next) {
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      for (auto inst = bb->insts.head; inst; inst = inst->next) {
+        MachineOperand *def = nullptr;
+        std::vector<MachineOperand *> use;
+
+        if (auto x = dyn_cast<MIBinary>(inst)) {
+          def = &x->dst;
+          use = {&x->lhs, &x->rhs};
+        } else if (auto x = dyn_cast<MIUnary>(inst)) {
+          def = &x->dst;
+          use = {&x->rhs};
+        } else if (auto x = dyn_cast<MIMove>(inst)) {
+          def = &x->dst;
+          use = {&x->rhs};
+        } else if (auto x = dyn_cast<MILoad>(inst)) {
+          def = &x->dst;
+          use = {&x->addr, &x->offset};
+        } else if (auto x = dyn_cast<MIStore>(inst)) {
+          use = {&x->data, &x->addr, &x->offset};
+        } else if (auto x = dyn_cast<MICompare>(inst)) {
+          use = {&x->lhs, &x->rhs};
+        } else if (auto x = dyn_cast<MICall>(inst)) {
+          // TODO
+        } else if (auto x = dyn_cast<MIGlobal>(inst)) {
+          def = &x->dst;
+        }
+
+        // liveuse
+        for (auto &u: use) {
+          if (u && u->is_virtual() && bb->def.find(*u) == bb->def.end()) {
+            bb->liveuse.insert(*u);
+          }
+        }
+        // def
+        if (def && def->is_virtual() && bb->liveuse.find(*def) == bb->liveuse.end()) {
+          bb->def.insert(*def);
+        }
+      }
+    }
+  }
 }

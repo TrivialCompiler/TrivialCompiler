@@ -1,6 +1,7 @@
 #pragma once
 
 #include <iostream>
+#include <set>
 
 #include "ast.hpp"
 #include "common.hpp"
@@ -10,6 +11,7 @@
 struct MachineFunc;
 struct MachineBB;
 struct MachineInst;
+struct MachineOperand;
 
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
 enum ArmReg {
@@ -83,6 +85,12 @@ struct MachineBB {
   // branch is translated into multiple instructions
   // points to the first one
   MachineInst *control_transter_inst;
+  // liveness analysis
+  // maybe we should use bitset when performance is bad
+  std::set<MachineOperand> liveuse;
+  std::set<MachineOperand> def;
+  std::set<MachineOperand> livein;
+  std::set<MachineOperand> liveout;
 };
 
 struct MachineOperand {
@@ -94,7 +102,17 @@ struct MachineOperand {
   } state;
   i32 value;
 
-  friend std::ostream &operator<<(std::ostream &os, MachineOperand &op) {
+  bool operator <(const MachineOperand &other) const {
+    if (state != other.state) {
+      return state < other.state;
+    } else {
+      return value < other.value;
+    }
+  }
+
+  bool is_virtual() const { return state == Virtual; }
+
+  friend std::ostream &operator<<(std::ostream &os, const MachineOperand &op) {
     if (op.state == PreColored || op.state == Allocated) {
       os << "r" << op.value;
     } else if (op.state == op.Virtual) {

@@ -33,6 +33,14 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << pb(succ) << " ";
         }
       }
+      os << ", liveuse: ";
+      for (auto &use : bb->liveuse) {
+        os << use << " ";
+      }
+      os << ", def: ";
+      for (auto &def : bb->def) {
+        os << def << " ";
+      }
       os << endl;
 
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
