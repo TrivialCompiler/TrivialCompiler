@@ -54,15 +54,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
-          if (x->tag == MachineInst::Mv) {
-            os << "mov" << "\t" << x->dst << ", " << x->rhs << endl;
-          } else {
-            UNREACHABLE();
-          }
+          UNREACHABLE();
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp" << "\t" << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIMove>(inst)) {
-          os << "mov" << "\t" << x->cond << " " << x->dst << ", " << x->rhs << endl;
+          os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           os << "bx" << "\t" << "lr" << endl;
         }
