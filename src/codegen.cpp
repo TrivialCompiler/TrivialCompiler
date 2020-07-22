@@ -301,6 +301,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         insert_parallel_mv(movs, mbb->control_transter_inst);
       }
     }
+
+    mf->virtual_max = virtual_max;
   }
   return ret;
 }
@@ -398,24 +400,45 @@ void register_allocate(MachineProgram *p) {
     // each node is a MachineOperand
     // can only Precolored or Virtual
     // adjacent list
-    std::map<MachineOperand, std::set<MachineOperand>> graph;
+    std::map<MachineOperand, std::set<MachineOperand>> adj_list;
     // adjacent set
     std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
-    // node degree
+    // other variables in the paper
     std::map<MachineOperand, u32> degree;
-    std::map<MachineOperand, std::vector<MIMove *>> move_list;
+    std::map<MachineOperand, MachineOperand> alias;
+    std::map<MachineOperand, std::set<MIMove *>> move_list;
+    std::vector<MachineOperand> simplify_worklist;
+    std::vector<MachineOperand> freeze_worklist;
+    std::vector<MachineOperand> spill_worklist;
+    std::vector<MachineOperand> spilled_nodes;
+    std::vector<MachineOperand> coalesced_nodes;
+    std::vector<MachineOperand> colored_nodes;
+    std::vector<MachineOperand> select_stack;
+    std::set<MIMove *> coalesced_moves;
+    std::set<MIMove *> constrained_moves;
+    std::set<MIMove *> frozen_moves;
     std::set<MIMove *> worklist_moves;
+    std::set<MIMove *> active_moves;
+
+    // allocatable registers
+    i32 k = r11 - r0 + 1;
+    // init degree for pre colored nodes
+    for (i32 i = r0; i <= r3; i++) {
+      MachineOperand op = {.state = MachineOperand::PreColored, .value = i};
+      // very large
+      degree[op] = 0x40000000;
+    }
 
     auto add_edge = [&](MachineOperand u, MachineOperand v) {
       if (adj_set.find({u, v}) == adj_set.end() && u != v) {
         std::cout << u << " interfere with " << v << std::endl;
         adj_set.insert({u, v});
         if (!u.is_precolored()) {
-          graph[u].insert(v);
+          adj_list[u].insert(v);
           degree[u]++;
         }
         if (!v.is_precolored()) {
-          graph[v].insert(u);
+          adj_list[v].insert(u);
           degree[v]++;
         }
       }
@@ -431,8 +454,8 @@ void register_allocate(MachineProgram *p) {
           if (auto x = dyn_cast<MIMove>(inst)) {
             if (x->dst.needs_color() && x->rhs.needs_color()) {
               live.erase(x->rhs);
-              move_list[*def].push_back(x);
-              move_list[x->dst].push_back(x);
+              move_list[*def].insert(x);
+              move_list[x->dst].insert(x);
               worklist_moves.insert(x);
             }
           }
@@ -445,7 +468,7 @@ void register_allocate(MachineProgram *p) {
 
             live.erase(*def);
           }
-          for (auto &u: use) {
+          for (auto &u : use) {
             if (u.needs_color()) {
               live.insert(u);
             }
@@ -454,6 +477,103 @@ void register_allocate(MachineProgram *p) {
       }
     };
 
+    auto adjacent = [&](MachineOperand n) {
+      std::set<MachineOperand> res = adj_list[n];
+      for (auto it = res.begin(); it != res.end();) {
+        if (std::find(select_stack.begin(), select_stack.end(), *it) == select_stack.end() &&
+            std::find(coalesced_nodes.begin(), coalesced_nodes.end(), *it) == coalesced_nodes.end()) {
+          it = res.erase(it);
+        } else {
+          it++;
+        }
+      }
+      return res;
+    };
+
+    auto node_moves = [&](MachineOperand n) {
+      std::set<MIMove *> res = move_list[n];
+      for (auto it = res.begin(); it != res.end();) {
+        if (active_moves.find(*it) == active_moves.end() && worklist_moves.find(*it) == worklist_moves.end()) {
+          it = res.erase(it);
+        } else {
+          it++;
+        }
+      }
+      return res;
+    };
+
+    auto move_related = [&](MachineOperand n) { return node_moves(n).size() > 0; };
+
+    auto mk_worklist = [&]() {
+      for (i32 i = 0; i < f->virtual_max; i++) {
+        // initial
+        MachineOperand vreg = {.state = MachineOperand::Virtual, .value = i};
+        if (degree[vreg] >= k) {
+          spill_worklist.push_back(vreg);
+        } else if (move_related(vreg)) {
+          freeze_worklist.push_back(vreg);
+        } else {
+          simplify_worklist.push_back(vreg);
+        }
+      }
+    };
+
+    auto enable_moves = [&](MachineOperand n) {
+      for (auto m : node_moves(n)) {
+        if (active_moves.find(m) != active_moves.end()) {
+          active_moves.erase(m);
+          worklist_moves.insert(m);
+        }
+      }
+
+      for (auto a : adjacent(n)) {
+        for (auto m : node_moves(a)) {
+          if (active_moves.find(m) != active_moves.end()) {
+            active_moves.erase(m);
+            worklist_moves.insert(m);
+          }
+        }
+      }
+    };
+
+    auto decrement_degree = [&](MachineOperand m) {
+      auto d = degree[m];
+      degree[m] = d - 1;
+      if (d == k) {
+        enable_moves(m);
+        spill_worklist.push_back(m);
+        if (move_related(m)) {
+          freeze_worklist.push_back(m);
+        } else {
+          simplify_worklist.push_back(m);
+        }
+      }
+    };
+
+    auto simplify = [&]() {
+      auto n = simplify_worklist.back();
+      simplify_worklist.pop_back();
+      select_stack.push_back(n);
+      for (auto &m : adjacent(n)) {
+        decrement_degree(m);
+      }
+    };
+
     build();
+    mk_worklist();
+    do {
+      if (!simplify_worklist.empty()) {
+        simplify();
+      }
+      if (!worklist_moves.empty()) {
+        // coalesce();
+      }
+      if (!freeze_worklist.empty()) {
+        // freeze();
+      }
+      if (!spill_worklist.empty()) {
+        // select_spill();
+      }
+    } while (simplify_worklist.size() || worklist_moves.size() || freeze_worklist.size() || spill_worklist.size());
   }
 }

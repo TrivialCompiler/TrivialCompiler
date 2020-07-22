@@ -74,6 +74,8 @@ struct MachineFunc {
   DEFINE_ILIST(MachineFunc)
   ilist<MachineBB> bb;
   IrFunc *func;
+  // number of virtual registers allocated
+  i32 virtual_max;
 };
 
 struct MachineBB {
