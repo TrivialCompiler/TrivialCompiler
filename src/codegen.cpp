@@ -32,9 +32,19 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       mf->bb.insertAtEnd(mbb);
       bb_map[bb] = mbb;
     }
+    // maintain pred and succ
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
       mbb->pred.reserve(bb->pred.size());
+      // at most two successor
+      auto succ = bb->succ();
+      for (int i = 0; i < 2; i++) {
+        if (succ[i]) {
+          mbb->succ[i] = bb_map[succ[i]];
+        } else {
+          mbb->succ[i] = nullptr;
+        }
+      }
       for (auto &pred : bb->pred) {
         mbb->pred.push_back(bb_map[pred]);
       }

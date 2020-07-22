@@ -77,7 +77,9 @@ struct MachineFunc {
 struct MachineBB {
   DEFINE_ILIST(MachineBB)
   ilist<MachineInst> insts;
+  // predecessor and successor
   std::vector<MachineBB *> pred;
+  std::array<MachineBB *, 2> succ;
   // branch is translated into multiple instructions
   // points to the first one
   MachineInst *control_transter_inst;

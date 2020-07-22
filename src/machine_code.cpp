@@ -27,8 +27,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       for (auto &pred : bb->pred) {
         os << pb(pred) << " ";
       }
+      os << ", succ: ";
+      for (auto &succ : bb->succ) {
+        if (succ) {
+          os << pb(succ) << " ";
+        }
+      }
       os << endl;
+
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
+        if (inst == bb->control_transter_inst) {
+          os << "\t\\\\ control transfer" << endl;
+        }
         os << "\t";
         if (auto x = dyn_cast<MIJump>(inst)) {
           os << "b"
@@ -80,9 +90,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     }
   }
   // data section
-  os << ".section .data" << endl;
+  os << "\t.section\t.data" << endl;
   for (auto &decl : p.glob_decl) {
-    os << ".global " << decl->name << endl;
+    os << "\t.global\t" << decl->name << endl;
     os << decl->name << ":" << endl;
     for (auto expr : decl->flatten_init) {
       os << "\t"
