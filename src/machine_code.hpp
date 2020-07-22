@@ -77,6 +77,7 @@ struct MachineFunc {
 struct MachineBB {
   DEFINE_ILIST(MachineBB)
   ilist<MachineInst> insts;
+  std::vector<MachineBB *> pred;
 };
 
 struct MachineOperand {

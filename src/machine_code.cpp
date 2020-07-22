@@ -17,13 +17,17 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     IndexMapper<MachineBB> bb_index;
     // generate code for each BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
-      os << BB_PREFIX << bb_index.get(bb) << ":" << endl;
+      os << BB_PREFIX << bb_index.get(bb) << ": \\\\ pred: ";
+      for (auto &pred : bb->pred) {
+        os << BB_PREFIX << bb_index.get(pred) << " ";
+      }
+      os << endl;
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<MIJump>(inst)) {
           os << "b" << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
-          os << "b" << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
+          os << "b" << x->cond << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
         } else if (auto x = dyn_cast<MILoad>(inst)) {
           if (x->offset.state == MachineOperand::Immediate) {
             i32 offset = x->offset.value << x->shift;

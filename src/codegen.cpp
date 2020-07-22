@@ -32,6 +32,13 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       mf->bb.insertAtEnd(mbb);
       bb_map[bb] = mbb;
     }
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      auto mbb = bb_map[bb];
+      mbb->pred.reserve(bb->pred.size());
+      for (auto &pred : bb->pred) {
+        mbb->pred.push_back(bb_map[pred]);
+      }
+    }
 
     // map value to MachineOperand
     std::map<Value *, MachineOperand> val_map;
