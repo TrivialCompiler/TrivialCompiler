@@ -124,14 +124,27 @@ struct MachineOperand {
   bool is_precolored() const { return state == PreColored; }
   bool needs_color() const { return state == Virtual || state == PreColored; }
 
-  friend std::ostream &operator<<(std::ostream &os, const MachineOperand &op) {
-    if (op.state == PreColored || op.state == Allocated) {
-      os << "r" << op.value;
-    } else if (op.state == op.Virtual) {
-      os << "v" << op.value;
-    } else if (op.state == Immediate) {
-      os << "#" << op.value;
+  explicit operator std::string() const {
+    char prefix = '?';
+    switch (this->state) {
+      case PreColored:
+      case Allocated:
+        prefix = 'r';
+        break;
+      case Virtual:
+        prefix = 'v';
+        break;
+      case Immediate:
+        prefix = '#';
+        break;
+      default:
+        UNREACHABLE();
     }
+    return prefix + std::to_string(this->value);
+  }
+
+  friend std::ostream &operator<<(std::ostream &os, const MachineOperand &op) {
+    os << std::string(op);
     return os;
   }
 };

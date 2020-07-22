@@ -431,7 +431,7 @@ void register_allocate(MachineProgram *p) {
 
     auto add_edge = [&](MachineOperand u, MachineOperand v) {
       if (adj_set.find({u, v}) == adj_set.end() && u != v) {
-        std::cout << u << " interfere with " << v << std::endl;
+        dbg(std::string(u) + " interfere with " + std::string(v));
         adj_set.insert({u, v});
         if (!u.is_precolored()) {
           adj_list[u].insert(v);
