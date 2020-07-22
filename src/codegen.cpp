@@ -1,7 +1,8 @@
+#include "codegen.hpp"
+
 #include <map>
 #include <optional>
 
-#include "codegen.hpp"
 #include "casting.hpp"
 #include "common.hpp"
 
@@ -305,9 +306,9 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 }
 
 void liveness_analysis(MachineProgram *p) {
-  // calculate LiveUse and Def sets for each bb
-  // each elements is a virtual register
   for (auto f = p->func.head; f; f = f->next) {
+    // calculate LiveUse and Def sets for each bb
+    // each elements is a virtual register
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         MachineOperand *def = nullptr;
@@ -336,7 +337,7 @@ void liveness_analysis(MachineProgram *p) {
         }
 
         // liveuse
-        for (auto &u: use) {
+        for (auto &u : use) {
           if (u && u->is_virtual() && bb->def.find(*u) == bb->def.end()) {
             bb->liveuse.insert(*u);
           }
@@ -346,6 +347,36 @@ void liveness_analysis(MachineProgram *p) {
           bb->def.insert(*def);
         }
       }
+      // initial values
+      bb->livein = bb->liveuse;
     }
+
+    // calculate LiveIn and LiveOut for each bb
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (auto bb = f->bb.head; bb; bb = bb->next) {
+        std::set<MachineOperand> new_out;
+        for (auto &succ : bb->succ) {
+          if (succ) {
+            new_out.insert(succ->livein.begin(), succ->livein.end());
+          }
+        }
+
+        if (new_out != bb->liveout) {
+          changed = true;
+          bb->liveout = new_out;
+          std::set<MachineOperand> new_in = bb->liveuse;
+          // TODO: optimize
+          for (auto &e : bb->liveout) {
+            if (bb->def.find(e) == bb->def.end()) {
+              new_in.insert(e);
+            }
+          }
+
+          bb->livein = new_in;
+        }
+      }
+    };
   }
 }

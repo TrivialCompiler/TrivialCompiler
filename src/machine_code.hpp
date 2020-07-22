@@ -110,6 +110,10 @@ struct MachineOperand {
     }
   }
 
+  bool operator ==(const MachineOperand &other) const {
+    return state == other.state && value == other.value;
+  }
+
   bool is_virtual() const { return state == Virtual; }
 
   friend std::ostream &operator<<(std::ostream &os, const MachineOperand &op) {

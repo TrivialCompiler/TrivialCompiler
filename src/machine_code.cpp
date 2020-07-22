@@ -23,23 +23,31 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     };
     // generate code for each BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
-      os << pb(bb) << ": \\\\ pred: ";
+      os << pb(bb) << ": \\\\ pred:";
       for (auto &pred : bb->pred) {
-        os << pb(pred) << " ";
+        os << " " << pb(pred);
       }
-      os << ", succ: ";
+      os << ", succ:";
       for (auto &succ : bb->succ) {
         if (succ) {
-          os << pb(succ) << " ";
+          os << " " << pb(succ);
         }
       }
-      os << ", liveuse: ";
+      os << ", liveuse:";
       for (auto &use : bb->liveuse) {
-        os << use << " ";
+        os << " " << use;
       }
-      os << ", def: ";
+      os << ", def:";
       for (auto &def : bb->def) {
-        os << def << " ";
+        os << " " << def;
+      }
+      os << ", livein:";
+      for (auto &op : bb->livein) {
+        os << " " << op;
+      }
+      os << ", liveout:";
+      for (auto &op : bb->liveout) {
+        os << " " << op;
       }
       os << endl;
 
