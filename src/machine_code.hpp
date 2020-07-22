@@ -119,6 +119,8 @@ struct MachineOperand {
   }
 
   bool is_virtual() const { return state == Virtual; }
+  bool is_precolored() const { return state == PreColored; }
+  bool needs_color() const { return state == Virtual || state == PreColored; }
 
   friend std::ostream &operator<<(std::ostream &os, const MachineOperand &op) {
     if (op.state == PreColored || op.state == Allocated) {

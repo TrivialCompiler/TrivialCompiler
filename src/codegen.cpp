@@ -305,37 +305,40 @@ MachineProgram *machine_code_selection(IrProgram *p) {
   return ret;
 }
 
-std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use(MachineInst *inst) {
-  MachineOperand *def = nullptr;
-  std::vector<MachineOperand *> use;
+std::pair<std::optional<MachineOperand>, std::vector<MachineOperand>> get_def_use(MachineInst *inst) {
+  std::optional<MachineOperand> def = std::nullopt;
+  std::vector<MachineOperand> use;
 
   if (auto x = dyn_cast<MIBinary>(inst)) {
-    def = &x->dst;
-    use = {&x->lhs, &x->rhs};
+    def = {x->dst};
+    use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIUnary>(inst)) {
-    def = &x->dst;
-    use = {&x->rhs};
+    def = {x->dst};
+    use = {x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
-    def = &x->dst;
-    use = {&x->rhs};
+    def = {x->dst};
+    use = {x->rhs};
   } else if (auto x = dyn_cast<MILoad>(inst)) {
-    def = &x->dst;
-    use = {&x->addr, &x->offset};
+    def = {x->dst};
+    use = {x->addr, x->offset};
   } else if (auto x = dyn_cast<MIStore>(inst)) {
-    use = {&x->data, &x->addr, &x->offset};
+    use = {x->data, x->addr, x->offset};
   } else if (auto x = dyn_cast<MICompare>(inst)) {
-    use = {&x->lhs, &x->rhs};
+    use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // TODO
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
-    def = &x->dst;
+    def = {x->dst};
+  } else if (auto x = dyn_cast<MIReturn>(inst)) {
+    MachineOperand ret = MachineOperand{.state = MachineOperand::PreColored, .value = ArmReg::r0};
+    use = {ret};
   }
   return {def, use};
 }
 
 void liveness_analysis(MachineFunc *f) {
   // calculate LiveUse and Def sets for each bb
-  // each elements is a virtual register
+  // each elements is a virtual register or precolored register
   for (auto bb = f->bb.head; bb; bb = bb->next) {
     bb->liveuse.clear();
     bb->def.clear();
@@ -344,12 +347,12 @@ void liveness_analysis(MachineFunc *f) {
 
       // liveuse
       for (auto &u : use) {
-        if (u && u->is_virtual() && bb->def.find(*u) == bb->def.end()) {
-          bb->liveuse.insert(*u);
+        if (u.needs_color() && bb->def.find(u) == bb->def.end()) {
+          bb->liveuse.insert(u);
         }
       }
       // def
-      if (def && def->is_virtual() && bb->liveuse.find(*def) == bb->liveuse.end()) {
+      if (def && def->needs_color() && bb->liveuse.find(*def) == bb->liveuse.end()) {
         bb->def.insert(*def);
       }
     }
@@ -398,32 +401,59 @@ void register_allocate(MachineProgram *p) {
     std::map<MachineOperand, std::set<MachineOperand>> graph;
     // adjacent set
     std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
-    // build interference graph
-    for (auto bb = f->bb.tail; bb; bb = bb->prev) {
-      // calculate live set before each instruction
-      auto live = bb->liveout;
-      for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
-        auto [def, use] = get_def_use(inst);
+    // node degree
+    std::map<MachineOperand, u32> degree;
+    std::map<MachineOperand, std::vector<MIMove *>> move_list;
+    std::set<MIMove *> worklist_moves;
 
-        // update live set
-        if (def && def->is_virtual()) {
-          live.erase(*def);
+    auto add_edge = [&](MachineOperand u, MachineOperand v) {
+      if (adj_set.find({u, v}) == adj_set.end() && u != v) {
+        std::cout << u << " interfere with " << v << std::endl;
+        adj_set.insert({u, v});
+        if (!u.is_precolored()) {
+          graph[u].insert(v);
+          degree[u]++;
         }
-        for (auto &u : use) {
-          if (u->is_virtual() && live.insert(*u).second) {
-            // new element inserted
-            // it interfere with existing elements
-            for (auto &e : live) {
-              if (e != *u) {
-                // interfere
-                std::cout << e << " interfere with " << *u << std::endl;
-                graph[e].insert(*u);
-                graph[*u].insert(e);
-              }
+        if (!v.is_precolored()) {
+          graph[v].insert(u);
+          degree[v]++;
+        }
+      }
+    };
+
+    auto build = [&]() {
+      // build interference graph
+      for (auto bb = f->bb.tail; bb; bb = bb->prev) {
+        // calculate live set before each instruction
+        auto live = bb->liveout;
+        for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
+          auto [def, use] = get_def_use(inst);
+          if (auto x = dyn_cast<MIMove>(inst)) {
+            if (x->dst.needs_color() && x->rhs.needs_color()) {
+              live.erase(x->rhs);
+              move_list[*def].push_back(x);
+              move_list[x->dst].push_back(x);
+              worklist_moves.insert(x);
+            }
+          }
+
+          if (def && def->needs_color()) {
+            live.insert(*def);
+            for (auto &l : live) {
+              add_edge(l, *def);
+            }
+
+            live.erase(*def);
+          }
+          for (auto &u: use) {
+            if (u.needs_color()) {
+              live.insert(u);
             }
           }
         }
       }
-    }
+    };
+
+    build();
   }
 }
