@@ -333,64 +333,72 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use(MachineIn
   return {def, use};
 }
 
-void liveness_analysis(MachineProgram *p) {
-  for (auto f = p->func.head; f; f = f->next) {
-    // calculate LiveUse and Def sets for each bb
-    // each elements is a virtual register
-    for (auto bb = f->bb.head; bb; bb = bb->next) {
-      for (auto inst = bb->insts.head; inst; inst = inst->next) {
-        auto [def, use] = get_def_use(inst);
+void liveness_analysis(MachineFunc *f) {
+  // calculate LiveUse and Def sets for each bb
+  // each elements is a virtual register
+  for (auto bb = f->bb.head; bb; bb = bb->next) {
+    bb->liveuse.clear();
+    bb->def.clear();
+    for (auto inst = bb->insts.head; inst; inst = inst->next) {
+      auto [def, use] = get_def_use(inst);
 
-        // liveuse
-        for (auto &u : use) {
-          if (u && u->is_virtual() && bb->def.find(*u) == bb->def.end()) {
-            bb->liveuse.insert(*u);
-          }
-        }
-        // def
-        if (def && def->is_virtual() && bb->liveuse.find(*def) == bb->liveuse.end()) {
-          bb->def.insert(*def);
+      // liveuse
+      for (auto &u : use) {
+        if (u && u->is_virtual() && bb->def.find(*u) == bb->def.end()) {
+          bb->liveuse.insert(*u);
         }
       }
-      // initial values
-      bb->livein = bb->liveuse;
+      // def
+      if (def && def->is_virtual() && bb->liveuse.find(*def) == bb->liveuse.end()) {
+        bb->def.insert(*def);
+      }
     }
+    // initial values
+    bb->livein = bb->liveuse;
+    bb->liveout.clear();
+  }
 
-    // calculate LiveIn and LiveOut for each bb
-    bool changed = true;
-    while (changed) {
-      changed = false;
-      for (auto bb = f->bb.head; bb; bb = bb->next) {
-        std::set<MachineOperand> new_out;
-        for (auto &succ : bb->succ) {
-          if (succ) {
-            new_out.insert(succ->livein.begin(), succ->livein.end());
-          }
-        }
-
-        if (new_out != bb->liveout) {
-          changed = true;
-          bb->liveout = new_out;
-          std::set<MachineOperand> new_in = bb->liveuse;
-          // TODO: optimize
-          for (auto &e : bb->liveout) {
-            if (bb->def.find(e) == bb->def.end()) {
-              new_in.insert(e);
-            }
-          }
-
-          bb->livein = new_in;
+  // calculate LiveIn and LiveOut for each bb
+  bool changed = true;
+  while (changed) {
+    changed = false;
+    for (auto bb = f->bb.head; bb; bb = bb->next) {
+      std::set<MachineOperand> new_out;
+      for (auto &succ : bb->succ) {
+        if (succ) {
+          new_out.insert(succ->livein.begin(), succ->livein.end());
         }
       }
-    };
-  }
+
+      if (new_out != bb->liveout) {
+        changed = true;
+        bb->liveout = new_out;
+        std::set<MachineOperand> new_in = bb->liveuse;
+        // TODO: optimize
+        for (auto &e : bb->liveout) {
+          if (bb->def.find(e) == bb->def.end()) {
+            new_in.insert(e);
+          }
+        }
+
+        bb->livein = new_in;
+      }
+    }
+  };
 }
 
+// iterated register coalescing
 void register_allocate(MachineProgram *p) {
   for (auto f = p->func.head; f; f = f->next) {
+    liveness_analysis(f);
     // interference graph
+    // each node is a MachineOperand
+    // can only Precolored or Virtual
     // adjacent list
     std::map<MachineOperand, std::set<MachineOperand>> graph;
+    // adjacent set
+    std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
+    // build interference graph
     for (auto bb = f->bb.tail; bb; bb = bb->prev) {
       // calculate live set before each instruction
       auto live = bb->liveout;
@@ -401,11 +409,11 @@ void register_allocate(MachineProgram *p) {
         if (def && def->is_virtual()) {
           live.erase(*def);
         }
-        for (auto &u: use) {
+        for (auto &u : use) {
           if (u->is_virtual() && live.insert(*u).second) {
             // new element inserted
             // it interfere with existing elements
-            for (auto &e: live) {
+            for (auto &e : live) {
               if (e != *u) {
                 // interfere
                 std::cout << e << " interfere with " << *u << std::endl;
