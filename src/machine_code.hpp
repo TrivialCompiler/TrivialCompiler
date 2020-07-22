@@ -78,6 +78,9 @@ struct MachineBB {
   DEFINE_ILIST(MachineBB)
   ilist<MachineInst> insts;
   std::vector<MachineBB *> pred;
+  // branch is translated into multiple instructions
+  // points to the first one
+  MachineInst *control_transter_inst;
 };
 
 struct MachineOperand {

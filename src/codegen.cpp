@@ -106,6 +106,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         if (auto x = dyn_cast<JumpInst>(inst)) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
+          mbb->control_transter_inst = new_inst;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           // TODO: dims
           if (x->dims.size() == x->lhs_sym->dims.size()) {
@@ -185,8 +186,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
             mv_inst->rhs = val;
+            auto new_inst = new MIReturn(mbb);
+            mbb->control_transter_inst = mv_inst;
+          } else {
+            auto new_inst = new MIReturn(mbb);
+            mbb->control_transter_inst = new_inst;
           }
-          auto new_inst = new MIReturn(mbb);
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           auto rhs = resolve_no_imm(x->rhs.value, mbb);
@@ -240,6 +245,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto cmp_inst = new MICompare(mbb);
           cmp_inst->lhs = cond;
           cmp_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+          mbb->control_transter_inst = cmp_inst;
           auto new_inst = new MIBranch(mbb);
           new_inst->cond = ArmCond::Ne;
           new_inst->target = bb_map[x->left];
@@ -278,10 +284,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       }
       // insert parallel mv at the beginning of current mbb
       insert_parallel_mv(lhs, mbb->insts.head);
-      // insert parallel mv before the last instruction of pred mbb
+      // insert parallel mv before the control transfer instruction of pred mbb
       for (auto &[bb, movs] : mv) {
         auto mbb = bb_map[bb];
-        insert_parallel_mv(movs, mbb->insts.tail);
+        insert_parallel_mv(movs, mbb->control_transter_inst);
       }
     }
   }
