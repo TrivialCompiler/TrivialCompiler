@@ -1,6 +1,45 @@
 #include "gvn_gcm.hpp"
 #include "cfg.hpp"
-#include <cassert>
+#include "../op.hpp"
+
+static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x);
+
+static Value *find_eq(std::unordered_map<Value *, Value *> &vn, BinaryInst *x) {
+  using namespace op;
+  Op t1 = (Op) x->tag;
+  Value *l1 = vn_of(vn, x->lhs.value), *r1 = vn_of(vn, x->rhs.value);
+  for (auto &[k, v] : vn) {
+    // 这时的vn已经插入了{x, x}，所以如果遍历的时候遇到x要跳过
+    if (auto y = dyn_cast<BinaryInst>(k); y && y != x) {
+      Op t2 = (Op) y->tag;
+      Value *l2 = vn_of(vn, y->lhs.value), *r2 = vn_of(vn, y->rhs.value);
+      bool same = (t1 == t2 &&
+                   ((l1 == l2 && r1 == r2) ||
+                    (l1 == r2 && r1 == l2 && (t1 == Add || t1 == Mul || t1 == Eq || t1 == Ne || t1 == And || t1 == Or)))) ||
+                  (l1 == r2 && r1 == l2 && ((t1 == Lt && t2 == Gt) || (t1 == Gt && t2 == Lt) || (t1 == Le && t2 == Ge) || (t1 == Ge && t2 == Le)));
+      if (same) return v;
+    }
+  }
+  return x;
+}
+
+static Value *find_eq(std::unordered_map<Value *, Value *> &vn, ConstValue *x) {
+  for (auto &[k, v] : vn) {
+    if (auto y = dyn_cast<ConstValue>(k); y && y != x && y->imm == x->imm) return v;
+  }
+  return x;
+}
+
+static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x) {
+  auto it = vn.insert({x, x});
+  if (it.second) {
+    // 插入成功了意味着没有指针相等的，但是仍然要找是否存在实际相等的，如果没有的话它的vn就是x
+    if (auto y = dyn_cast<BinaryInst>(x)) it.first->second = find_eq(vn, y);
+    else if (auto y = dyn_cast<ConstValue>(x)) it.first->second = find_eq(vn, y);
+    // 其余情况一定要求指针相等
+  }
+  return it.first->second;
+}
 
 // 把i放到new_bb的末尾。这个bb中的位置不重要，因为后续还会再调整它在bb中的位置
 static void transfer_inst(Inst *i, BasicBlock *new_bb) {
@@ -45,8 +84,11 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
         schedule_late(vis, info, u1);
         BasicBlock *use = u1->bb;
         if (auto y = dyn_cast<PhiInst>(u1)) {
-          auto it = std::find_if(y->incoming_values.begin(), y->incoming_values.end(), [x](const Use &u) {
-            return u.value == x;
+          auto it = std::find_if(y->incoming_values.begin(), y->incoming_values.end(), [u](const Use &u2) {
+            // 这里必须比较Use的地址，而不能比较u2.value == x
+            // 因为一个Phi可以有多个相同的输入，例如 phi [0, bb1] [%x0, bb2] [%x0, bb3]
+            // 如果找u2.value == x的，那么两次查找都会返回[%x0, bb2]，导致后面认为只有一个bb用到了%x0
+            return &u2 == u;
           });
           use = (*y->incoming_bbs)[it - y->incoming_values.begin()];
         }
@@ -88,19 +130,37 @@ void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
   std::vector<BasicBlock *> rpo = compute_rpo(f);
-  std::vector<Value *> vn; // 逻辑上是一个hashmap，以后可以实现Value的hash函数，把它变成真正的hashmap
+  std::unordered_map<Value *, Value *> vn;
   for (BasicBlock *bb : rpo) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
         if (auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value); l && r) {
-
+          x->replaceAllUseWith(new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
+          bb->insts.remove(x);
+          delete x;
+        } else {
+          // todo: 还可以加入一些别的优化，乘1，乘0之类的
+          Value *y = vn_of(vn, x);
+          if (x != y) {
+            x->replaceAllUseWith(y);
+            bb->insts.remove(x);
+            delete x;
+          }
         }
       } else if (auto x = dyn_cast<PhiInst>(i)) {
-
-      } else {
-
+        Value *fst = vn_of(vn, x->incoming_values[0].value);
+        bool all_same = true;
+        for (u32 i = 1, sz = x->incoming_values.size(); i < sz && all_same; ++i) {
+          all_same = fst == vn_of(vn, x->incoming_values[i].value);
+        }
+        if (all_same) {
+          x->replaceAllUseWith(fst);
+          bb->insts.remove(x);
+          delete x;
+        }
       }
+      // 没有必要主动把其他指令加入vn，如果它们被用到的话自然会被加入的
       i = next;
     }
   }

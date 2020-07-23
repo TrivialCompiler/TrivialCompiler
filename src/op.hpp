@@ -7,7 +7,7 @@ enum Op {
 #include "op.inc"
 };
 
-i32 eval(Op op, i32 l, i32 r) {
+inline i32 eval(Op op, i32 l, i32 r) {
   switch (op) {
     case Add:
       return l + r;
