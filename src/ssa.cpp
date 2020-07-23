@@ -28,11 +28,6 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     // happened to have same tag values
     auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
     return inst;
-  } else if (auto x = dyn_cast<Unary>(expr)) {
-    auto rhs = convert_expr(ctx, x->rhs);
-    // happened to have same tag values
-    auto inst = new UnaryInst((Value::Tag)x->tag, rhs, ctx->bb);
-    return inst;
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {

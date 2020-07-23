@@ -1,12 +1,12 @@
+#include "casting.hpp"
+#include "common.hpp"
+#include "op.hpp"
 #include "typeck.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <unordered_map>
-
-#include "casting.hpp"
-#include "common.hpp"
 
 #define ERR(...) ERR_EXIT(TYPE_CHECK_ERROR, __VA_ARGS__)
 
@@ -226,12 +226,6 @@ struct Env {
         ERR("binary operator expect int operands");
       }
       return empty;
-    } else if (auto x = dyn_cast<Unary>(e)) {
-      auto r = ck_expr(x->rhs);
-      if (!is_int(r)) {
-        ERR("unary operator expect int operand");
-      }
-      return empty;
     } else if (auto x = dyn_cast<Call>(e)) {
       Func *f = lookup_func(x->func);
       x->f = f;
@@ -279,64 +273,7 @@ struct Env {
   void eval(Expr *e) {
     if (auto x = dyn_cast<Binary>(e)) {
       eval(x->lhs), eval(x->rhs);
-      i32 l = x->lhs->result, r = x->rhs->result;
-      switch (x->tag) {
-        case Expr::Add:
-          x->result = l + r;
-          break;
-        case Expr::Sub:
-          x->result = l - r;
-          break;
-        case Expr::Mul:
-          x->result = l * r;
-          break;
-        // 除0就随它去吧，反正我们对于错误都是直接退出的
-        case Expr::Div:
-          x->result = l / r;
-          break;
-        case Expr::Mod:
-          x->result = l % r;
-          break;
-        case Expr::Lt:
-          x->result = l < r;
-          break;
-        case Expr::Le:
-          x->result = l <= r;
-          break;
-        case Expr::Ge:
-          x->result = l >= r;
-          break;
-        case Expr::Gt:
-          x->result = l > r;
-          break;
-        case Expr::Eq:
-          x->result = l == r;
-          break;
-        case Expr::Ne:
-          x->result = l != r;
-          break;
-        case Expr::And:
-          x->result = l && r;
-          break;
-        case Expr::Or:
-          x->result = l || r;
-          break;
-        default:
-          UNREACHABLE();
-      }
-    } else if (auto x = dyn_cast<Unary>(e)) {
-      eval(x->rhs);
-      i32 r = x->rhs->result;
-      switch (x->tag) {
-        case Expr::Neg:
-          x->result = -r;
-          break;
-        case Expr::Not:
-          x->result = !r;
-          break;
-        default:
-          UNREACHABLE();
-      }
+      x->result = op::eval((op::Op) x->tag, x->lhs->result, x->rhs->result);
     } else if (auto x = dyn_cast<Call>(e)) {
       // 常量表达式中不能包含函数调用
       ERR("function call in const expression");

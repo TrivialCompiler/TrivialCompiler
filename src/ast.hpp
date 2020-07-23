@@ -12,21 +12,7 @@ struct Func;
 
 struct Expr {
   enum Tag {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Lt,
-    Le,
-    Ge,
-    Gt,
-    Eq,
-    Ne,
-    And,
-    Or,  // Binary
-    Neg,
-    Not,  // Unary，+expr直接parse成expr
+#include "op.inc" // Binary
     Call,
     Index,
     IntConst
@@ -38,12 +24,6 @@ struct Expr {
 struct Binary : Expr {
   DEFINE_CLASSOF(Expr, Add <= p->tag && p->tag <= Or);
   Expr *lhs;
-  Expr *rhs;
-};
-
-// 操作符保存在Expr::tag中
-struct Unary : Expr {
-  DEFINE_CLASSOF(Expr, Neg <= p->tag && p->tag <= Not);
   Expr *rhs;
 };
 

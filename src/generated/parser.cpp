@@ -412,13 +412,13 @@ break;
 case 54: {
 [[maybe_unused]] Expr * _2(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Unary{Expr::Neg, 0, _2};
+__ = new Binary{Expr::Sub, 0, &IntConst::ZERO, _2};;
 break;
 }
 case 55: {
 [[maybe_unused]] Expr * _2(std::move(*std::get_if<Expr *>(&stk.back().first))); stk.pop_back();
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new Unary{Expr::Not, 0, _2};
+__ = new Binary{Expr::Eq, 0, &IntConst::ZERO, _2};
 break;
 }
 case 56: {

@@ -4,8 +4,6 @@
 void Value::deleteValue() {
   if (auto x = dyn_cast<BinaryInst>(this))
     delete x;
-  else if (auto x = dyn_cast<UnaryInst>(this))
-    delete x;
   else if (auto x = dyn_cast<BranchInst>(this))
     delete x;
   else if (auto x = dyn_cast<JumpInst>(this))
@@ -304,14 +302,6 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           } else {
             os << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
                << pv(v_index, x->rhs.value) << endl;
-          }
-        } else if (auto x = dyn_cast<UnaryInst>(inst)) {
-          switch (x->tag) {
-            case Value::Neg:
-              os << pv(v_index, inst) << " = sub i32 0, " << pv(v_index, x->rhs.value) << endl;
-              break;
-            default:
-              UNREACHABLE();
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {
           os << "br label %_" << bb_index.find(x->next)->second << endl;

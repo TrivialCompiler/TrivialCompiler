@@ -122,3 +122,21 @@ LoopInfo compute_loop_info(IrFunc *f) {
   populate(info, f->bb.head);
   return std::move(info);
 }
+
+static void dfs(std::vector<BasicBlock *> &po, BasicBlock *bb) {
+  if (!bb->vis) {
+    bb->vis = true;
+    for (BasicBlock *x : bb->succ()) {
+      if (x) dfs(po, x);
+    }
+    po.push_back(bb);
+  }
+}
+
+std::vector<BasicBlock *> compute_rpo(IrFunc *f) {
+  std::vector<BasicBlock *> ret;
+  f->clear_all_vis();
+  dfs(ret, f->bb.head);
+  std::reverse(ret.begin(), ret.end());
+  return std::move(ret);
+}

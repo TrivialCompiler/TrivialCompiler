@@ -35,3 +35,6 @@ void compute_dom_info(IrFunc *f);
 
 // 这里假定dom树已经造好了
 LoopInfo compute_loop_info(IrFunc *f);
+
+// 计算bb的rpo序
+std::vector<BasicBlock *> compute_rpo(IrFunc *f);

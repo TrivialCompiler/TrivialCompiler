@@ -22,21 +22,7 @@ struct Value {
   ilist<Use> uses;
   // tag
   enum Tag {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Lt,
-    Le,
-    Ge,
-    Gt,
-    Eq,
-    Ne,
-    And,
-    Or,  // Binary
-    Neg,
-    Not,  // Unary
+#include "op.inc" // Binary
     Branch,
     Jump,
     Return,  // Control flow
@@ -183,13 +169,6 @@ struct BinaryInst : Inst {
       : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
-};
-
-struct UnaryInst : Inst {
-  DEFINE_CLASSOF(Value, Neg <= p->tag && p->tag <= Not);
-  // operands
-  Use rhs;
-  UnaryInst(Tag tag, Value *rhs, BasicBlock *insertAtEnd) : Inst(tag, insertAtEnd), rhs(rhs, this) {}
 };
 
 struct BranchInst : Inst {

@@ -48,7 +48,6 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
           auto it = std::find_if(y->incoming_values.begin(), y->incoming_values.end(), [x](const Use &u) {
             return u.value == x;
           });
-          assert(it != y->incoming_values.end() && isa<Inst>(it->value));
           use = (*y->incoming_bbs)[it - y->incoming_values.begin()];
         }
         lca = lca ? find_lca(lca, use) : use;
@@ -88,7 +87,23 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
 void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
+  std::vector<BasicBlock *> rpo = compute_rpo(f);
+  std::vector<Value *> vn; // 逻辑上是一个hashmap，以后可以实现Value的hash函数，把它变成真正的hashmap
+  for (BasicBlock *bb : rpo) {
+    for (Inst *i = bb->insts.head; i;) {
+      Inst *next = i->next;
+      if (auto x = dyn_cast<BinaryInst>(i)) {
+        if (auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value); l && r) {
 
+        }
+      } else if (auto x = dyn_cast<PhiInst>(i)) {
+
+      } else {
+
+      }
+      i = next;
+    }
+  }
   // 阶段2，gcm
   LoopInfo info = compute_loop_info(f);
   std::unordered_set<Inst *> vis;
@@ -107,5 +122,4 @@ void gvn_gcm(IrFunc *f) {
       i = next;
     }
   }
-  vis.clear();
 }
