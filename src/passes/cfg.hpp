@@ -11,9 +11,10 @@ struct Loop {
 
   BasicBlock *header() { return bbs[0]; }
 
+  // 对于顶层的循环返回1
   u32 depth() {
     u32 ret = 0;
-    for (Loop *x = parent; x; x = x->parent) ++ret;
+    for (Loop *x = this; x; x = x->parent) ++ret;
     return ret;
   }
 };
@@ -22,6 +23,12 @@ struct LoopInfo {
   // 返回bb所处的最深的循环
   std::unordered_map<BasicBlock *, Loop *> loop_of_bb;
   std::vector<Loop *> top_level;
+
+  // 若bb不在任何循环中，返回0
+  u32 depth_of(BasicBlock *bb) {
+    auto it = loop_of_bb.find(bb);
+    return it == loop_of_bb.end() ? 0 : it->second->depth();
+  }
 };
 
 void compute_dom_info(IrFunc *f);

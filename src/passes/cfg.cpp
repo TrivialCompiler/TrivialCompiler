@@ -107,7 +107,7 @@ static void populate(LoopInfo &info, BasicBlock *bb) {
   if (sub && sub->header() == bb) {
     (sub->parent ? sub->parent->sub_loops : info.top_level).push_back(sub);
     std::reverse(sub->bbs.begin() + 1, sub->bbs.end());
-    std::reverse(sub->sub_loops.begin() + 1, sub->sub_loops.end());
+    std::reverse(sub->sub_loops.begin(), sub->sub_loops.end());
     sub = sub->parent;
   }
   for (; sub; sub = sub->parent)

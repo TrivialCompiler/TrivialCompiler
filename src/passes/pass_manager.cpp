@@ -3,10 +3,11 @@
 #include "fill_pred.hpp"
 #include "cfg.hpp"
 #include "mem2reg.hpp"
+#include "gvn_gcm.hpp"
 
 typedef void (*FuncPass)(IrFunc *f);
 
-static FuncPass passes[] = {fill_pred, compute_dom_info, mem2reg};
+static FuncPass passes[] = {fill_pred, compute_dom_info, mem2reg, gvn_gcm};
 static FuncPass opt_passes[] = {};
 
 void run_opt_passes(IrProgram *p, bool opt) {
