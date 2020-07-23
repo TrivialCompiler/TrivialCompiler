@@ -130,8 +130,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       // TODO: eliminate MUL when sub_arr_size == 1
       for (int i = 0; i < access_dims.size(); i++) {
         // number of elements
-        auto is_last_dim = i + 1 < var_dims.size();
-        i32 sub_arr_size = is_last_dim ? 1 : var_dims[i + 1]->result;
+        i32 sub_arr_size = i + 1 < var_dims.size() ? var_dims[i + 1]->result : 1;
 
         // mov mul_vreg, sub_arr_size
         auto mv_inst = new MIMove(mbb);
@@ -172,8 +171,9 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             MIAccess *access_inst;
             if (auto x = dyn_cast<StoreInst>(inst)) {
               // store to element
+              auto data = resolve_no_imm(x->data.value, mbb); // must get data first
               access_inst = new MIStore(mbb);
-              static_cast<MIStore*>(access_inst)->data = resolve_no_imm(x->data.value, mbb);
+              static_cast<MIStore*>(access_inst)->data = data;
             } else {
               // load from element
               access_inst = new MILoad(mbb);
