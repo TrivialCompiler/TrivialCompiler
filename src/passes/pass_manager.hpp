@@ -2,4 +2,4 @@
 
 #include "../ir.hpp"
 
-void run_opt_passes(IrProgram *p, bool opt);
+void run_ir_passes(IrProgram *p, bool opt);
