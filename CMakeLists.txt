@@ -5,7 +5,11 @@ project(${project_name})
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
+else()
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+endif()
 
 file(GLOB_RECURSE source_files "src/*.cpp")
 file(GLOB_RECURSE header_files "src/*.hpp")
@@ -30,18 +34,22 @@ foreach(case_file ${all_test_cases})
     string(REGEX REPLACE ".sy$" ".out" case_output ${case_file})
 
     # check our compiler
-    add_test(NAME check_parse_${case_name}
-            COMMAND ./${project_name} "${case_file}")
-    add_test(NAME check_emit_llvm_${case_name}
-            COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}")
-    add_test(NAME check_emit_asm_${case_name}
-            COMMAND ./${project_name} -o "${case_name}.S" "${case_file}")
-
-    # use LLVM to generate exe
     # .sy -> .bc
     add_custom_command(OUTPUT "${case_name}.bc"
-            COMMAND ./${project_name} -l "${case_name}.bc" "${case_file}"
+            COMMAND timeout -v 3 ./${project_name} -l "${case_name}.bc" "${case_file}"
             DEPENDS ./${project_name})
+    add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.bc")
+    add_test(NAME check_emit_ir_${case_name}
+            COMMAND make "llvm_ir_${case_name}")
+    # .sy -> .S
+    add_custom_command(OUTPUT "${case_name}.S"
+            COMMAND timeout -v 3 ./${project_name} -o "${case_name}.S" "${case_file}"
+            DEPENDS ./${project_name})
+    add_custom_target("asm_${case_name}" DEPENDS "${case_name}.S")
+    add_test(NAME check_emit_asm_${case_name}
+            COMMAND make "asm_${case_name}")
+
+    # use LLVM to generate exe
     # .bc -> .o
     add_custom_command(OUTPUT "${case_name}_llvm.o"
             COMMAND llc -O1 -march=arm -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
@@ -60,10 +68,6 @@ foreach(case_file ${all_test_cases})
     endif()
 
     # use our compiler to generate exe
-    # .sy -> .S
-    add_custom_command(OUTPUT "${case_name}.S"
-            COMMAND ./${project_name} -o "${case_name}.S" "${case_file}"
-            DEPENDS ./${project_name})
     # .S -> .o
     add_custom_command(OUTPUT "${case_name}_tc.o"
             COMMAND arm-linux-gnueabihf-as -mfloat-abi=hard "${case_name}.S" -o "${case_name}_tc.o"

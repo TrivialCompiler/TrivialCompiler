@@ -1,6 +1,6 @@
-#include "machine_code.hpp"
+#include <iomanip>
 
-#include "casting.hpp"
+#include "machine_code.hpp"
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
@@ -10,31 +10,73 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   os << ".section .text" << endl;
   for (auto f = p.func.head; f; f = f->next) {
     // generate symbol for function
-    os << ".global " << f->func->func->name << endl;
+    os << endl << ".global " << f->func->func->name << endl;
+    os << "\t"
+       << ".type"
+       << "\t" << f->func->func->name << ", %function" << endl;
     os << f->func->func->name << ":" << endl;
-    os << "\t" << ".type" << "\t" << f->func->func->name << ", %function" << endl;
 
     IndexMapper<MachineBB> bb_index;
+    auto pb = [&](MachineBB *bb) {
+      os << BB_PREFIX << bb_index.get(bb);
+      return "";
+    };
     // generate code for each BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
-      os << BB_PREFIX << bb_index.get(bb) << ":" << endl;
+      os << pb(bb) << ":" << endl;
+      os << "@ pred:";
+      for (auto &pred : bb->pred) {
+        os << " " << pb(pred);
+      }
+      os << ", succ:";
+      for (auto &succ : bb->succ) {
+        if (succ) {
+          os << " " << pb(succ);
+        }
+      }
+      os << ", livein:";
+      for (auto &op : bb->livein) {
+        os << " " << op;
+      }
+      os << ", liveout:";
+      for (auto &op : bb->liveout) {
+        os << " " << op;
+      }
+      os << ", liveuse:";
+      for (auto &use : bb->liveuse) {
+        os << " " << use;
+      }
+      os << ", def:";
+      for (auto &def : bb->def) {
+        os << " " << def;
+      }
+      os << endl;
+
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
+        if (inst == bb->control_transter_inst) {
+          os << "@ control transfer" << endl;
+        }
         os << "\t";
         if (auto x = dyn_cast<MIJump>(inst)) {
-          os << "b" << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
+          os << "b"
+             << "\t" << pb(x->target) << endl;
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
-          os << "b" << "\t" << BB_PREFIX << bb_index.get(x->target) << endl;
+          os << "b" << x->cond << "\t" << pb(x->target) << endl;
         } else if (auto x = dyn_cast<MILoad>(inst)) {
           if (x->offset.state == MachineOperand::Immediate) {
             i32 offset = x->offset.value << x->shift;
-            os << "ldr" << "\t" << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
+            os << "ldr"
+               << "\t" << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
           } else {
-            os << "ldr" << "\t" << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
+            os << "ldr"
+               << "\t" << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
           }
         } else if (auto x = dyn_cast<MIStore>(inst)) {
-          os << "str" << "\t" << x->data << ", [" << x->addr << "]" << endl;
+          os << "str"
+             << "\t" << x->data << ", [" << x->addr << "]" << endl;
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
-          os << "ldr" << "\t" << x->dst << ", =" << x->sym->name << endl;
+          os << "ldr"
+             << "\t" << x->dst << ", =" << x->sym->name << endl;
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
           if (x->tag == MachineInst::Mul) {
@@ -50,30 +92,62 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIUnary>(inst)) {
-          if (x->tag == MachineInst::Mv) {
-            os << "mov" << "\t" << x->dst << ", " << x->rhs << endl;
-          } else {
-            UNREACHABLE();
-          }
+          UNREACHABLE();
         } else if (auto x = dyn_cast<MICompare>(inst)) {
-          os << "cmp" << "\t" << x->lhs << ", " << x->rhs << endl;
+          os << "cmp"
+             << "\t" << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIMove>(inst)) {
-          os << "mov" << "\t" << x->cond << " " << x->dst << ", " << x->rhs << endl;
+          os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
-          os << "bx" << "\t" << "lr" << endl;
+          os << "bx"
+             << "\t"
+             << "lr" << endl;
         }
       }
     }
   }
   // data section
-  os << ".section .data" << endl;
+  os << endl << endl << ".section .data" << endl;
+  os << ".align 4" << endl;
   for (auto &decl : p.glob_decl) {
-    os << ".global " << decl->name << endl;
+    os << endl << ".global " << decl->name << endl;
+    os << "\t"
+       << ".type"
+       << "\t" << decl->name << ", %object" << endl;
     os << decl->name << ":" << endl;
+
+    // output values
+    int count = 0;
+    bool initialized = false;
+    i32 last = 0;
+
+    auto print_values = [&](){
+      using std::hex;
+      using std::dec;
+      // TODO: print in hex?
+      if (count > 1) {
+        os << "\t"
+           << ".fill" << "\t" << count << ", 4, " << last << endl;
+      } else {
+        os << "\t"
+           << ".long" << "\t" << last << endl;
+      }
+    };
+
     for (auto expr : decl->flatten_init) {
-      os << "\t"
-         << ".long " << expr->result << endl;
+      if (!initialized) {
+        initialized = true;
+        last = expr->result;
+      }
+      if (expr->result == last) {
+        ++count;
+      } else {
+        print_values();
+        last = expr->result;
+        count = 1;
+      }
     }
+    print_values();
   }
   return os;
 }
