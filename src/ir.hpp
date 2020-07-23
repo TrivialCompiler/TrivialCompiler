@@ -197,24 +197,27 @@ struct ReturnInst : Inst {
   ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Return, insertAtEnd), ret(ret, this) {}
 };
 
-struct LoadInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Load);
+struct AccessInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == Load || p ->tag == Store);
   Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
-      : Inst(Load, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
+  AccessInst(Inst::Tag tag, Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
+      : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this){}
 };
 
-struct StoreInst : Inst {
+struct LoadInst : AccessInst {
+  DEFINE_CLASSOF(Value, p->tag == Load);
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
+      : AccessInst(Load, lhs_sym, arr, insertAtEnd) {}
+};
+
+struct StoreInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Store);
-  Decl *lhs_sym;
-  Use arr;
-  std::vector<Use> dims;
   Use data;
 
   StoreInst(Decl *lhs_sym, Value *arr, Value *data, BasicBlock *insertAtEnd)
-      : Inst(Store, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this), data(data, this) {}
+      : AccessInst(Store, lhs_sym, arr, insertAtEnd), data(data, this) {}
 };
 
 struct CallInst : Inst {

@@ -2,9 +2,7 @@
 
 #include <map>
 #include <optional>
-
-#include "casting.hpp"
-#include "common.hpp"
+#include <cassert>
 
 // list of assignments (lhs, rhs)
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
@@ -19,7 +17,7 @@ void insert_parallel_mv(ParMv &movs, MachineInst *insertBefore) {
 }
 
 MachineProgram *machine_code_selection(IrProgram *p) {
-  MachineProgram *ret = new MachineProgram;
+  auto ret = new MachineProgram;
   ret->glob_decl = p->glob_decl;
   for (auto f = p->func.head; f; f = f->next) {
     auto mf = new MachineFunc;
@@ -111,85 +109,98 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       }
     };
 
+    // calculate the offset in array indexing expr arr[a][b][c]
+    // it supports both complete (element) and incomplete (subarray) indexing
+    // e.g. for int a[2][3], it could calculate the offset of a, a[x] and a[x][y]
+    auto calculate_offset = [&](MachineBB *mbb, const std::vector<Use> &access_dims, const std::vector<Expr*> &var_dims) -> MachineOperand {
+
+      // direct access
+      if (access_dims.empty()) return MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+
+      // sum of index * number of elements
+      // allocate two registers: multiply and add
+      i32 mul_vreg = virtual_max++;
+      i32 add_vreg = virtual_max++;
+
+      // mov add_vreg, 0
+      auto mv_inst = new MIMove(mbb);
+      mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+      mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+
+      // TODO: eliminate MUL when sub_arr_size == 1
+      for (int i = 0; i < access_dims.size(); i++) {
+        // number of elements
+        auto is_last_dim = i + 1 < var_dims.size();
+        i32 sub_arr_size = is_last_dim ? 1 : var_dims[i + 1]->result;
+
+        // mov mul_vreg, sub_arr_size
+        auto mv_inst = new MIMove(mbb);
+        mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = sub_arr_size};
+
+        // mul mul_vreg, mul_vreg, dim
+        auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
+        mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        mul_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        mul_inst->rhs = resolve(access_dims[i].value);
+
+        // add add_vreg, add_vreg, mul_vreg
+        auto add_inst = new MIBinary(MachineInst::Add, mbb);
+        add_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+        add_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+        add_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+      }
+
+      return MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+    };
+
     // 2. translate instructions except phi
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
+
         if (auto x = dyn_cast<JumpInst>(inst)) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
           mbb->control_transter_inst = new_inst;
-        } else if (auto x = dyn_cast<LoadInst>(inst)) {
-          // TODO: dims
+        } else if (auto x = dyn_cast<AccessInst>(inst)) {
+          // store or load, nearly all the same
+          auto arr = resolve(x->arr.value);
+          auto offset = calculate_offset(mbb, x->dims, x->lhs_sym->dims);
+          // resolve index access
           if (x->dims.size() == x->lhs_sym->dims.size()) {
             // access to element
-            auto arr = resolve(x->arr.value);
-            MachineOperand offset;
-            if (x->dims.size() == 0) {
-              // zero offset
-              offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
-            } else if (x->dims.size() == 1) {
-              // simple offset
-              offset = resolve(x->dims[0].value);
+            MIAccess *access_inst;
+            if (auto x = dyn_cast<StoreInst>(inst)) {
+              // store to element
+              access_inst = new MIStore(mbb);
+              static_cast<MIStore*>(access_inst)->data = resolve_no_imm(x->data.value, mbb);
             } else {
-              // sum of index * number of elements
-              // allocate two registers: multiply and add
-              i32 mul_vreg = virtual_max++;
-              i32 add_vreg = virtual_max++;
-
-              // mov add_vreg, 0
-              auto mv_inst = new MIMove(mbb);
-              mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-              mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
-
-              for (int i = 0; i < x->dims.size(); i++) {
-                // number of elements
-                i32 imm = 1;
-                if (i + 1 < x->dims.size()) {
-                  imm = x->lhs_sym->dims[i + 1]->result;
-                }
-
-                // mov mul_vreg, imm
-                auto mv_inst = new MIMove(mbb);
-                mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-                mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = imm};
-
-                // mul mul_vreg, mul_vreg, dim
-                auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
-                mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-                mul_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-                mul_inst->rhs = resolve(x->dims[i].value);
-
-                // add add_vreg, add_vreg, mul_vreg
-                auto add_inst = new MIBinary(MachineInst::Add, mbb);
-                add_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-                add_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-                add_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-              }
-
-              offset = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+              // load from element
+              access_inst = new MILoad(mbb);
+              static_cast<MILoad*>(access_inst)->dst = resolve(inst);
             }
-
-            auto new_inst = new MILoad(mbb);
-            new_inst->addr = arr;
-            new_inst->offset = offset;
-            new_inst->dst = resolve(inst);
-            new_inst->shift = 2;
+            access_inst->addr = arr;
+            access_inst->offset = offset;
+            access_inst->shift = 2;
           } else {
-            // get addr of sub array
-            // TODO
+            // access to subarray
+            assert(x->tag != Value::Store); // you could only store to a specific element
+            // addr <- &arr
+            MachineOperand addr = {.state = MachineOperand::Virtual, .value = virtual_max++};
             auto mv_inst = new MIMove(mbb);
-            mv_inst->dst = resolve(inst);
+            mv_inst->dst = addr;
             mv_inst->rhs = resolve(x->arr.value);
+            // offset <- offset * 4
+            auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
+            mul_inst->dst = offset;
+            mul_inst->lhs = offset;
+            mul_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 4};
+            // inst <- addr + offset
+            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+            add_inst->dst = resolve(inst);
+            add_inst->lhs = addr;
+            add_inst->rhs = offset;
           }
-        } else if (auto x = dyn_cast<StoreInst>(inst)) {
-          // TODO: dims
-          auto arr = resolve(x->arr.value);
-          auto data = resolve_no_imm(x->data.value, mbb);
-
-          auto new_inst = new MIStore(mbb);
-          new_inst->addr = arr;
-          new_inst->data = data;
-          new_inst->offset = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value);

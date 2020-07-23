@@ -62,18 +62,24 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
              << "\t" << pb(x->target) << endl;
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
           os << "b" << x->cond << "\t" << pb(x->target) << endl;
-        } else if (auto x = dyn_cast<MILoad>(inst)) {
+        } else if (auto x = dyn_cast<MIAccess>(inst)) {
+          MachineOperand data{};
+          std::string inst_name;
+          if (auto x = dyn_cast<MILoad>(inst)) {
+            data = x->dst;
+            inst_name = "ldr";
+          } else if (auto x = dyn_cast<MIStore>(inst)) {
+            data = x->data;
+            inst_name = "str";
+          }
           if (x->offset.state == MachineOperand::Immediate) {
             i32 offset = x->offset.value << x->shift;
-            os << "ldr"
-               << "\t" << x->dst << ", [" << x->addr << ", #" << offset << "]" << endl;
+            os << inst_name
+               << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
           } else {
-            os << "ldr"
-               << "\t" << x->dst << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
+            os << inst_name
+               << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
           }
-        } else if (auto x = dyn_cast<MIStore>(inst)) {
-          os << "str"
-             << "\t" << x->data << ", [" << x->addr << "]" << endl;
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
           os << "ldr"
              << "\t" << x->dst << ", =" << x->sym->name << endl;

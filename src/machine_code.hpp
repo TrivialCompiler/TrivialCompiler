@@ -233,33 +233,31 @@ struct MIReturn : MachineInst {
   MIReturn(MachineBB *insertAtEnd) : MachineInst(Return, insertAtEnd) {}
 };
 
-struct MILoad : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Load);
+struct MIAccess : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Load || p->tag == Store);
   enum Mode {
     Offset,
     Prefix,
     Postfix,
   } mode;
-  MachineOperand dst;
   MachineOperand addr;
   MachineOperand offset;
   i32 shift;
-
-  MILoad(MachineBB *insertAtEnd) : MachineInst(Load, insertAtEnd) {}
+  MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
-struct MIStore : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Store);
-  enum Mode {
-    Offset,
-    Prefix,
-    Postfix,
-  } mode;
-  MachineOperand data;
-  MachineOperand addr;
-  MachineOperand offset;
+struct MILoad : MIAccess {
+  DEFINE_CLASSOF(MachineInst, p->tag == Load);
+  MachineOperand dst;
 
-  MIStore(MachineBB *insertAtEnd) : MachineInst(Store, insertAtEnd) {}
+  MILoad(MachineBB *insertAtEnd) : MIAccess(Load, insertAtEnd) {}
+};
+
+struct MIStore : MIAccess {
+  DEFINE_CLASSOF(MachineInst, p->tag == Store);
+  MachineOperand data;
+
+  MIStore(MachineBB *insertAtEnd) : MIAccess(Store, insertAtEnd) {}
 };
 
 struct MICompare : MachineInst {
