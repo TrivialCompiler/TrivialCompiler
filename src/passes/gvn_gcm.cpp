@@ -131,22 +131,23 @@ void gvn_gcm(IrFunc *f) {
   // 阶段1，gvn
   std::vector<BasicBlock *> rpo = compute_rpo(f);
   std::unordered_map<Value *, Value *> vn;
+  auto replace = [&vn](Inst *o, Value *n) {
+    if (o != n) {
+      o->replaceAllUseWith(n);
+      o->bb->insts.remove(o);
+      vn.erase(o);
+      o->deleteValue();
+    }
+  };
   for (BasicBlock *bb : rpo) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
         if (auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value); l && r) {
-          x->replaceAllUseWith(new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
-          bb->insts.remove(x);
-          delete x;
+          replace(x, new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
         } else {
           // todo: 还可以加入一些别的优化，乘1，乘0之类的
-          Value *y = vn_of(vn, x);
-          if (x != y) {
-            x->replaceAllUseWith(y);
-            bb->insts.remove(x);
-            delete x;
-          }
+          replace(x, vn_of(vn, x));
         }
       } else if (auto x = dyn_cast<PhiInst>(i)) {
         Value *fst = vn_of(vn, x->incoming_values[0].value);
@@ -154,11 +155,7 @@ void gvn_gcm(IrFunc *f) {
         for (u32 i = 1, sz = x->incoming_values.size(); i < sz && all_same; ++i) {
           all_same = fst == vn_of(vn, x->incoming_values[i].value);
         }
-        if (all_same) {
-          x->replaceAllUseWith(fst);
-          bb->insts.remove(x);
-          delete x;
-        }
+        if (all_same) replace(x, fst);
       }
       // 没有必要主动把其他指令加入vn，如果它们被用到的话自然会被加入的
       i = next;

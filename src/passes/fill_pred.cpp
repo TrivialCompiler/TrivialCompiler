@@ -15,6 +15,7 @@ void fill_pred(IrFunc *f) {
       if (x) {
         BasicBlock *x1 = *x;
         while (true) {
+          // todo: 修改基本块的时候，是否需要考虑Phi？这里比较简单可能不需要，复杂一些的呢？
           // 空基本块，且以跳转终止，那么直接跳转到它的目标处。可以迭代进行
           // 这里假定不存在死循环
           if (auto y = dyn_cast<JumpInst>(x1->insts.tail); y && x1->insts.head == x1->insts.tail) {

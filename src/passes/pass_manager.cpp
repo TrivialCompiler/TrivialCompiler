@@ -7,6 +7,7 @@
 #include "fill_pred.hpp"
 #include "gvn_gcm.hpp"
 #include "mem2reg.hpp"
+#include "dce.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *); // for future use (such as inlining functions)
@@ -19,7 +20,8 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(fill_pred),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(mem2reg),
-    DEFINE_PASS(gvn_gcm)
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(dce),
 };
 static PassDesc opt_passes[] = {};
 
