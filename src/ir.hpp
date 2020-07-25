@@ -7,11 +7,13 @@
 #include <unordered_set>
 #include <vector>
 
-#include "ast.hpp"
 #include "casting.hpp"
 #include "common.hpp"
 #include "ilist.hpp"
-#include "typeck.hpp"
+
+// 声明ast中用到的类型，从而让这里不需要include "ast.hpp"。真正需要访问字段的文件里自己include
+struct Func;
+struct Decl;
 
 struct Inst;
 struct IrFunc;
@@ -81,7 +83,6 @@ struct IrProgram {
   ilist<IrFunc> func;
   std::vector<Decl *> glob_decl;
 
-  IrFunc *findFunc(Func *func);
   friend std::ostream &operator<<(std::ostream &os, const IrProgram &dt);
 };
 
@@ -165,8 +166,6 @@ struct BinaryInst : Inst {
   Use lhs;
   Use rhs;
 
-  BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
-      : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 };

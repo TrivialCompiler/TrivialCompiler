@@ -1,4 +1,5 @@
 #include "mem2reg.hpp"
+#include "../ast.hpp"
 #include <algorithm>
 #include <unordered_map>
 

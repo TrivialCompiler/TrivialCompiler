@@ -1,5 +1,5 @@
 #include "ir.hpp"
-#include "casting.hpp"
+#include "ast.hpp"
 
 void Value::deleteValue() {
   if (auto x = dyn_cast<BinaryInst>(this))
@@ -31,15 +31,6 @@ void Value::deleteValue() {
 }
 
 UndefValue UndefValue::INSTANCE;
-
-IrFunc *IrProgram::findFunc(Func *f) {
-  for (auto p = func.head; p; p = p->next) {
-    if (p->func == f) {
-      return p;
-    }
-  }
-  return nullptr;
-}
 
 void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
   if (dims == dims_end) {
