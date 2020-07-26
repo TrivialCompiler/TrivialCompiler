@@ -98,12 +98,14 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
       if (lca) {
         BasicBlock *best = lca;
         u32 best_loop_depth = info.depth_of(best);
-        while (lca != x->bb) {
+        // 论文里是while (lca != x->bb)，但是我觉得放在x->bb也是可以的，所以改成了考虑完lca后再判断是否等于x->bb
+        while (true) {
           u32 cur_loop_depth = info.depth_of(lca);
           if (cur_loop_depth < best_loop_depth) {
             best = lca;
             best_loop_depth = cur_loop_depth;
           }
+          if (lca == x->bb) break;
           lca = lca->idom;
         }
         transfer_inst(x, best);

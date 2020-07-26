@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <deque>
 #include <map>
 #include <string_view>
 #include <unordered_set>
@@ -24,7 +25,7 @@ struct Value {
   ilist<Use> uses;
   // tag
   enum Tag {
-#include "op.inc" // Binary
+#include "op.inc"  // Binary
     Branch,
     Jump,
     Return,  // Control flow
@@ -197,24 +198,29 @@ struct ReturnInst : Inst {
 };
 
 struct AccessInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Load || p ->tag == Store);
+  DEFINE_CLASSOF(Value, p->tag == Load || p->tag == Store);
   Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
+  // 由memdep pass计算
+  // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
+  // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
+  // StoreInst只可能依赖LoadInst, StoreInst, CallInst; LoadInst只可能依赖StoreInst, CallInst
+  // CallInst中也有dep，含义是一样的，它依赖的种类和StoreInst相同
+  // 这里用deque而不是vector的原因是前者保证push_back不改变已经存在的元素的地址
+  std::deque<Use> dep;
   AccessInst(Inst::Tag tag, Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
-      : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this){}
+      : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
 };
 
 struct LoadInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Load);
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
-      : AccessInst(Load, lhs_sym, arr, insertAtEnd) {}
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Load, lhs_sym, arr, insertAtEnd) {}
 };
 
 struct StoreInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Store);
   Use data;
-
   StoreInst(Decl *lhs_sym, Value *arr, Value *data, BasicBlock *insertAtEnd)
       : AccessInst(Store, lhs_sym, arr, insertAtEnd), data(data, this) {}
 };
@@ -224,6 +230,7 @@ struct CallInst : Inst {
   // FIXME: IrFunc and Func 是什么关系？
   Func *func;
   std::vector<Use> args;
+  std::deque<Use> dep;
   CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
 };
 

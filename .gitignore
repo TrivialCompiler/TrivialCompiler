@@ -6,3 +6,5 @@ tmp
 build
 parser.cpp
 .vscode
+Testing/
+src/generated/Testing/

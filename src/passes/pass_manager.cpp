@@ -3,10 +3,11 @@
 #include <variant>
 #include <utility>
 
-#include "cfg.hpp"
 #include "fill_pred.hpp"
-#include "gvn_gcm.hpp"
+#include "cfg.hpp"
 #include "mem2reg.hpp"
+#include "memdep.hpp"
+#include "gvn_gcm.hpp"
 #include "dce.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
@@ -20,6 +21,7 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(fill_pred),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(mem2reg),
+    DEFINE_PASS(compute_memdep),
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
 };
