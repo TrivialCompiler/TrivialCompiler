@@ -602,6 +602,7 @@ void register_allocate(MachineProgram *p) {
       return true;
     };
 
+    // procedure Combine(u, v)
     auto combine = [&](MachineOperand u, MachineOperand v) {
       auto it = freeze_worklist.find(v);
       if (it != freeze_worklist.end()) {
@@ -612,7 +613,11 @@ void register_allocate(MachineProgram *p) {
 
       coalesced_nodes.insert(v);
       alias[v] = u;
-      // NOTE: what's nodeMoves?
+      // NOTE: nodeMoves should be moveList
+      auto &m = move_list[u];
+      for (auto n : move_list[v]) {
+        m.insert(n);
+      }
       for (auto t : adjacent(v)) {
         add_edge(t, u);
         decrement_degree(t);
@@ -667,6 +672,40 @@ void register_allocate(MachineProgram *p) {
         active_moves.insert(m);
       }
     };
+    // procedure FreezeMoves(u)
+    auto freeze_moves = [&](MachineOperand u) {
+      for (auto m : node_moves(u)) {
+        if (active_moves.find(m) != active_moves.end()) {
+          active_moves.erase(m);
+        } else {
+          worklist_moves.erase(m);
+        }
+        frozen_moves.insert(m);
+
+        auto v = m->dst == u ? m->rhs : m->dst;
+        if (!move_related(v) && degree[v] < k) {
+          freeze_worklist.erase(v);
+          simplify_worklist.insert(v);
+        }
+      }
+    };
+
+    // procedure Freeze()
+    auto freeze = [&]() {
+      auto u = *freeze_worklist.begin();
+      freeze_worklist.erase(u);
+      simplify_worklist.insert(u);
+      freeze_moves(u);
+    };
+
+    // procedure SelectSpill()
+    auto select_spill = [&]() {
+      // TODO: heuristic
+      auto m = *spill_worklist.begin();
+      spill_worklist.erase(m);
+      simplify_worklist.insert(m);
+      freeze_moves(m);
+    };
 
     build();
     mk_worklist();
@@ -678,10 +717,10 @@ void register_allocate(MachineProgram *p) {
         coalesce();
       }
       if (!freeze_worklist.empty()) {
-        // freeze();
+        freeze();
       }
       if (!spill_worklist.empty()) {
-        // select_spill();
+        select_spill();
       }
     } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
              !spill_worklist.empty());
