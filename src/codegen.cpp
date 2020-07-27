@@ -439,6 +439,7 @@ void register_allocate(MachineProgram *p) {
       degree[op] = 0x40000000;
     }
 
+    // procedure AddEdge(u, v)
     auto add_edge = [&](MachineOperand u, MachineOperand v) {
       if (adj_set.find({u, v}) == adj_set.end() && u != v) {
         dbg(std::string(u) + " interfere with " + std::string(v));
@@ -454,6 +455,7 @@ void register_allocate(MachineProgram *p) {
       }
     };
 
+    // procedure Build()
     auto build = [&]() {
       // build interference graph
       for (auto bb = f->bb.tail; bb; bb = bb->prev) {
@@ -528,6 +530,7 @@ void register_allocate(MachineProgram *p) {
       }
     };
 
+    // EnableMoves({m} u Adjacent(m))
     auto enable_moves = [&](MachineOperand n) {
       for (auto m : node_moves(n)) {
         if (active_moves.find(m) != active_moves.end()) {
@@ -570,6 +573,7 @@ void register_allocate(MachineProgram *p) {
       }
     };
 
+    // procedure GetAlias(n)
     auto get_alias = [&](MachineOperand n) -> MachineOperand {
       while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), n) != coalesced_nodes.end()) {
         n = alias[n];
@@ -577,12 +581,10 @@ void register_allocate(MachineProgram *p) {
       return n;
     };
 
+    // procedure AddWorkList(n)
     auto add_work_list = [&](MachineOperand u) {
       if (!u.is_precolored() && !move_related(u) && degree[u] < k) {
-        auto it = std::find(freeze_worklist.begin(), freeze_worklist.end(), u);
-        if (it != freeze_worklist.end()) {
-          freeze_worklist.erase(it);
-        }
+        freeze_worklist.erase(u);
         simplify_worklist.insert(u);
       }
     };
@@ -624,20 +626,20 @@ void register_allocate(MachineProgram *p) {
 
     auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
       int count = 0;
+      // set union
+      for (auto n : adj_v) {
+        adj_u.insert(n);
+      }
       for (auto n : adj_u) {
         if (degree[n] >= k) {
-          count ++;
-        }
-      }
-      for (auto n : adj_v) {
-        if (degree[n] >= k) {
-          count ++;
+          count++;
         }
       }
 
       return count < k;
     };
 
+    // procedure Coalesce()
     auto coalesce = [&]() {
       auto m = *worklist_moves.begin();
       auto u = get_alias(m->dst);
