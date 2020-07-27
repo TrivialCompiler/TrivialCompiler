@@ -138,10 +138,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = sub_arr_size};
 
         // mul mul_vreg, mul_vreg, dim
+        auto rhs = resolve_no_imm(access_dims[i].value, mbb);
         auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
         mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
         mul_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-        mul_inst->rhs = resolve(access_dims[i].value);
+        mul_inst->rhs = rhs;
 
         // add add_vreg, add_vreg, mul_vreg
         auto add_inst = new MIBinary(MachineInst::Add, mbb);
