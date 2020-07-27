@@ -1,8 +1,8 @@
 #include "codegen.hpp"
 
+#include <cassert>
 #include <map>
 #include <optional>
-#include <cassert>
 
 // list of assignments (lhs, rhs)
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
@@ -112,8 +112,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     // calculate the offset in array indexing expr arr[a][b][c]
     // it supports both complete (element) and incomplete (subarray) indexing
     // e.g. for int a[2][3], it could calculate the offset of a, a[x] and a[x][y]
-    auto calculate_offset = [&](MachineBB *mbb, const std::vector<Use> &access_dims, const std::vector<Expr*> &var_dims) -> MachineOperand {
-
+    auto calculate_offset = [&](MachineBB *mbb, const std::vector<Use> &access_dims,
+                                const std::vector<Expr *> &var_dims) -> MachineOperand {
       // direct access
       if (access_dims.empty()) return MachineOperand{.state = MachineOperand::Immediate, .value = 0};
 
@@ -157,7 +157,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
-
         if (auto x = dyn_cast<JumpInst>(inst)) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
           mbb->control_transter_inst = new_inst;
@@ -171,20 +170,20 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             MIAccess *access_inst;
             if (auto x = dyn_cast<StoreInst>(inst)) {
               // store to element
-              auto data = resolve_no_imm(x->data.value, mbb); // must get data first
+              auto data = resolve_no_imm(x->data.value, mbb);  // must get data first
               access_inst = new MIStore(mbb);
-              static_cast<MIStore*>(access_inst)->data = data;
+              static_cast<MIStore *>(access_inst)->data = data;
             } else {
               // load from element
               access_inst = new MILoad(mbb);
-              static_cast<MILoad*>(access_inst)->dst = resolve(inst);
+              static_cast<MILoad *>(access_inst)->dst = resolve(inst);
             }
             access_inst->addr = arr;
             access_inst->offset = offset;
             access_inst->shift = 2;
           } else {
             // access to subarray
-            assert(x->tag != Value::Store); // you could only store to a specific element
+            assert(x->tag != Value::Store);  // you could only store to a specific element
             // addr <- &arr
             MachineOperand addr = {.state = MachineOperand::Virtual, .value = virtual_max++};
             auto mv_inst = new MIMove(mbb);
@@ -418,11 +417,11 @@ void register_allocate(MachineProgram *p) {
     std::map<MachineOperand, u32> degree;
     std::map<MachineOperand, MachineOperand> alias;
     std::map<MachineOperand, std::set<MIMove *>> move_list;
-    std::vector<MachineOperand> simplify_worklist;
-    std::vector<MachineOperand> freeze_worklist;
-    std::vector<MachineOperand> spill_worklist;
-    std::vector<MachineOperand> spilled_nodes;
-    std::vector<MachineOperand> coalesced_nodes;
+    std::set<MachineOperand> simplify_worklist;
+    std::set<MachineOperand> freeze_worklist;
+    std::set<MachineOperand> spill_worklist;
+    std::set<MachineOperand> spilled_nodes;
+    std::set<MachineOperand> coalesced_nodes;
     std::vector<MachineOperand> colored_nodes;
     std::vector<MachineOperand> select_stack;
     std::set<MIMove *> coalesced_moves;
@@ -520,11 +519,11 @@ void register_allocate(MachineProgram *p) {
         // initial
         MachineOperand vreg = {.state = MachineOperand::Virtual, .value = i};
         if (degree[vreg] >= k) {
-          spill_worklist.push_back(vreg);
+          spill_worklist.insert(vreg);
         } else if (move_related(vreg)) {
-          freeze_worklist.push_back(vreg);
+          freeze_worklist.insert(vreg);
         } else {
-          simplify_worklist.push_back(vreg);
+          simplify_worklist.insert(vreg);
         }
       }
     };
@@ -552,21 +551,118 @@ void register_allocate(MachineProgram *p) {
       degree[m] = d - 1;
       if (d == k) {
         enable_moves(m);
-        spill_worklist.push_back(m);
+        spill_worklist.insert(m);
         if (move_related(m)) {
-          freeze_worklist.push_back(m);
+          freeze_worklist.insert(m);
         } else {
-          simplify_worklist.push_back(m);
+          simplify_worklist.insert(m);
         }
       }
     };
 
     auto simplify = [&]() {
-      auto n = simplify_worklist.back();
-      simplify_worklist.pop_back();
+      auto it = simplify_worklist.begin();
+      auto n = *it;
+      simplify_worklist.erase(it);
       select_stack.push_back(n);
       for (auto &m : adjacent(n)) {
         decrement_degree(m);
+      }
+    };
+
+    auto get_alias = [&](MachineOperand n) -> MachineOperand {
+      while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), n) != coalesced_nodes.end()) {
+        n = alias[n];
+      }
+      return n;
+    };
+
+    auto add_work_list = [&](MachineOperand u) {
+      if (!u.is_precolored() && !move_related(u) && degree[u] < k) {
+        auto it = std::find(freeze_worklist.begin(), freeze_worklist.end(), u);
+        if (it != freeze_worklist.end()) {
+          freeze_worklist.erase(it);
+        }
+        simplify_worklist.insert(u);
+      }
+    };
+
+    auto ok = [&](MachineOperand t, MachineOperand r) {
+      return degree[t] < k || t.is_precolored() || adj_set.find({t, r}) != adj_set.end();
+    };
+
+    auto adj_ok = [&](MachineOperand v, MachineOperand u) {
+      for (auto t : adjacent(v)) {
+        if (!ok(t, u)) {
+          return false;
+        }
+      }
+      return true;
+    };
+
+    auto combine = [&](MachineOperand u, MachineOperand v) {
+      auto it = freeze_worklist.find(v);
+      if (it != freeze_worklist.end()) {
+        freeze_worklist.erase(it);
+      } else {
+        spill_worklist.erase(v);
+      }
+
+      coalesced_nodes.insert(v);
+      alias[v] = u;
+      // NOTE: what's nodeMoves?
+      for (auto t : adjacent(v)) {
+        add_edge(t, u);
+        decrement_degree(t);
+      }
+
+      if (degree[u] >= k && freeze_worklist.find(u) != freeze_worklist.end()) {
+        freeze_worklist.erase(u);
+        spill_worklist.insert(u);
+      }
+    };
+
+    auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
+      int count = 0;
+      for (auto n : adj_u) {
+        if (degree[n] >= k) {
+          count ++;
+        }
+      }
+      for (auto n : adj_v) {
+        if (degree[n] >= k) {
+          count ++;
+        }
+      }
+
+      return count < k;
+    };
+
+    auto coalesce = [&]() {
+      auto m = *worklist_moves.begin();
+      auto u = get_alias(m->dst);
+      auto v = get_alias(m->rhs);
+      // swap when needed
+      if (v.is_precolored()) {
+        auto temp = u;
+        u = v;
+        v = temp;
+      }
+      worklist_moves.erase(m);
+
+      if (u == v) {
+        coalesced_moves.insert(m);
+        add_work_list(u);
+      } else if (v.is_precolored() && adj_set.find({u, v}) != adj_set.end()) {
+        constrained_moves.insert(m);
+        add_work_list(u);
+        add_work_list(v);
+      } else if (u.is_precolored() && adj_ok(v, u) || !u.is_precolored() && conservative(adjacent(u), adjacent(v))) {
+        coalesced_moves.insert(m);
+        combine(u, v);
+        add_work_list(u);
+      } else {
+        active_moves.insert(m);
       }
     };
 
@@ -577,7 +673,7 @@ void register_allocate(MachineProgram *p) {
         simplify();
       }
       if (!worklist_moves.empty()) {
-        // coalesce();
+        coalesce();
       }
       if (!freeze_worklist.empty()) {
         // freeze();
