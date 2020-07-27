@@ -341,9 +341,34 @@ std::pair<std::optional<MachineOperand>, std::vector<MachineOperand>> get_def_us
     // TODO
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
-  } else if (auto x = dyn_cast<MIReturn>(inst)) {
-    MachineOperand ret = MachineOperand{.state = MachineOperand::PreColored, .value = ArmReg::r0};
-    use = {ret};
+  }
+  return {def, use};
+}
+
+std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(MachineInst *inst) {
+  MachineOperand *def = nullptr;
+  std::vector<MachineOperand *> use;
+
+  if (auto x = dyn_cast<MIBinary>(inst)) {
+    def = &x->dst;
+    use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MIUnary>(inst)) {
+    def = &x->dst;
+    use = {&x->rhs};
+  } else if (auto x = dyn_cast<MIMove>(inst)) {
+    def = &x->dst;
+    use = {&x->rhs};
+  } else if (auto x = dyn_cast<MILoad>(inst)) {
+    def = &x->dst;
+    use = {&x->addr, &x->offset};
+  } else if (auto x = dyn_cast<MIStore>(inst)) {
+    use = {&x->data, &x->addr, &x->offset};
+  } else if (auto x = dyn_cast<MICompare>(inst)) {
+    use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MICall>(inst)) {
+    // TODO
+  } else if (auto x = dyn_cast<MIGlobal>(inst)) {
+    def = {&x->dst};
   }
   return {def, use};
 }
@@ -741,12 +766,28 @@ void register_allocate(MachineProgram *p) {
           }
         }
 
-        for (auto n: coalesced_nodes) {
+        for (auto n : coalesced_nodes) {
           colored[n] = colored[get_alias(n)];
         }
 
-        for (auto [v, a]: colored) {
+        for (auto [v, a] : colored) {
           std::cout << v << " => " << a << std::endl;
+        }
+
+        // replace usage of virtual registers
+        for (auto bb = f->bb.head; bb; bb = bb->next) {
+          for (auto inst = bb->insts.head; inst; inst = inst->next) {
+            auto [def, use] = get_def_use_ptr(inst);
+            if (def && colored.find(*def) != colored.end()) {
+              *def = colored[*def];
+            }
+
+            for (auto &u : use) {
+              if (u && colored.find(*u) != colored.end()) {
+                *u = colored[*u];
+              }
+            }
+          }
         }
       };
 
