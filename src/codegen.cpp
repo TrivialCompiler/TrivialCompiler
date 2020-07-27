@@ -405,324 +405,374 @@ void liveness_analysis(MachineFunc *f) {
 // iterated register coalescing
 void register_allocate(MachineProgram *p) {
   for (auto f = p->func.head; f; f = f->next) {
-    liveness_analysis(f);
-    // interference graph
-    // each node is a MachineOperand
-    // can only Precolored or Virtual
-    // adjacent list
-    std::map<MachineOperand, std::set<MachineOperand>> adj_list;
-    // adjacent set
-    std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
-    // other variables in the paper
-    std::map<MachineOperand, u32> degree;
-    std::map<MachineOperand, MachineOperand> alias;
-    std::map<MachineOperand, std::set<MIMove *>> move_list;
-    std::set<MachineOperand> simplify_worklist;
-    std::set<MachineOperand> freeze_worklist;
-    std::set<MachineOperand> spill_worklist;
-    std::set<MachineOperand> spilled_nodes;
-    std::set<MachineOperand> coalesced_nodes;
-    std::vector<MachineOperand> colored_nodes;
-    std::vector<MachineOperand> select_stack;
-    std::set<MIMove *> coalesced_moves;
-    std::set<MIMove *> constrained_moves;
-    std::set<MIMove *> frozen_moves;
-    std::set<MIMove *> worklist_moves;
-    std::set<MIMove *> active_moves;
+    bool done = false;
+    while (!done) {
+      liveness_analysis(f);
+      // interference graph
+      // each node is a MachineOperand
+      // can only Precolored or Virtual
+      // adjacent list
+      std::map<MachineOperand, std::set<MachineOperand>> adj_list;
+      // adjacent set
+      std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
+      // other variables in the paper
+      std::map<MachineOperand, u32> degree;
+      std::map<MachineOperand, MachineOperand> alias;
+      std::map<MachineOperand, std::set<MIMove *>> move_list;
+      std::set<MachineOperand> simplify_worklist;
+      std::set<MachineOperand> freeze_worklist;
+      std::set<MachineOperand> spill_worklist;
+      std::set<MachineOperand> spilled_nodes;
+      std::set<MachineOperand> coalesced_nodes;
+      std::vector<MachineOperand> colored_nodes;
+      std::vector<MachineOperand> select_stack;
+      std::set<MIMove *> coalesced_moves;
+      std::set<MIMove *> constrained_moves;
+      std::set<MIMove *> frozen_moves;
+      std::set<MIMove *> worklist_moves;
+      std::set<MIMove *> active_moves;
 
-    // allocatable registers
-    i32 k = r11 - r0 + 1;
-    // init degree for pre colored nodes
-    for (i32 i = r0; i <= r3; i++) {
-      MachineOperand op = {.state = MachineOperand::PreColored, .value = i};
-      // very large
-      degree[op] = 0x40000000;
-    }
-
-    // procedure AddEdge(u, v)
-    auto add_edge = [&](MachineOperand u, MachineOperand v) {
-      if (adj_set.find({u, v}) == adj_set.end() && u != v) {
-        dbg(std::string(u) + " interfere with " + std::string(v));
-        adj_set.insert({u, v});
-        if (!u.is_precolored()) {
-          adj_list[u].insert(v);
-          degree[u]++;
-        }
-        if (!v.is_precolored()) {
-          adj_list[v].insert(u);
-          degree[v]++;
-        }
+      // allocatable registers
+      i32 k = r11 - r0 + 1;
+      // init degree for pre colored nodes
+      for (i32 i = r0; i <= r3; i++) {
+        MachineOperand op = {.state = MachineOperand::PreColored, .value = i};
+        // very large
+        degree[op] = 0x40000000;
       }
-    };
 
-    // procedure Build()
-    auto build = [&]() {
-      // build interference graph
-      for (auto bb = f->bb.tail; bb; bb = bb->prev) {
-        // calculate live set before each instruction
-        auto live = bb->liveout;
-        for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
-          auto [def, use] = get_def_use(inst);
-          if (auto x = dyn_cast<MIMove>(inst)) {
-            if (x->dst.needs_color() && x->rhs.needs_color()) {
-              live.erase(x->rhs);
-              move_list[*def].insert(x);
-              move_list[x->dst].insert(x);
-              worklist_moves.insert(x);
-            }
+      // procedure AddEdge(u, v)
+      auto add_edge = [&](MachineOperand u, MachineOperand v) {
+        if (adj_set.find({u, v}) == adj_set.end() && u != v) {
+          dbg(std::string(u) + " interfere with " + std::string(v));
+          adj_set.insert({u, v});
+          if (!u.is_precolored()) {
+            adj_list[u].insert(v);
+            degree[u]++;
           }
-
-          if (def && def->needs_color()) {
-            live.insert(*def);
-            for (auto &l : live) {
-              add_edge(l, *def);
-            }
-
-            live.erase(*def);
-          }
-          for (auto &u : use) {
-            if (u.needs_color()) {
-              live.insert(u);
-            }
+          if (!v.is_precolored()) {
+            adj_list[v].insert(u);
+            degree[v]++;
           }
         }
-      }
-    };
+      };
 
-    auto adjacent = [&](MachineOperand n) {
-      std::set<MachineOperand> res = adj_list[n];
-      for (auto it = res.begin(); it != res.end();) {
-        if (std::find(select_stack.begin(), select_stack.end(), *it) == select_stack.end() &&
-            std::find(coalesced_nodes.begin(), coalesced_nodes.end(), *it) == coalesced_nodes.end()) {
-          it = res.erase(it);
-        } else {
-          it++;
+      // procedure Build()
+      auto build = [&]() {
+        // build interference graph
+        for (auto bb = f->bb.tail; bb; bb = bb->prev) {
+          // calculate live set before each instruction
+          auto live = bb->liveout;
+          for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
+            auto [def, use] = get_def_use(inst);
+            if (auto x = dyn_cast<MIMove>(inst)) {
+              if (x->dst.needs_color() && x->rhs.needs_color()) {
+                live.erase(x->rhs);
+                move_list[*def].insert(x);
+                move_list[x->dst].insert(x);
+                worklist_moves.insert(x);
+              }
+            }
+
+            if (def && def->needs_color()) {
+              live.insert(*def);
+              for (auto &l : live) {
+                add_edge(l, *def);
+              }
+
+              live.erase(*def);
+            }
+            for (auto &u : use) {
+              if (u.needs_color()) {
+                live.insert(u);
+              }
+            }
+          }
         }
-      }
-      return res;
-    };
+      };
 
-    auto node_moves = [&](MachineOperand n) {
-      std::set<MIMove *> res = move_list[n];
-      for (auto it = res.begin(); it != res.end();) {
-        if (active_moves.find(*it) == active_moves.end() && worklist_moves.find(*it) == worklist_moves.end()) {
-          it = res.erase(it);
-        } else {
-          it++;
+      auto adjacent = [&](MachineOperand n) {
+        std::set<MachineOperand> res = adj_list[n];
+        for (auto it = res.begin(); it != res.end();) {
+          if (std::find(select_stack.begin(), select_stack.end(), *it) == select_stack.end() &&
+              std::find(coalesced_nodes.begin(), coalesced_nodes.end(), *it) == coalesced_nodes.end()) {
+            it = res.erase(it);
+          } else {
+            it++;
+          }
         }
-      }
-      return res;
-    };
+        return res;
+      };
 
-    auto move_related = [&](MachineOperand n) { return node_moves(n).size() > 0; };
-
-    auto mk_worklist = [&]() {
-      for (i32 i = 0; i < f->virtual_max; i++) {
-        // initial
-        MachineOperand vreg = {.state = MachineOperand::Virtual, .value = i};
-        if (degree[vreg] >= k) {
-          spill_worklist.insert(vreg);
-        } else if (move_related(vreg)) {
-          freeze_worklist.insert(vreg);
-        } else {
-          simplify_worklist.insert(vreg);
+      auto node_moves = [&](MachineOperand n) {
+        std::set<MIMove *> res = move_list[n];
+        for (auto it = res.begin(); it != res.end();) {
+          if (active_moves.find(*it) == active_moves.end() && worklist_moves.find(*it) == worklist_moves.end()) {
+            it = res.erase(it);
+          } else {
+            it++;
+          }
         }
-      }
-    };
+        return res;
+      };
 
-    // EnableMoves({m} u Adjacent(m))
-    auto enable_moves = [&](MachineOperand n) {
-      for (auto m : node_moves(n)) {
-        if (active_moves.find(m) != active_moves.end()) {
-          active_moves.erase(m);
-          worklist_moves.insert(m);
+      auto move_related = [&](MachineOperand n) { return node_moves(n).size() > 0; };
+
+      auto mk_worklist = [&]() {
+        for (i32 i = 0; i < f->virtual_max; i++) {
+          // initial
+          MachineOperand vreg = {.state = MachineOperand::Virtual, .value = i};
+          if (degree[vreg] >= k) {
+            spill_worklist.insert(vreg);
+          } else if (move_related(vreg)) {
+            freeze_worklist.insert(vreg);
+          } else {
+            simplify_worklist.insert(vreg);
+          }
         }
-      }
+      };
 
-      for (auto a : adjacent(n)) {
-        for (auto m : node_moves(a)) {
+      // EnableMoves({m} u Adjacent(m))
+      auto enable_moves = [&](MachineOperand n) {
+        for (auto m : node_moves(n)) {
           if (active_moves.find(m) != active_moves.end()) {
             active_moves.erase(m);
             worklist_moves.insert(m);
           }
         }
-      }
-    };
 
-    auto decrement_degree = [&](MachineOperand m) {
-      auto d = degree[m];
-      degree[m] = d - 1;
-      if (d == k) {
-        enable_moves(m);
-        spill_worklist.insert(m);
-        if (move_related(m)) {
-          freeze_worklist.insert(m);
-        } else {
-          simplify_worklist.insert(m);
+        for (auto a : adjacent(n)) {
+          for (auto m : node_moves(a)) {
+            if (active_moves.find(m) != active_moves.end()) {
+              active_moves.erase(m);
+              worklist_moves.insert(m);
+            }
+          }
         }
-      }
-    };
+      };
 
-    auto simplify = [&]() {
-      auto it = simplify_worklist.begin();
-      auto n = *it;
-      simplify_worklist.erase(it);
-      select_stack.push_back(n);
-      for (auto &m : adjacent(n)) {
-        decrement_degree(m);
-      }
-    };
+      auto decrement_degree = [&](MachineOperand m) {
+        auto d = degree[m];
+        degree[m] = d - 1;
+        if (d == k) {
+          enable_moves(m);
+          spill_worklist.insert(m);
+          if (move_related(m)) {
+            freeze_worklist.insert(m);
+          } else {
+            simplify_worklist.insert(m);
+          }
+        }
+      };
 
-    // procedure GetAlias(n)
-    auto get_alias = [&](MachineOperand n) -> MachineOperand {
-      while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), n) != coalesced_nodes.end()) {
-        n = alias[n];
-      }
-      return n;
-    };
+      auto simplify = [&]() {
+        auto it = simplify_worklist.begin();
+        auto n = *it;
+        simplify_worklist.erase(it);
+        select_stack.push_back(n);
+        for (auto &m : adjacent(n)) {
+          decrement_degree(m);
+        }
+      };
 
-    // procedure AddWorkList(n)
-    auto add_work_list = [&](MachineOperand u) {
-      if (!u.is_precolored() && !move_related(u) && degree[u] < k) {
+      // procedure GetAlias(n)
+      auto get_alias = [&](MachineOperand n) -> MachineOperand {
+        while (std::find(coalesced_nodes.begin(), coalesced_nodes.end(), n) != coalesced_nodes.end()) {
+          n = alias[n];
+        }
+        return n;
+      };
+
+      // procedure AddWorkList(n)
+      auto add_work_list = [&](MachineOperand u) {
+        if (!u.is_precolored() && !move_related(u) && degree[u] < k) {
+          freeze_worklist.erase(u);
+          simplify_worklist.insert(u);
+        }
+      };
+
+      auto ok = [&](MachineOperand t, MachineOperand r) {
+        return degree[t] < k || t.is_precolored() || adj_set.find({t, r}) != adj_set.end();
+      };
+
+      auto adj_ok = [&](MachineOperand v, MachineOperand u) {
+        for (auto t : adjacent(v)) {
+          if (!ok(t, u)) {
+            return false;
+          }
+        }
+        return true;
+      };
+
+      // procedure Combine(u, v)
+      auto combine = [&](MachineOperand u, MachineOperand v) {
+        auto it = freeze_worklist.find(v);
+        if (it != freeze_worklist.end()) {
+          freeze_worklist.erase(it);
+        } else {
+          spill_worklist.erase(v);
+        }
+
+        coalesced_nodes.insert(v);
+        alias[v] = u;
+        // NOTE: nodeMoves should be moveList
+        auto &m = move_list[u];
+        for (auto n : move_list[v]) {
+          m.insert(n);
+        }
+        for (auto t : adjacent(v)) {
+          add_edge(t, u);
+          decrement_degree(t);
+        }
+
+        if (degree[u] >= k && freeze_worklist.find(u) != freeze_worklist.end()) {
+          freeze_worklist.erase(u);
+          spill_worklist.insert(u);
+        }
+      };
+
+      auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
+        int count = 0;
+        // set union
+        for (auto n : adj_v) {
+          adj_u.insert(n);
+        }
+        for (auto n : adj_u) {
+          if (degree[n] >= k) {
+            count++;
+          }
+        }
+
+        return count < k;
+      };
+
+      // procedure Coalesce()
+      auto coalesce = [&]() {
+        auto m = *worklist_moves.begin();
+        auto u = get_alias(m->dst);
+        auto v = get_alias(m->rhs);
+        // swap when needed
+        if (v.is_precolored()) {
+          auto temp = u;
+          u = v;
+          v = temp;
+        }
+        worklist_moves.erase(m);
+
+        if (u == v) {
+          coalesced_moves.insert(m);
+          add_work_list(u);
+        } else if (v.is_precolored() && adj_set.find({u, v}) != adj_set.end()) {
+          constrained_moves.insert(m);
+          add_work_list(u);
+          add_work_list(v);
+        } else if (u.is_precolored() && adj_ok(v, u) || !u.is_precolored() && conservative(adjacent(u), adjacent(v))) {
+          coalesced_moves.insert(m);
+          combine(u, v);
+          add_work_list(u);
+        } else {
+          active_moves.insert(m);
+        }
+      };
+      // procedure FreezeMoves(u)
+      auto freeze_moves = [&](MachineOperand u) {
+        for (auto m : node_moves(u)) {
+          if (active_moves.find(m) != active_moves.end()) {
+            active_moves.erase(m);
+          } else {
+            worklist_moves.erase(m);
+          }
+          frozen_moves.insert(m);
+
+          auto v = m->dst == u ? m->rhs : m->dst;
+          if (!move_related(v) && degree[v] < k) {
+            freeze_worklist.erase(v);
+            simplify_worklist.insert(v);
+          }
+        }
+      };
+
+      // procedure Freeze()
+      auto freeze = [&]() {
+        auto u = *freeze_worklist.begin();
         freeze_worklist.erase(u);
         simplify_worklist.insert(u);
-      }
-    };
+        freeze_moves(u);
+      };
 
-    auto ok = [&](MachineOperand t, MachineOperand r) {
-      return degree[t] < k || t.is_precolored() || adj_set.find({t, r}) != adj_set.end();
-    };
+      // procedure SelectSpill()
+      auto select_spill = [&]() {
+        // TODO: heuristic
+        auto m = *spill_worklist.begin();
+        spill_worklist.erase(m);
+        simplify_worklist.insert(m);
+        freeze_moves(m);
+      };
 
-    auto adj_ok = [&](MachineOperand v, MachineOperand u) {
-      for (auto t : adjacent(v)) {
-        if (!ok(t, u)) {
-          return false;
+      // procedure AssignColors()
+      auto assign_colors = [&]() {
+        // mapping from virtual register to its allocated register
+        std::map<MachineOperand, MachineOperand> colored;
+        while (!select_stack.empty()) {
+          auto n = select_stack.back();
+          select_stack.pop_back();
+          std::set<i32> ok_colors;
+          for (int i = 0; i < k; i++) {
+            ok_colors.insert(i);
+          }
+
+          for (auto w : adj_list[n]) {
+            auto a = get_alias(w);
+            if (a.state == MachineOperand::Allocated || a.state == MachineOperand::PreColored) {
+              ok_colors.erase(a.value);
+            } else if (a.state == MachineOperand::Virtual) {
+              auto it = colored.find(a);
+              if (it != colored.end()) {
+                ok_colors.erase(it->second.value);
+              }
+            }
+          }
+
+          if (ok_colors.empty()) {
+            spilled_nodes.insert(n);
+          } else {
+            auto color = *ok_colors.begin();
+            colored[n] = MachineOperand{.state = MachineOperand::Allocated, .value = color};
+          }
         }
-      }
-      return true;
-    };
 
-    // procedure Combine(u, v)
-    auto combine = [&](MachineOperand u, MachineOperand v) {
-      auto it = freeze_worklist.find(v);
-      if (it != freeze_worklist.end()) {
-        freeze_worklist.erase(it);
+        for (auto n: coalesced_nodes) {
+          colored[n] = colored[get_alias(n)];
+        }
+
+        for (auto [v, a]: colored) {
+          std::cout << v << " => " << a << std::endl;
+        }
+      };
+
+      build();
+      mk_worklist();
+      do {
+        if (!simplify_worklist.empty()) {
+          simplify();
+        }
+        if (!worklist_moves.empty()) {
+          coalesce();
+        }
+        if (!freeze_worklist.empty()) {
+          freeze();
+        }
+        if (!spill_worklist.empty()) {
+          select_spill();
+        }
+      } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
+               !spill_worklist.empty());
+      assign_colors();
+      if (spilled_nodes.empty()) {
+        done = true;
       } else {
-        spill_worklist.erase(v);
+        done = false;
       }
-
-      coalesced_nodes.insert(v);
-      alias[v] = u;
-      // NOTE: nodeMoves should be moveList
-      auto &m = move_list[u];
-      for (auto n : move_list[v]) {
-        m.insert(n);
-      }
-      for (auto t : adjacent(v)) {
-        add_edge(t, u);
-        decrement_degree(t);
-      }
-
-      if (degree[u] >= k && freeze_worklist.find(u) != freeze_worklist.end()) {
-        freeze_worklist.erase(u);
-        spill_worklist.insert(u);
-      }
-    };
-
-    auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
-      int count = 0;
-      // set union
-      for (auto n : adj_v) {
-        adj_u.insert(n);
-      }
-      for (auto n : adj_u) {
-        if (degree[n] >= k) {
-          count++;
-        }
-      }
-
-      return count < k;
-    };
-
-    // procedure Coalesce()
-    auto coalesce = [&]() {
-      auto m = *worklist_moves.begin();
-      auto u = get_alias(m->dst);
-      auto v = get_alias(m->rhs);
-      // swap when needed
-      if (v.is_precolored()) {
-        auto temp = u;
-        u = v;
-        v = temp;
-      }
-      worklist_moves.erase(m);
-
-      if (u == v) {
-        coalesced_moves.insert(m);
-        add_work_list(u);
-      } else if (v.is_precolored() && adj_set.find({u, v}) != adj_set.end()) {
-        constrained_moves.insert(m);
-        add_work_list(u);
-        add_work_list(v);
-      } else if (u.is_precolored() && adj_ok(v, u) || !u.is_precolored() && conservative(adjacent(u), adjacent(v))) {
-        coalesced_moves.insert(m);
-        combine(u, v);
-        add_work_list(u);
-      } else {
-        active_moves.insert(m);
-      }
-    };
-    // procedure FreezeMoves(u)
-    auto freeze_moves = [&](MachineOperand u) {
-      for (auto m : node_moves(u)) {
-        if (active_moves.find(m) != active_moves.end()) {
-          active_moves.erase(m);
-        } else {
-          worklist_moves.erase(m);
-        }
-        frozen_moves.insert(m);
-
-        auto v = m->dst == u ? m->rhs : m->dst;
-        if (!move_related(v) && degree[v] < k) {
-          freeze_worklist.erase(v);
-          simplify_worklist.insert(v);
-        }
-      }
-    };
-
-    // procedure Freeze()
-    auto freeze = [&]() {
-      auto u = *freeze_worklist.begin();
-      freeze_worklist.erase(u);
-      simplify_worklist.insert(u);
-      freeze_moves(u);
-    };
-
-    // procedure SelectSpill()
-    auto select_spill = [&]() {
-      // TODO: heuristic
-      auto m = *spill_worklist.begin();
-      spill_worklist.erase(m);
-      simplify_worklist.insert(m);
-      freeze_moves(m);
-    };
-
-    build();
-    mk_worklist();
-    do {
-      if (!simplify_worklist.empty()) {
-        simplify();
-      }
-      if (!worklist_moves.empty()) {
-        coalesce();
-      }
-      if (!freeze_worklist.empty()) {
-        freeze();
-      }
-      if (!spill_worklist.empty()) {
-        select_spill();
-      }
-    } while (!simplify_worklist.empty() || !worklist_moves.empty() || !freeze_worklist.empty() ||
-             !spill_worklist.empty());
+    }
   }
 }
