@@ -1,10 +1,11 @@
-#include <iomanip>
-
 #include "machine_code.hpp"
+
+#include <iomanip>
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
   static const std::string BB_PREFIX = "_BB";
+  IndexMapper<MachineBB> bb_index;
 
   // code section
   os << ".section .text" << endl;
@@ -16,7 +17,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
        << "\t" << f->func->func->name << ", %function" << endl;
     os << f->func->func->name << ":" << endl;
 
-    IndexMapper<MachineBB> bb_index;
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
       return "";
@@ -74,11 +74,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           if (x->offset.state == MachineOperand::Immediate) {
             i32 offset = x->offset.value << x->shift;
-            os << inst_name
-               << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
+            os << inst_name << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
           } else {
-            os << inst_name
-               << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]" << endl;
+            os << inst_name << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]"
+               << endl;
           }
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
           os << "ldr"
@@ -127,16 +126,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     bool initialized = false;
     i32 last = 0;
 
-    auto print_values = [&](){
+    auto print_values = [&]() {
       using std::hex;
       using std::dec;
       // TODO: print in hex?
       if (count > 1) {
         os << "\t"
-           << ".fill" << "\t" << count << ", 4, " << last << endl;
+           << ".fill"
+           << "\t" << count << ", 4, " << last << endl;
       } else {
         os << "\t"
-           << ".long" << "\t" << last << endl;
+           << ".long"
+           << "\t" << last << endl;
       }
     };
 
