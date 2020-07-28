@@ -38,3 +38,6 @@ LoopInfo compute_loop_info(IrFunc *f);
 
 // 计算bb的rpo序
 std::vector<BasicBlock *> compute_rpo(IrFunc *f);
+
+// 计算支配边界DF，这里用一个map来存每个bb的df，其实是很随意的选择，把它放在BasicBlock里面也不是不行
+std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> compute_df(IrFunc *f);

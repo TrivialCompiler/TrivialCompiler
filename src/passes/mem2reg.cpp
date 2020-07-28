@@ -1,4 +1,5 @@
 #include "mem2reg.hpp"
+#include "cfg.hpp"
 #include "../ast.hpp"
 #include <algorithm>
 #include <unordered_map>
@@ -15,32 +16,18 @@ void mem2reg(IrFunc *f) {
       }
     }
   }
-  std::vector<std::unordered_set<BasicBlock *>> alloca_defs(alloca_ids.size());
+  std::vector<std::vector<BasicBlock *>> alloca_defs(alloca_ids.size());
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
       if (auto x = dyn_cast<StoreInst>(i)) {
-        if (auto a = dyn_cast<AllocaInst>(x->arr.value)) { // store的目标是我们考虑的地址
-          auto it = alloca_ids.find(a);
-          if (it != alloca_ids.end()) {
-            alloca_defs[it->second].insert(bb);
-          }
+        auto it = alloca_ids.find(x->arr.value); // store的目标是我们考虑的地址
+        if (it != alloca_ids.end()) {
+          alloca_defs[it->second].push_back(bb);
         }
       }
     }
   }
-  // 计算支配边界DF，这里用一个map来存每个bb的df，其实是很随意的选择，把它放在BasicBlock里面也不是不行
-  std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> df;
-  for (BasicBlock *from = f->bb.head; from; from = from->next) {
-    for (BasicBlock *to : from->succ()) {
-      if (to) { // 枚举所有边(from, to)
-        BasicBlock *x = from;
-        while (x == to || to->dom_by.find(x) == to->dom_by.end()) { // while x不strictly dom to
-          df[x].insert(to);
-          x = x->idom;
-        }
-      }
-    }
-  }
+  auto df = compute_df(f);
   // mem2reg算法阶段1：放置phi节点
   // worklist定义在循环外面，只是为了减少申请内存的次数
   std::vector<BasicBlock *> worklist; // 用stack还是queue在这里没有本质区别
@@ -74,7 +61,7 @@ void mem2reg(IrFunc *f) {
         // 如果一个value在alloca_ids中，它的实际类型必然是AllocaInst，无需再做dyn_cast
         if (auto it = alloca_ids.find(i); it != alloca_ids.end()) {
           bb->insts.remove(i);
-          delete static_cast<AllocaInst *>(i); // 但是这里就可以确定它是AllocaInst了
+          delete static_cast<AllocaInst *>(i);
         } else if (auto x = dyn_cast<LoadInst>(i)) {
           // 这里不能，也不用再看x->arr.value是不是AllocaInst了
           // 不能的原因是上面的if分支会delete掉alloca；不用的原因是只要alloca_ids里有，它就一定是AllocaInst

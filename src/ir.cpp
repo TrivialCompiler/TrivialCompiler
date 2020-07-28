@@ -20,6 +20,10 @@ void Value::deleteValue() {
     delete x;
   else if (auto x = dyn_cast<PhiInst>(this))
     delete x;
+  else if (auto x = dyn_cast<MemOpInst>(this))
+    delete x;
+  else if (auto x = dyn_cast<MemPhiInst>(this))
+    delete x;
   else if (auto x = dyn_cast<ConstValue>(this))
     delete x;
   else if (auto x = dyn_cast<GlobalRef>(this))
@@ -97,6 +101,10 @@ struct pv {
       os << "%" << x->decl->name;
     } else if (auto x = dyn_cast<UndefValue>(pv.v)) {
       os << "undef";
+    } else if (isa<MemPhiInst>(pv.v) || isa<MemOpInst>(pv.v)) {
+      os << "mem" << pv.v_index.get(pv.v);
+    } else if (isa<StoreInst>(pv.v)) {
+      os << "store" << pv.v_index.get(pv.v);
     } else {
       os << "%x" << pv.v_index.get(pv.v);
     }
@@ -177,6 +185,16 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         os << "%_" << bb_index.find(*it)->second;
       }
       os << endl;
+      for (Inst *i = bb->mem_phis.head; i; i = i->next) {
+        auto x = static_cast<MemPhiInst *>(i);
+        os << "\t; mem" << v_index.get(x) << " = MemPhi ";
+        for (u32 j = 0; j < x->incoming_values.size(); ++j) {
+          if (j != 0) os << ", ";
+          os << "[" << pv(v_index, x->incoming_values[j].value) << ", %_"
+             << bb_index.find((*x->incoming_bbs)[j])->second << "]";
+        }
+        os << " for load/arr@" << x->load_or_arr << endl;
+      }
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
@@ -184,6 +202,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
           os << ", align 4 " << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
+          os << "; store" << v_index.get(x) << endl << "\t";
           if (x->dims.size() == 0) {
             // simple case
             os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
@@ -220,6 +239,9 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
           }
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
+          if (x->mem_token.value) {
+            os << "; load@" << x << " arr@" << x->arr.value << ", use " << pv(v_index, x->mem_token.value) << endl << "\t";
+          }
           if (x->dims.size() == x->lhs_sym->dims.size()) {
             // first case: access to item
             if (x->dims.size() == 0) {
@@ -344,6 +366,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
                << bb_index.find((*x->incoming_bbs)[i])->second << "]";
           }
           os << endl;
+        } else if (auto x = dyn_cast<MemOpInst>(inst)) {
+          os << "; mem" << v_index.get(x) << " for load@" << x->load << ", use " << pv(v_index, x->mem_token.value) << endl;
         } else {
           UNREACHABLE();
         }

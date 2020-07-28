@@ -2,7 +2,6 @@
 
 #include <array>
 #include <cstdint>
-#include <deque>
 #include <map>
 #include <string_view>
 #include <unordered_set>
@@ -19,6 +18,7 @@ struct Decl;
 struct Inst;
 struct IrFunc;
 struct Use;
+struct MemPhiInst;
 
 struct Value {
   // value is used by ...
@@ -34,6 +34,8 @@ struct Value {
     Call,
     Alloca,
     Phi,
+    MemOp,
+    MemPhi, // 虚拟的MemPhi指令，保证不出现在指令序列中，只出现在BasicBlock::mem_phis中
     Const,
     Global,
     Param,
@@ -98,6 +100,7 @@ struct BasicBlock {
   u32 dom_level;                            // dom树中的深度，根深度为0
   bool vis;  // 各种算法中用到，标记是否访问过，算法开头应把所有vis置false(调用IrFunc::clear_all_vis)
   ilist<Inst> insts;
+  ilist<Inst> mem_phis; // 元素都是MemPhiInst
 
   inline std::array<BasicBlock *, 2> succ();
   inline std::array<BasicBlock **, 2> succ_ref();  // 想修改succ时使用
@@ -148,7 +151,7 @@ struct UndefValue : Value {
 };
 
 struct Inst : Value {
-  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Phi);
+  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= MemPhi);
   // instruction linked list
   DEFINE_ILIST(Inst)
   // basic block
@@ -159,6 +162,9 @@ struct Inst : Value {
 
   // insert this inst at the end of `insertAtEnd`
   Inst(Tag tag, BasicBlock *insertAtEnd) : Value(tag), bb(insertAtEnd) { bb->insts.insertAtEnd(this); }
+
+  // 只初始化tag，没有加入到链表中，调用者手动加入
+  Inst(Tag tag) : Value(tag) {}
 };
 
 struct BinaryInst : Inst {
@@ -202,20 +208,20 @@ struct AccessInst : Inst {
   Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
-  // 由memdep pass计算
-  // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
-  // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
-  // StoreInst只可能依赖LoadInst, StoreInst, CallInst; LoadInst只可能依赖StoreInst, CallInst
-  // CallInst中也有dep，含义是一样的，它依赖的种类和StoreInst相同
-  // 这里用deque而不是vector的原因是前者保证push_back不改变已经存在的元素的地址
-  std::deque<Use> dep;
   AccessInst(Inst::Tag tag, Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
 };
 
 struct LoadInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Load);
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Load, lhs_sym, arr, insertAtEnd) {}
+  // 由memdep pass计算
+  // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
+  // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
+  // LoadInst只可能依赖StoreInst, CallInst
+//  std::vector<Inst *> dep;
+//  std::unordered_set<Inst *> alias;
+  Use mem_token;
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Load, lhs_sym, arr, insertAtEnd), mem_token(nullptr, this) {}
 };
 
 struct StoreInst : AccessInst {
@@ -230,7 +236,6 @@ struct CallInst : Inst {
   // FIXME: IrFunc and Func 是什么关系？
   Func *func;
   std::vector<Use> args;
-  std::deque<Use> dep;
   CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
 };
 
@@ -250,6 +255,38 @@ struct PhiInst : Inst {
 
   explicit PhiInst(BasicBlock *insertAtFront)
       : Inst(Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+    incoming_values.reserve(insertAtFront->pred.size());
+    for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
+      // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
+      incoming_values.emplace_back(nullptr, this);
+    }
+  }
+};
+
+struct MemOpInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == MemOp);
+  Use mem_token;
+  LoadInst *load;
+  MemOpInst(LoadInst *load, Inst *insertBefore) : Inst(MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
+};
+
+// 它的前几个字段和PhiInst是兼容的，所以可以当成PhiInst用(也许理论上有隐患，但是实际上应该没有问题)
+// 我不希望让它继承PhiInst，这也许会影响以前的一些对PhiInst的使用
+struct MemPhiInst : Inst {
+  DEFINE_CLASSOF(Value, p->tag == MemPhi);
+
+  // incoming_values.size() == incoming_bbs.size()
+  std::vector<Use> incoming_values;
+  std::vector<BasicBlock *> *incoming_bbs;
+
+  // load依赖store和store依赖load两种依赖用到的MemPhiInst不一样
+  // 前者的load_or_arr来自于load的数组地址，后者的load_or_arr来自于LoadInst
+  Value *load_or_arr;
+
+  explicit MemPhiInst(Value *load_or_arr, BasicBlock *insertAtFront)
+    : Inst(MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
+    bb = insertAtFront;
+    bb->mem_phis.insertAtBegin(this);
     incoming_values.reserve(insertAtFront->pred.size());
     for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上

@@ -140,3 +140,19 @@ std::vector<BasicBlock *> compute_rpo(IrFunc *f) {
   std::reverse(ret.begin(), ret.end());
   return std::move(ret);
 }
+
+std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> compute_df(IrFunc *f) {
+  std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> df;
+  for (BasicBlock *from = f->bb.head; from; from = from->next) {
+    for (BasicBlock *to : from->succ()) {
+      if (to) { // 枚举所有边(from, to)
+        BasicBlock *x = from;
+        while (x == to || to->dom_by.find(x) == to->dom_by.end()) { // while x不strictly dom to
+          df[x].insert(to);
+          x = x->idom;
+        }
+      }
+    }
+  }
+  return std::move(df);
+}
