@@ -108,7 +108,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           // function epilogue
-          os << "ldr\t lr, [sp, #4]" << endl;
+          os << "ldr\t lr, [sp], #4" << endl;
 
           os << "\tbx"
              << "\t"
