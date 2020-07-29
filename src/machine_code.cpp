@@ -125,7 +125,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
              << "\t"
              << "lr" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
-          os << "bl\t" << x->func->name << endl;
+          os << "blx\t" << x->func->name << endl;
         } else if (auto x = dyn_cast<MIComment>(inst)) {
           os << "@ " << x->content << endl;
         } else {

@@ -616,9 +616,9 @@ void register_allocate(MachineProgram *p) {
         for (auto it = res.begin(); it != res.end();) {
           if (std::find(select_stack.begin(), select_stack.end(), *it) == select_stack.end() &&
               std::find(coalesced_nodes.begin(), coalesced_nodes.end(), *it) == coalesced_nodes.end()) {
-            it = res.erase(it);
-          } else {
             it++;
+          } else {
+            it = res.erase(it);
           }
         }
         return res;
