@@ -104,7 +104,7 @@ struct MachineOperand {
   } state;
   i32 value;
 
-  bool operator <(const MachineOperand &other) const {
+  bool operator<(const MachineOperand &other) const {
     if (state != other.state) {
       return state < other.state;
     } else {
@@ -112,13 +112,9 @@ struct MachineOperand {
     }
   }
 
-  bool operator ==(const MachineOperand &other) const {
-    return state == other.state && value == other.value;
-  }
+  bool operator==(const MachineOperand &other) const { return state == other.state && value == other.value; }
 
-  bool operator !=(const MachineOperand &other) const {
-    return state != other.state || value != other.value;
-  }
+  bool operator!=(const MachineOperand &other) const { return state != other.state || value != other.value; }
 
   bool is_virtual() const { return state == Virtual; }
   bool is_precolored() const { return state == PreColored; }
@@ -154,19 +150,8 @@ struct MachineInst {
   MachineBB *bb;
 
   enum Tag {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Lt,
-    Le,
-    Ge,
-    Gt,
-    Eq,
-    Ne,
-    And,
-    Or,  // Binary
+#include "op.inc"
+    // Binary
     Neg,
     Not,  // Unary
     Mv,
