@@ -76,6 +76,8 @@ struct MachineFunc {
   IrFunc *func;
   // number of virtual registers allocated
   i32 virtual_max;
+  // number of register spilled
+  i32 spilled_reg;
 };
 
 struct MachineBB {

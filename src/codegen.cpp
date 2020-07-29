@@ -341,8 +341,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
   return ret;
 }
 
-std::pair<std::optional<MachineOperand>, std::vector<MachineOperand>> get_def_use(MachineInst *inst) {
-  std::optional<MachineOperand> def = std::nullopt;
+std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(MachineInst *inst) {
+  std::vector<MachineOperand> def;
   std::vector<MachineOperand> use;
 
   if (auto x = dyn_cast<MIBinary>(inst)) {
@@ -362,9 +362,20 @@ std::pair<std::optional<MachineOperand>, std::vector<MachineOperand>> get_def_us
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
-    // TODO
+    // args (also caller save)
+    for (int i = r0; i <= r3; i++) {
+      def.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
+      use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
+    }
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
+  } else if (auto x = dyn_cast<MIReturn>(inst)) {
+    // ret
+    use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = r0});
+    // callee saved
+    for (int i = r4; i <= r11; i++) {
+      use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
+    }
   }
   return {def, use};
 }
@@ -413,8 +424,10 @@ void liveness_analysis(MachineFunc *f) {
         }
       }
       // def
-      if (def && def->needs_color() && bb->liveuse.find(*def) == bb->liveuse.end()) {
-        bb->def.insert(*def);
+      for (auto &d : def) {
+        if (d.needs_color() && bb->liveuse.find(d) == bb->liveuse.end()) {
+          bb->def.insert(d);
+        }
       }
     }
     // initial values
@@ -517,20 +530,23 @@ void register_allocate(MachineProgram *p) {
             if (auto x = dyn_cast<MIMove>(inst)) {
               if (x->dst.needs_color() && x->rhs.needs_color()) {
                 live.erase(x->rhs);
-                move_list[*def].insert(x);
+                move_list[x->rhs].insert(x);
                 move_list[x->dst].insert(x);
                 worklist_moves.insert(x);
               }
             }
 
-            if (def && def->needs_color()) {
-              live.insert(*def);
-              for (auto &l : live) {
-                add_edge(l, *def);
-              }
+            for (auto &d : def) {
+              if (d.needs_color()) {
+                live.insert(d);
+                for (auto &l : live) {
+                  add_edge(l, d);
+                }
 
-              live.erase(*def);
+                live.erase(d);
+              }
             }
+
             for (auto &u : use) {
               if (u.needs_color()) {
                 live.insert(u);
@@ -836,6 +852,8 @@ void register_allocate(MachineProgram *p) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
+        std::cout << *spilled_nodes.begin() << std::endl;
+        assert(false);
         done = false;
       }
     }
