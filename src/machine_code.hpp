@@ -76,9 +76,11 @@ struct MachineFunc {
   ilist<MachineBB> bb;
   IrFunc *func;
   // number of virtual registers allocated
-  i32 virtual_max;
+  i32 virtual_max = 0;
+  // size of stack allocated for local alloca
+  i32 sp_offset = 0;
   // number of register spilled
-  i32 spilled_reg;
+  i32 spilled_reg = 0;
 };
 
 struct MachineBB {

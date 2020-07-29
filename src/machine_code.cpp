@@ -18,7 +18,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << f->func->func->name << ":" << endl;
 
     // function prologue
-    os << "\tstmfd\t sp!, {r4-r11,lr}" << endl;
+    os << "\tstmfd\tsp!, {r4-r11,lr}" << endl;
+    // fp = sp
+    os << "\tmov\tr11, sp" << endl;
+    // decrease sp
+    os << "\tadd\tsp, sp, #-" << f->sp_offset << endl;
 
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
@@ -116,17 +120,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIMove>(inst)) {
-          // limit of ARM immediate number, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
+          // limit of ARM immediate number, see
+          // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
           if (x->rhs.state == MachineOperand::Immediate && !can_encode_imm(x->rhs.value)) {
             dbg("Immediate number in MIMove split to higher and lower bits");
             // split into high & low 16 bits
             u32 imm = x->rhs.value;
             auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm & 0xffffu)};
-            os << "movw" << "\t" << x->dst << ", " << low_operand << endl;
+            os << "movw"
+               << "\t" << x->dst << ", " << low_operand << endl;
             if (imm > 0xffffu) {
-              auto high_operand =
-                  MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm >> 16u)};
-              os << "movt"
+              auto high_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm >> 16u)};
+              os << "\tmovt"
                  << "\t" << x->dst << ", " << high_operand << endl;
             }
           } else {
@@ -135,6 +140,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           // function epilogue
           // restore registers and pc from stack
+          // increase sp
+          os << "\tadd\tsp, sp, #" << f->sp_offset << endl;
           os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;

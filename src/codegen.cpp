@@ -252,7 +252,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           MachineOperand rhs{};
           if (x->canUseImmOperand() && x->rhs.value->tag == Value::Const) {
-            rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb); // might be imm or register
+            rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb);  // might be imm or register
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
@@ -367,6 +367,20 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mv_inst->dst = dst;
             mv_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
           }
+        } else if (auto x = dyn_cast<AllocaInst>(inst)) {
+          i32 size = 1;
+          if (!x->sym->dims.empty()) {
+            size = x->sym->dims[0]->result;
+          }
+          size *= 4;
+          mf->sp_offset += size;
+          i32 offset = mf->sp_offset;
+          auto dst = resolve(inst, mbb);
+          auto add_inst = new MIBinary(MachineInst::Add, mbb);
+          add_inst->dst = dst;
+          // fp is r11
+          add_inst->lhs = MachineOperand{.state = MachineOperand::PreColored, r11};
+          add_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, -offset};
         }
       }
     }
