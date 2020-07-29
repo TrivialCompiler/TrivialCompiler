@@ -158,7 +158,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         mv_inst->dst = mul_vreg;
         mv_inst->rhs = get_imm_operand(sub_arr_size, mbb);
 
-        // mul mul_vreg, mul_vreg, dim
+        // mul mul_vreg, dim, mul_vreg
         auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
         auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
         // note: Rd and Rm should be different in mul
@@ -168,8 +168,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
         // add add_vreg, add_vreg, mul_vreg
         auto add_inst = new MIBinary(MachineInst::Add, mbb);
-        add_inst->dst = mul_vreg;
-        add_inst->lhs = mul_vreg;
+        add_inst->dst = add_vreg;
+        add_inst->lhs = add_vreg;
         add_inst->rhs = mul_vreg;
       }
 
