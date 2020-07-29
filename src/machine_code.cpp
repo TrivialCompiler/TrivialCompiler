@@ -18,7 +18,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << f->func->func->name << ":" << endl;
 
     // function prologue
-    os << "\tstr\t lr, [sp, #-4]!" << endl;
+    os << "\tstmfd\t sp!, {r4-r11,lr}" << endl;
 
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
@@ -101,7 +101,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           } else if (x->tag == MachineInst::Sub) {
             op = "sub";
           } else if (x->tag == MachineInst::Mod) {
-            op = "mod"; // TODO: no MOD instruction here
+            op = "mod";  // TODO: no MOD instruction here
           } else if (x->tag == MachineInst::And) {
             op = "and";
           } else if (x->tag == MachineInst::Or) {
@@ -119,11 +119,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           // function epilogue
-          os << "ldr\t lr, [sp], #4" << endl;
-
-          os << "\tbx"
-             << "\t"
-             << "lr" << endl;
+          // restore registers and pc from stack
+          os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;
         } else if (auto x = dyn_cast<MIComment>(inst)) {
