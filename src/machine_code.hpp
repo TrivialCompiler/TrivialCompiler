@@ -91,7 +91,7 @@ struct MachineBB {
   std::array<MachineBB *, 2> succ;
   // branch is translated into multiple instructions
   // points to the first one
-  MachineInst *control_transter_inst;
+  MachineInst *control_transfer_inst = nullptr;
   // liveness analysis
   // maybe we should use bitset when performance is bad
   std::set<MachineOperand> liveuse;

@@ -60,7 +60,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       os << endl;
 
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
-        if (inst == bb->control_transter_inst) {
+        if (inst == bb->control_transfer_inst) {
           os << "@ control transfer" << endl;
         }
         os << "\t";
@@ -141,8 +141,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // function epilogue
           // restore registers and pc from stack
           // increase sp
-          os << "\tadd\tsp, sp, #" << f->sp_offset << endl;
-          os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
+          os << "add\tsp, sp, #" << f->sp_offset << endl;
+          os << "\tldmfd\t sp!, {r4-r11,pc}" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;
         } else if (auto x = dyn_cast<MIComment>(inst)) {

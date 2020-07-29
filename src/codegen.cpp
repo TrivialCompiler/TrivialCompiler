@@ -70,9 +70,17 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         dbg(imm_split);
         // use MIMove, which automatically splits if necessary
         auto vreg = new_virtual_reg();
-        auto mv_inst = new MIMove(mbb);
-        mv_inst->dst = vreg;
-        mv_inst->rhs = operand;
+        if (mbb->control_transfer_inst) {
+          // insert before control transfer when there is control transfer instruction
+          auto mv_inst = new MIMove(mbb->control_transfer_inst);
+          mv_inst->dst = vreg;
+          mv_inst->rhs = operand;
+        } else {
+          // otherwise, insert at end
+          auto mv_inst = new MIMove(mbb);
+          mv_inst->dst = vreg;
+          mv_inst->rhs = operand;
+        }
         return vreg;
       }
     };
@@ -182,7 +190,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         if (auto x = dyn_cast<JumpInst>(inst)) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
-          mbb->control_transter_inst = new_inst;
+          mbb->control_transfer_inst = new_inst;
         } else if (auto x = dyn_cast<AccessInst>(inst)) {
           // store or load, nearly all the same
           auto arr = resolve(x->arr.value, mbb);
@@ -243,10 +251,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
             mv_inst->rhs = val;
             auto new_inst = new MIReturn(mbb);
-            mbb->control_transter_inst = mv_inst;
+            mbb->control_transfer_inst = mv_inst;
           } else {
             auto new_inst = new MIReturn(mbb);
-            mbb->control_transter_inst = new_inst;
+            mbb->control_transfer_inst = new_inst;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
@@ -339,7 +347,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto cmp_inst = new MICompare(mbb);
           cmp_inst->lhs = cond;
           cmp_inst->rhs = get_imm_operand(0, mbb);
-          mbb->control_transter_inst = cmp_inst;
+          mbb->control_transfer_inst = cmp_inst;
           auto new_inst = new MIBranch(mbb);
           new_inst->cond = ArmCond::Ne;
           new_inst->target = bb_map[x->left];
@@ -406,7 +414,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           lhs.emplace_back(resolve(inst, mbb), vr);
           for (int i = 0; i < x->incoming_bbs->size(); i++) {
             auto pred_bb = x->incoming_bbs->at(i);
-            auto val = resolve(x->incoming_values[i].value, mbb);
+            auto val = resolve(x->incoming_values[i].value, bb_map[pred_bb]);
             mv[pred_bb].emplace_back(vr, val);
           }
         } else {
@@ -418,7 +426,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       // insert parallel mv before the control transfer instruction of pred mbb
       for (auto &[bb, movs] : mv) {
         auto mbb = bb_map[bb];
-        insert_parallel_mv(movs, mbb->control_transter_inst);
+        insert_parallel_mv(movs, mbb->control_transfer_inst);
       }
     }
 
