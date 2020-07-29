@@ -178,7 +178,7 @@ struct BinaryInst : Inst {
 
   bool canUseImmOperand() {
     // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
-    return tag == Add || tag == Sub || tag >= Lt || tag << Or;
+    return tag == Add || tag == Sub || (tag >= Lt && tag <= Or);
   }
 };
 

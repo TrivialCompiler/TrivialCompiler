@@ -250,7 +250,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
-          MachineOperand rhs;
+          MachineOperand rhs{};
           if (x->canUseImmOperand() && x->rhs.value->tag == Value::Const) {
             rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb); // might be imm or register
           } else {
