@@ -255,6 +255,39 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mv0_inst->dst = dst;
             mv0_inst->cond = opposite;
             mv0_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+          } else if (BinaryInst::And <= x->tag && x->tag <= BinaryInst::Or) {
+            // lhs && rhs:
+            // cmp lhs, #0
+            // movne v1, #1
+            // cmp rhs, #0
+            // movne v2, #1
+            // and/or dst, v1, v2
+
+            // lhs
+            auto cmp_lhs_inst = new MICompare(mbb);
+            cmp_lhs_inst->lhs = lhs;
+            cmp_lhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            auto mv_lhs_inst = new MIMove(mbb);
+            i32 lhs_vreg = virtual_max++;
+            mv_lhs_inst->dst = {.state = MachineOperand::Virtual, .value = lhs_vreg};
+            mv_lhs_inst->cond = ArmCond::Ne;
+            mv_lhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+
+            // rhs
+            auto cmp_rhs_inst = new MICompare(mbb);
+            cmp_rhs_inst->lhs = rhs;
+            cmp_rhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            auto mv_rhs_inst = new MIMove(mbb);
+            i32 rhs_vreg = virtual_max++;
+            mv_rhs_inst->dst = {.state = MachineOperand::Virtual, .value = rhs_vreg};
+            mv_rhs_inst->cond = ArmCond::Ne;
+            mv_rhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+
+            // and
+            auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
+            new_inst->dst = resolve(inst);
+            new_inst->lhs = {.state = MachineOperand::Virtual, .value = lhs_vreg};
+            new_inst->rhs = {.state = MachineOperand::Virtual, .value = rhs_vreg};
           } else {
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
             new_inst->dst = resolve(inst);
@@ -848,7 +881,7 @@ void register_allocate(MachineProgram *p) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
-        for (auto n: spilled_nodes) {
+        for (auto n : spilled_nodes) {
           std::cout << n << std::endl;
         }
         assert(false);
