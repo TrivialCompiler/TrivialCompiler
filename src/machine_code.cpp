@@ -116,7 +116,22 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIMove>(inst)) {
-          os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
+          // limit of ARM immediate number, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
+          if (x->rhs.state == MachineOperand::Immediate && !can_encode_imm(x->rhs.value)) {
+            dbg("Immediate number in MIMove split to higher and lower bits");
+            // split into high & low 16 bits
+            u32 imm = x->rhs.value;
+            auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm & 0xffffu)};
+            os << "movw" << "\t" << x->dst << ", " << low_operand << endl;
+            if (imm > 0xffffu) {
+              auto high_operand =
+                  MachineOperand{.state = MachineOperand::Immediate, .value = (i32)((imm >> 16u) << 16u)};
+              os << "movt"
+                 << "\t" << x->dst << ", " << high_operand << endl;
+            }
+          } else {
+            os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
+          }
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           // function epilogue
           // restore registers and pc from stack

@@ -53,8 +53,32 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     std::map<Value *, MachineOperand> val_map;
     // map global decl to MachineOperand
     std::map<Decl *, MachineOperand> glob_map;
+
+    // virtual registers
     i32 virtual_max = 0;
-    auto resolve = [&](Value *value) {
+    auto new_virtual_reg = [&]() { return MachineOperand{.state = MachineOperand::Virtual, .value = virtual_max++}; };
+
+    // resolve imm as instruction operand
+    // ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
+    auto get_imm_operand = [&](i32 imm, MachineBB *mbb) {
+      auto operand = MachineOperand{.state = MachineOperand::Immediate, .value = imm};
+      if (can_encode_imm(imm)) {
+        // directly encoded in instruction as imm
+        return operand;
+      } else {
+        auto imm_split = "Immediate number " + std::to_string(imm) + " cannot be encoded, converting to MIMove";
+        dbg(imm_split);
+        // use MIMove, which automatically splits if necessary
+        auto vreg = new_virtual_reg();
+        auto mv_inst = new MIMove(mbb);
+        mv_inst->dst = vreg;
+        mv_inst->rhs = operand;
+        return vreg;
+      }
+    };
+
+    // resolve value reference
+    auto resolve = [&](Value *value, MachineBB *mbb) {
       if (auto x = dyn_cast<ParamRef>(value)) {
         // TODO: more than 4 args?
         for (int i = 0; i < f->func->params.size(); i++) {
@@ -69,8 +93,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           // load global addr in entry bb
           auto new_inst = new MIGlobal(x->decl, mf->bb.head);
           // allocate virtual reg
-          i32 vreg = virtual_max++;
-          MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
+          auto res = new_virtual_reg();
           val_map[value] = res;
           glob_map[x->decl] = res;
           new_inst->dst = res;
@@ -79,13 +102,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           return it->second;
         }
       } else if (auto x = dyn_cast<ConstValue>(value)) {
-        return MachineOperand{.state = MachineOperand::Immediate, .value = x->imm};
+        return get_imm_operand(x->imm, mbb);
       } else {
         auto it = val_map.find(value);
         if (it == val_map.end()) {
           // allocate virtual reg
-          i32 vreg = virtual_max++;
-          MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
+          auto res = new_virtual_reg();
           val_map[value] = res;
           return res;
         } else {
@@ -97,15 +119,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     auto resolve_no_imm = [&](Value *value, MachineBB *mbb) {
       if (auto y = dyn_cast<ConstValue>(value)) {
         // can't store an immediate directly
-        i32 vreg = virtual_max++;
-        MachineOperand res = {.state = MachineOperand::Virtual, .value = vreg};
+        auto res = new_virtual_reg();
         // move val to vreg
         auto mv_inst = new MIMove(mbb);
         mv_inst->dst = res;
         mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = y->imm};
         return res;
       } else {
-        return resolve(value);
+        return resolve(value, mbb);
       }
     };
 
@@ -115,17 +136,17 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     auto calculate_offset = [&](MachineBB *mbb, const std::vector<Use> &access_dims,
                                 const std::vector<Expr *> &var_dims) -> MachineOperand {
       // direct access
-      if (access_dims.empty()) return MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+      if (access_dims.empty()) return get_imm_operand(0, mbb);
 
       // sum of index * number of elements
       // allocate two registers: multiply and add
-      i32 mul_vreg = virtual_max++;
-      i32 add_vreg = virtual_max++;
+      auto mul_vreg = new_virtual_reg();
+      auto add_vreg = new_virtual_reg();
 
       // mov add_vreg, 0
       auto mv_inst = new MIMove(mbb);
-      mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-      mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+      mv_inst->dst = add_vreg;
+      mv_inst->rhs = get_imm_operand(0, mbb);
 
       // TODO: eliminate MUL when sub_arr_size == 1
       for (int i = 0; i < access_dims.size(); i++) {
@@ -134,25 +155,25 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
         // mov mul_vreg, sub_arr_size
         auto mv_inst = new MIMove(mbb);
-        mv_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-        mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = sub_arr_size};
+        mv_inst->dst = mul_vreg;
+        mv_inst->rhs = get_imm_operand(sub_arr_size, mbb);
 
         // mul mul_vreg, mul_vreg, dim
         auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
         auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
         // note: Rd and Rm should be different in mul
-        mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        mul_inst->dst = mul_vreg;
         mul_inst->lhs = current_dim_index;
-        mul_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        mul_inst->rhs = mul_vreg;
 
         // add add_vreg, add_vreg, mul_vreg
         auto add_inst = new MIBinary(MachineInst::Add, mbb);
-        add_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-        add_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
-        add_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
+        add_inst->dst = mul_vreg;
+        add_inst->lhs = mul_vreg;
+        add_inst->rhs = mul_vreg;
       }
 
-      return MachineOperand{.state = MachineOperand::Virtual, .value = add_vreg};
+      return add_vreg;
     };
 
     // 2. translate instructions except phi
@@ -164,7 +185,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           mbb->control_transter_inst = new_inst;
         } else if (auto x = dyn_cast<AccessInst>(inst)) {
           // store or load, nearly all the same
-          auto arr = resolve(x->arr.value);
+          auto arr = resolve(x->arr.value, mbb);
           new MIComment("begin offset calculation: " + std::string(x->lhs_sym->name), mbb);
           auto offset = calculate_offset(mbb, x->dims, x->lhs_sym->dims);
           new MIComment("finish offset calculation", mbb);
@@ -183,7 +204,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               // load from element
               new MIComment("begin load", mbb);
               access_inst = new MILoad(mbb);
-              static_cast<MILoad *>(access_inst)->dst = resolve(inst);
+              static_cast<MILoad *>(access_inst)->dst = resolve(inst, mbb);
               new MIComment("end load", mbb);
             }
             access_inst->addr = arr;
@@ -194,10 +215,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             assert(x->tag != Value::Store);  // you could only store to a specific element
             // addr <- &arr
             new MIComment("begin subarray load", mbb);
-            MachineOperand addr = {.state = MachineOperand::Virtual, .value = virtual_max++};
+            auto addr = new_virtual_reg();
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = addr;
-            mv_inst->rhs = resolve(x->arr.value);
+            mv_inst->rhs = resolve(x->arr.value, mbb);
             // offset <- offset * 4
             if (offset.state == MachineOperand::Immediate) {
               offset.value *= 4;
@@ -205,18 +226,18 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
               mul_inst->dst = offset;
               mul_inst->lhs = offset;
-              mul_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 4};
+              mul_inst->rhs = get_imm_operand(4, mbb);
             }
             // inst <- addr + offset
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-            add_inst->dst = resolve(inst);
+            add_inst->dst = resolve(inst, mbb);
             add_inst->lhs = addr;
             add_inst->rhs = offset;
             new MIComment("end subarray load", mbb);
           }
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
-            auto val = resolve(x->ret.value);
+            auto val = resolve(x->ret.value, mbb);
             // move val to a0
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
@@ -229,10 +250,15 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
-          auto rhs = resolve_no_imm(x->rhs.value, mbb);
+          MachineOperand rhs;
+          if (x->canUseImmOperand() && x->rhs.value->tag == Value::Const) {
+            rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb); // might be imm or register
+          } else {
+            rhs = resolve_no_imm(x->rhs.value, mbb);
+          }
           if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
             // transform compare instructions
-            auto dst = resolve(inst);
+            auto dst = resolve(inst, mbb);
             auto new_inst = new MICompare(mbb);
             new_inst->lhs = lhs;
             new_inst->rhs = rhs;
@@ -263,11 +289,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto mv1_inst = new MIMove(mbb);
             mv1_inst->dst = dst;
             mv1_inst->cond = cond;
-            mv1_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+            mv1_inst->rhs = get_imm_operand(1, mbb);
             auto mv0_inst = new MIMove(mbb);
             mv0_inst->dst = dst;
             mv0_inst->cond = opposite;
-            mv0_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            mv0_inst->rhs = get_imm_operand(0, mbb);
           } else if (BinaryInst::And <= x->tag && x->tag <= BinaryInst::Or) {
             // lhs && rhs:
             // cmp lhs, #0
@@ -279,31 +305,31 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // lhs
             auto cmp_lhs_inst = new MICompare(mbb);
             cmp_lhs_inst->lhs = lhs;
-            cmp_lhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            cmp_lhs_inst->rhs = get_imm_operand(0, mbb);
             auto mv_lhs_inst = new MIMove(mbb);
-            i32 lhs_vreg = virtual_max++;
-            mv_lhs_inst->dst = {.state = MachineOperand::Virtual, .value = lhs_vreg};
+            auto lhs_vreg = new_virtual_reg();
+            mv_lhs_inst->dst = lhs_vreg;
             mv_lhs_inst->cond = ArmCond::Ne;
-            mv_lhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+            mv_lhs_inst->rhs = get_imm_operand(1, mbb);
 
             // rhs
             auto cmp_rhs_inst = new MICompare(mbb);
             cmp_rhs_inst->lhs = rhs;
-            cmp_rhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+            cmp_rhs_inst->rhs = get_imm_operand(0, mbb);
             auto mv_rhs_inst = new MIMove(mbb);
-            i32 rhs_vreg = virtual_max++;
-            mv_rhs_inst->dst = {.state = MachineOperand::Virtual, .value = rhs_vreg};
+            auto rhs_vreg = new_virtual_reg();
+            mv_rhs_inst->dst = rhs_vreg;
             mv_rhs_inst->cond = ArmCond::Ne;
-            mv_rhs_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 1};
+            mv_rhs_inst->rhs = get_imm_operand(1, mbb);
 
             // and
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
-            new_inst->dst = resolve(inst);
-            new_inst->lhs = {.state = MachineOperand::Virtual, .value = lhs_vreg};
-            new_inst->rhs = {.state = MachineOperand::Virtual, .value = rhs_vreg};
+            new_inst->dst = resolve(inst, mbb);
+            new_inst->lhs = lhs_vreg;
+            new_inst->rhs = rhs_vreg;
           } else {
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
-            new_inst->dst = resolve(inst);
+            new_inst->dst = resolve(inst, mbb);
             new_inst->lhs = lhs;
             new_inst->rhs = rhs;
           }
@@ -312,7 +338,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           // if cond != 0
           auto cmp_inst = new MICompare(mbb);
           cmp_inst->lhs = cond;
-          cmp_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 0};
+          cmp_inst->rhs = get_imm_operand(0, mbb);
           mbb->control_transter_inst = cmp_inst;
           auto new_inst = new MIBranch(mbb);
           new_inst->cond = ArmCond::Ne;
@@ -326,7 +352,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto mv_inst = new MIMove(mbb);
             // r0 to r3
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = i};
-            mv_inst->rhs = resolve(x->args[i].value);
+            mv_inst->rhs = resolve(x->args[i].value, mbb);
           }
 
           auto new_inst = new MICall(mbb);
@@ -336,7 +362,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           if (x->func->is_int) {
             // has return
             // move r0 to dst
-            auto dst = resolve(inst);
+            auto dst = resolve(inst, mbb);
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = dst;
             mv_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
@@ -361,12 +387,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           // 1. create vreg for each inst
           // 2. add parallel mv (lhs1, ...) = (vreg1, ...)
           // 3. add parallel mv in each bb: (vreg1, ...) = (r1, ...)
-          i32 vreg = virtual_max++;
-          MachineOperand vr = {.state = MachineOperand::Virtual, .value = vreg};
-          lhs.emplace_back(resolve(inst), vr);
+          auto vr = new_virtual_reg();
+          lhs.emplace_back(resolve(inst, mbb), vr);
           for (int i = 0; i < x->incoming_bbs->size(); i++) {
             auto pred_bb = x->incoming_bbs->at(i);
-            auto val = resolve(x->incoming_values[i].value);
+            auto val = resolve(x->incoming_values[i].value, mbb);
             mv[pred_bb].emplace_back(vr, val);
           }
         } else {

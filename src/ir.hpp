@@ -175,6 +175,11 @@ struct BinaryInst : Inst {
 
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
+
+  bool canUseImmOperand() {
+    // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
+    return tag == Add || tag == Sub || tag >= Lt || tag << Or;
+  }
 };
 
 struct BranchInst : Inst {

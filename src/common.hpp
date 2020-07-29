@@ -38,3 +38,15 @@ struct IndexMapper {
     return it->second;
   }
 };
+
+// see https://alisdair.mcdiarmid.org/arm-immediate-value-encoding/
+inline bool can_encode_imm(i32 imm) {
+  u32 encoding = imm;
+  for (int ror = 0; ror < 32; ror += 2) {
+    if (!(encoding & ~0xFFu)) {
+      return true;
+    }
+    encoding = (encoding << 2u) | (encoding >> 30u);
+  }
+  return false;
+}
