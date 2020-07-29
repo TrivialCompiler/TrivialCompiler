@@ -372,10 +372,6 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
   } else if (auto x = dyn_cast<MIReturn>(inst)) {
     // ret
     use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = r0});
-    // callee saved
-    for (int i = r4; i <= r11; i++) {
-      use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
-    }
   }
   return {def, use};
 }
@@ -852,7 +848,9 @@ void register_allocate(MachineProgram *p) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
-        std::cout << *spilled_nodes.begin() << std::endl;
+        for (auto n: spilled_nodes) {
+          std::cout << n << std::endl;
+        }
         assert(false);
         done = false;
       }
