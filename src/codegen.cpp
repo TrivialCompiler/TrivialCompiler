@@ -279,7 +279,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           for (int i = 0; i < x->func->params.size(); i++) {
             auto mv_inst = new MIMove(mbb);
             // r0 to r3
-            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 1};
+            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = i};
             mv_inst->rhs = resolve(x->args[i].value);
           }
 
