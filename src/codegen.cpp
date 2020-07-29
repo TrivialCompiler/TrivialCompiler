@@ -138,11 +138,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = sub_arr_size};
 
         // mul mul_vreg, mul_vreg, dim
-        auto rhs = resolve_no_imm(access_dims[i].value, mbb);
+        auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
         auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
+        // note: Rd and Rm should be different in mul
         mul_inst->dst = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-        mul_inst->lhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
-        mul_inst->rhs = rhs;
+        mul_inst->lhs = current_dim_index;
+        mul_inst->rhs = MachineOperand{.state = MachineOperand::Virtual, .value = mul_vreg};
 
         // add add_vreg, add_vreg, mul_vreg
         auto add_inst = new MIBinary(MachineInst::Add, mbb);
@@ -164,20 +165,26 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         } else if (auto x = dyn_cast<AccessInst>(inst)) {
           // store or load, nearly all the same
           auto arr = resolve(x->arr.value);
+          new MIComment("begin offset calculation: " + std::string(x->lhs_sym->name), mbb);
           auto offset = calculate_offset(mbb, x->dims, x->lhs_sym->dims);
+          new MIComment("finish offset calculation", mbb);
           // resolve index access
           if (x->dims.size() == x->lhs_sym->dims.size()) {
             // access to element
             MIAccess *access_inst;
             if (auto x = dyn_cast<StoreInst>(inst)) {
               // store to element
+              new MIComment("begin store", mbb);
               auto data = resolve_no_imm(x->data.value, mbb);  // must get data first
               access_inst = new MIStore(mbb);
               static_cast<MIStore *>(access_inst)->data = data;
+              new MIComment("end store", mbb);
             } else {
               // load from element
+              new MIComment("begin load", mbb);
               access_inst = new MILoad(mbb);
               static_cast<MILoad *>(access_inst)->dst = resolve(inst);
+              new MIComment("end load", mbb);
             }
             access_inst->addr = arr;
             access_inst->offset = offset;
@@ -186,6 +193,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // access to subarray
             assert(x->tag != Value::Store);  // you could only store to a specific element
             // addr <- &arr
+            new MIComment("begin subarray load", mbb);
             MachineOperand addr = {.state = MachineOperand::Virtual, .value = virtual_max++};
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = addr;
@@ -204,6 +212,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             add_inst->dst = resolve(inst);
             add_inst->lhs = addr;
             add_inst->rhs = offset;
+            new MIComment("end subarray load", mbb);
           }
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {

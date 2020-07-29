@@ -165,6 +165,7 @@ struct MachineInst {
     Compare,
     Call,
     Global,
+    Comment, // for printing comments
   } tag;
 
   MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) { insertAtEnd->insts.insertAtEnd(this); }
@@ -270,4 +271,11 @@ struct MIGlobal : MachineInst {
   MIGlobal(Decl *sym, MachineBB *insertAtBegin) : MachineInst(Global), sym(sym) {
     insertAtBegin->insts.insertAtBegin(this);
   }
+};
+
+struct MIComment : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Comment);
+  std::string content;
+
+  MIComment(std::string&& content, MachineBB *insertAtEnd) : MachineInst(Comment, insertAtEnd), content(content) {}
 };

@@ -89,12 +89,19 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           const char *op = "unknown";
           if (x->tag == MachineInst::Mul) {
             op = "mul";
+            if (x->dst == x->lhs) {
+              dbg("Rd and Rm must be different in MUL instruction, swapping Rm and Rn...");
+              if (x->dst == x->rhs) {
+                ERR_EXIT(CODEGEN_ERROR, "Rm is same with Rn, could not help");
+              }
+              std::swap(x->lhs, x->rhs);
+            }
           } else if (x->tag == MachineInst::Add) {
             op = "add";
           } else if (x->tag == MachineInst::Sub) {
             op = "sub";
           } else if (x->tag == MachineInst::Mod) {
-            op = "mod";
+            op = "mod"; // TODO: no MOD instruction here
           } else if (x->tag == MachineInst::And) {
             op = "and";
           } else if (x->tag == MachineInst::Or) {
@@ -119,6 +126,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
              << "lr" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "bl\t" << x->func->name << endl;
+        } else if (auto x = dyn_cast<MIComment>(inst)) {
+          os << "@ " << x->content << endl;
+        } else {
+          UNREACHABLE();
         }
       }
     }

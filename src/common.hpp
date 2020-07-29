@@ -6,7 +6,7 @@
 #define DBG_MACRO_NO_WARNING
 #include "thirdparty/dbg.h"
 
-enum { SYSTEM_ERROR = 1, PARSING_ERROR, TYPE_CHECK_ERROR };
+enum { SYSTEM_ERROR = 1, PARSING_ERROR, TYPE_CHECK_ERROR, CODEGEN_ERROR };
 
 #define ERR_EXIT(code, ...) \
   do {                      \
