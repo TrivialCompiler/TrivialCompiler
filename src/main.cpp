@@ -9,11 +9,11 @@
 #include <string>
 
 #include "ast.hpp"
+#include "codegen.hpp"
 #include "generated/parser.hpp"
+#include "passes/pass_manager.hpp"
 #include "ssa.hpp"
 #include "typeck.hpp"
-#include "passes/pass_manager.hpp"
-#include "codegen.hpp"
 
 int main(int argc, char *argv[]) {
   bool opt = false, print_usage = false;

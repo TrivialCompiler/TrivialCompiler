@@ -581,10 +581,19 @@ void register_allocate(MachineProgram *p) {
             for (auto &d : def) {
               if (d.needs_color()) {
                 live.insert(d);
+              }
+            }
+
+            for (auto &d : def) {
+              if (d.needs_color()) {
                 for (auto &l : live) {
                   add_edge(l, d);
                 }
+              }
+            }
 
+            for (auto &d : def) {
+              if (d.needs_color()) {
                 live.erase(d);
               }
             }
@@ -769,7 +778,7 @@ void register_allocate(MachineProgram *p) {
         if (u == v) {
           coalesced_moves.insert(m);
           add_work_list(u);
-        } else if (v.is_precolored() && adj_set.find({u, v}) != adj_set.end()) {
+        } else if (v.is_precolored() || adj_set.find({u, v}) != adj_set.end()) {
           constrained_moves.insert(m);
           add_work_list(u);
           add_work_list(v);
