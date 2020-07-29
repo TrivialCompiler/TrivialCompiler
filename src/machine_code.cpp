@@ -125,7 +125,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             os << "movw" << "\t" << x->dst << ", " << low_operand << endl;
             if (imm > 0xffffu) {
               auto high_operand =
-                  MachineOperand{.state = MachineOperand::Immediate, .value = (i32)((imm >> 16u) << 16u)};
+                  MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm >> 16u)};
               os << "movt"
                  << "\t" << x->dst << ", " << high_operand << endl;
             }
