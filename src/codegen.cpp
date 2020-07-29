@@ -272,6 +272,29 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new_inst->cond = ArmCond::Ne;
           new_inst->target = bb_map[x->left];
           auto fallback_inst = new MIJump(bb_map[x->right], mbb);
+        } else if (auto x = dyn_cast<CallInst>(inst)) {
+          // move args to r0-r3
+          assert(x->func->params.size() <= 4);
+          std::vector<MachineOperand> params;
+          for (int i = 0; i < x->func->params.size(); i++) {
+            auto mv_inst = new MIMove(mbb);
+            // r0 to r3
+            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 1};
+            mv_inst->rhs = resolve(x->args[i].value);
+          }
+
+          auto new_inst = new MICall(mbb);
+          new_inst->func = x->func;
+
+          // return
+          if (x->func->is_int) {
+            // has return
+            // move r0 to dst
+            auto dst = resolve(inst);
+            auto mv_inst = new MIMove(mbb);
+            mv_inst->dst = dst;
+            mv_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
+          }
         }
       }
     }

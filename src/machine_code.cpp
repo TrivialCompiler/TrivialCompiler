@@ -17,6 +17,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
        << "\t" << f->func->func->name << ", %function" << endl;
     os << f->func->func->name << ":" << endl;
 
+    // function prologue
+    os << "\tstr\t lr, [sp, #-4]!" << endl;
+
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
       return "";
@@ -104,9 +107,14 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         } else if (auto x = dyn_cast<MIMove>(inst)) {
           os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
-          os << "bx"
+          // function epilogue
+          os << "ldr\t lr, [sp, #4]" << endl;
+
+          os << "\tbx"
              << "\t"
              << "lr" << endl;
+        } else if (auto x = dyn_cast<MICall>(inst)) {
+          os << "bl\t" << x->func->name << endl;
         }
       }
     }

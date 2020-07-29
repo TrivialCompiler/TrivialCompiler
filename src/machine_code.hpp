@@ -255,7 +255,9 @@ struct MICompare : MachineInst {
 
 struct MICall : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Call);
-  MachineFunc *func;
+  Func *func;
+
+  MICall(MachineBB *insertAtEnd) : MachineInst(Call, insertAtEnd) {}
 };
 
 struct MIGlobal : MachineInst {
