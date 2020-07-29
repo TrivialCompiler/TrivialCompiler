@@ -553,6 +553,7 @@ void register_allocate(MachineProgram *p) {
           auto interference = std::string(u) + " <-> " + std::string(v);
           dbg(interference);
           adj_set.insert({u, v});
+          adj_set.insert({v, u});
           if (!u.is_precolored()) {
             adj_list[u].insert(v);
             degree[u]++;
