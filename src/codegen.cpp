@@ -508,7 +508,9 @@ void liveness_analysis(MachineFunc *f) {
 
 // iterated register coalescing
 void register_allocate(MachineProgram *p) {
+  dbg("Allocating registers");
   for (auto f = p->func.head; f; f = f->next) {
+    dbg(f->func->func->name);
     bool done = false;
     while (!done) {
       liveness_analysis(f);
@@ -548,7 +550,8 @@ void register_allocate(MachineProgram *p) {
       // procedure AddEdge(u, v)
       auto add_edge = [&](MachineOperand u, MachineOperand v) {
         if (adj_set.find({u, v}) == adj_set.end() && u != v) {
-          dbg(std::string(u) + " interfere with " + std::string(v));
+          auto interference = std::string(u) + " <-> " + std::string(v);
+          dbg(interference);
           adj_set.insert({u, v});
           if (!u.is_precolored()) {
             adj_list[u].insert(v);
@@ -861,8 +864,9 @@ void register_allocate(MachineProgram *p) {
           colored[n] = colored[get_alias(n)];
         }
 
-        for (auto [v, a] : colored) {
-          std::cout << v << " => " << a << std::endl;
+        for (auto &[before, after] : colored) {
+          auto colored = std::string(before) + " => " + std::string(after);
+          dbg(colored);
         }
 
         // replace usage of virtual registers
@@ -903,10 +907,7 @@ void register_allocate(MachineProgram *p) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
-        for (auto n : spilled_nodes) {
-          std::cout << n << std::endl;
-        }
-        assert(false);
+        ERR_EXIT(CODEGEN_ERROR, "Spilling not implemented", spilled_nodes);
         done = false;
       }
     }
