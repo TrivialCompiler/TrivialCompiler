@@ -349,10 +349,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           assert(x->func->params.size() <= 4);
           std::vector<MachineOperand> params;
           for (int i = 0; i < x->func->params.size(); i++) {
+            auto rhs = resolve(x->args[i].value, mbb);
             auto mv_inst = new MIMove(mbb);
             // r0 to r3
             mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = i};
-            mv_inst->rhs = resolve(x->args[i].value, mbb);
+            mv_inst->rhs = rhs;
           }
 
           auto new_inst = new MICall(mbb);
