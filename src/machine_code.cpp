@@ -95,6 +95,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "sub";
           } else if (x->tag == MachineInst::Mod) {
             op = "mod";
+          } else if (x->tag == MachineInst::And) {
+            op = "and";
+          } else if (x->tag == MachineInst::Or) {
+            op = "or";
           } else {
             UNREACHABLE();
           }
