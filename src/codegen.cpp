@@ -191,10 +191,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mv_inst->dst = addr;
             mv_inst->rhs = resolve(x->arr.value);
             // offset <- offset * 4
-            auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-            mul_inst->dst = offset;
-            mul_inst->lhs = offset;
-            mul_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 4};
+            if (offset.state == MachineOperand::Immediate) {
+              offset.value *= 4;
+            } else {
+              auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
+              mul_inst->dst = offset;
+              mul_inst->lhs = offset;
+              mul_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = 4};
+            }
             // inst <- addr + offset
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
             add_inst->dst = resolve(inst);
