@@ -1,6 +1,8 @@
 #include "ir.hpp"
 #include "ast.hpp"
 
+#include <unordered_map>
+
 void Value::deleteValue() {
   if (auto x = dyn_cast<BinaryInst>(this))
     delete x;
