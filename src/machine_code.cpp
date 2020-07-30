@@ -11,21 +11,26 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   // count instructions to solve constant pool problem
   auto pool_count = 0;
   auto inst_count = 0;
-  auto insert_pool = [&]() {
+  auto insert_pool = [&](bool insert_jump = false) {
     inst_count = 0;
-    os << ".pool" << endl;
+    auto pool_num = pool_count++;
+    auto sec_name = "_POOL_" + std::to_string(pool_num++);
+    auto after_sec_name = "_AFTER" + sec_name;
+    if (insert_jump) {
+      os << "\t" << "b" << "\t" << after_sec_name << " @ forcibly insert constant pool" << endl;
+    }
+    os << sec_name << ":" << endl;
+    os << "\t" << ".pool" << endl;
+    os << after_sec_name << ":" << endl;
+    return sec_name;
   };
   auto increase_count = [&](int count = 1) {
     inst_count += count;
-    if (inst_count > 1000) {
+    if (int old_count = inst_count; inst_count > 1000) {
       // force insert a constant pool, slow but necessary
-      auto sec_name = "_AFTER_POOL_" + std::to_string(pool_count++);
-      auto force_pool = "forcibly insert constant pool " + sec_name;
+      auto sec_name = insert_pool(true);
+      auto force_pool = "forcibly insert constant pool " + sec_name + ", instruction count: " + std::to_string(old_count);
       dbg(force_pool);
-      os << "\t" << "b" << "\t" << sec_name << endl;
-      os << "\t";
-      insert_pool();
-      os << sec_name << ":" << endl;
     }
   };
 
