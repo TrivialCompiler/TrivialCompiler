@@ -1,9 +1,9 @@
 #pragma once
 
-#include <iostream>
-#include <iomanip>
-#include <set>
 #include <cassert>
+#include <iomanip>
+#include <iostream>
+#include <set>
 
 #include "ast.hpp"
 #include "common.hpp"
@@ -78,10 +78,8 @@ struct MachineFunc {
   IrFunc *func;
   // number of virtual registers allocated
   i32 virtual_max = 0;
-  // size of stack allocated for local alloca
+  // size of stack allocated for local alloca and spilled registers
   i32 sp_offset = 0;
-  // number of register spilled
-  i32 spilled_reg = 0;
 };
 
 struct MachineBB {
@@ -114,6 +112,12 @@ struct MachineOperand {
     assert(n >= 0 && n < 16);
     return MachineOperand{PreColored, n};
   }
+
+  inline static MachineOperand V(int n) {
+    return MachineOperand{Virtual, n};
+  }
+
+  inline static MachineOperand I(int imm) { return MachineOperand{Immediate, imm}; }
 
   bool operator<(const MachineOperand &other) const {
     if (state != other.state) {
@@ -174,7 +178,7 @@ struct MachineInst {
     Compare,
     Call,
     Global,
-    Comment, // for printing comments
+    Comment,  // for printing comments
   } tag;
 
   MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) { insertAtEnd->insts.insertAtEnd(this); }
@@ -208,7 +212,10 @@ struct MIMove : MachineInst {
   MachineOperand rhs;
 
   MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
-  MIMove(MachineBB *insertAtBegin, int) : MachineInst(Mv), cond(Any) { insertAtBegin->insts.insertAtBegin(this); }
+  MIMove(MachineBB *insertAtBegin, int) : MachineInst(Mv), cond(Any) {
+    bb = insertAtBegin;
+    insertAtBegin->insts.insertAtBegin(this);
+  }
   MIMove(MachineInst *insertBefore) : MachineInst(Mv, insertBefore), cond(Any) {}
 };
 
@@ -242,6 +249,8 @@ struct MIAccess : MachineInst {
   MachineOperand offset;
   i32 shift;
   MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
+  MIAccess(MachineInst::Tag tag, MachineInst *insertBefore) : MachineInst(tag, insertBefore) {}
+  MIAccess(MachineInst::Tag tag) : MachineInst(tag) {}
 };
 
 struct MILoad : MIAccess {
@@ -249,6 +258,7 @@ struct MILoad : MIAccess {
   MachineOperand dst;
 
   MILoad(MachineBB *insertAtEnd) : MIAccess(Load, insertAtEnd) {}
+  MILoad(MachineInst *insertBefore) : MIAccess(Load, insertBefore) {}
 };
 
 struct MIStore : MIAccess {
@@ -256,6 +266,7 @@ struct MIStore : MIAccess {
   MachineOperand data;
 
   MIStore(MachineBB *insertAtEnd) : MIAccess(Store, insertAtEnd) {}
+  MIStore() : MIAccess(Store) {}
 };
 
 struct MICompare : MachineInst {
@@ -287,5 +298,5 @@ struct MIComment : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Comment);
   std::string content;
 
-  MIComment(std::string&& content, MachineBB *insertAtEnd) : MachineInst(Comment, insertAtEnd), content(content) {}
+  MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Comment, insertAtEnd), content(content) {}
 };

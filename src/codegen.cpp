@@ -281,7 +281,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
-          if (x->tag == BinaryInst::Mod) { // no MOD instruction, need to use libgcc here
+          if (x->tag == BinaryInst::Mod) {  // no MOD instruction, need to use libgcc here
             auto mod_replace = "Replacing MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
             dbg(mod_replace);
             // move r0, lhs
@@ -957,6 +957,11 @@ void register_allocate(MachineProgram *p) {
           }
         }
 
+        // for testing, might not needed
+        if (!spilled_nodes.empty()) {
+          return;
+        }
+
         for (auto n : coalesced_nodes) {
           auto a = get_alias(n);
           if (a.is_precolored()) {
@@ -1011,7 +1016,44 @@ void register_allocate(MachineProgram *p) {
       if (spilled_nodes.empty()) {
         done = true;
       } else {
-        ERR_EXIT(CODEGEN_ERROR, "Spilling not implemented", spilled_nodes);
+        for (auto &n : spilled_nodes) {
+          // allocate on stack
+          f->sp_offset += 4;
+          i32 offset = f->sp_offset;
+          for (auto bb = f->bb.head; bb; bb = bb->next) {
+            for (auto inst = bb->insts.head; inst; inst = inst->next) {
+              auto [def, use] = get_def_use_ptr(inst);
+              if (def && *def == n) {
+                // store
+                // allocate new vreg
+                i32 vreg = f->virtual_max++;
+                def->value = vreg;
+                auto new_inst = new MIStore();
+                new_inst->bb = bb;
+                new_inst->addr = MachineOperand::R(r13);  // sp
+                new_inst->shift = 0;
+                new_inst->offset = MachineOperand::I(-offset);
+                new_inst->data = MachineOperand::V(vreg);
+                bb->insts.insertAfter(new_inst, inst);
+              }
+
+              for (auto &u : use) {
+                if (*u == n) {
+                  // load
+                  // allocate new vreg
+                  i32 vreg = f->virtual_max++;
+                  u->value = vreg;
+                  auto new_inst = new MILoad(inst);
+                  new_inst->bb = bb;
+                  new_inst->addr = MachineOperand::R(r13);  // sp
+                  new_inst->shift = 0;
+                  new_inst->offset = MachineOperand::I(-offset);
+                  new_inst->dst = MachineOperand::V(vreg);
+                }
+              }
+            }
+          }
+        }
         done = false;
       }
     }

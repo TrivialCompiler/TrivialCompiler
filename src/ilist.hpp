@@ -21,6 +21,20 @@ struct ilist {
     }
   }
 
+  // insert newNode after insertAfter
+  void insertAfter(Node *newNode, Node *insertAfter) {
+    newNode->prev = insertAfter;
+    newNode->next = insertAfter->next;
+    if (insertAfter->next) {
+      insertAfter->next->prev = newNode;
+    }
+    insertAfter->next = newNode;
+
+    if (tail == insertAfter) {
+      head = newNode;
+    }
+  }
+
   // insert newNode at the end of ilist
   void insertAtEnd(Node *newNode) {
     newNode->prev = tail;
