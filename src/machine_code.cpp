@@ -162,7 +162,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         }
       }
     }
+    os << "\t" << ".ltorg" << endl;
   }
+
   // data section
   os << endl << endl << ".section .data" << endl;
   os << ".align 4" << endl;
