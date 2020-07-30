@@ -1,6 +1,7 @@
 #include "machine_code.hpp"
 
 #include <iomanip>
+#include <functional>
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
