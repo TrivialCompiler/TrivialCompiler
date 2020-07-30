@@ -1,4 +1,5 @@
 #include "codegen.hpp"
+#include "machine_code.hpp"
 
 #include <cassert>
 #include <map>
@@ -92,20 +93,29 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       if (auto x = dyn_cast<ParamRef>(value)) {
         auto it = param_map.find(x->decl);
         if (it == param_map.end()) {
-          // copy param to vreg in entry bb
-          auto new_inst = new MIMove(mf->bb.head, 0);
           // allocate virtual reg
           auto res = new_virtual_reg();
           val_map[value] = res;
           param_map[x->decl] = res;
-          new_inst->dst = res;
-          if (f->func->params.size() > 4) {
-            // TODO: more than 4 args, use stack to pass parameters
-            ERR_EXIT(CODEGEN_ERROR, "Too many function arguments", f->func->name);
-          }
           for (int i = 0; i < f->func->params.size(); i++) {
             if (&f->func->params[i] == x->decl) {
-              new_inst->rhs = MachineOperand::R((ArmReg)i);
+              if (i < 4) {
+                // r0-r3
+                // copy param to vreg in entry bb
+                auto new_inst = new MIMove(mf->bb.head, 0);
+                new_inst->rhs = MachineOperand::R((ArmReg)i);
+                new_inst->dst = res;
+              } else {
+                // read from fp + (i-4+saved_regs)*4 in entry bb
+                auto new_inst = new MILoad(mf->bb.head, 0);
+                new_inst->addr = MachineOperand::R(fp);
+                new_inst->shift = 2;
+                // skip saved registers: r4-r11, lr
+                i32 saved_regs = 11 - 4 + 1 + 1;
+                new_inst->offset = MachineOperand::I(i - 4 + saved_regs);
+                new_inst->dst = res;
+              }
+              break;
             }
           }
           return res;
@@ -414,19 +424,44 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new_inst->target = bb_map[x->left];
           auto fallback_inst = new MIJump(bb_map[x->right], mbb);
         } else if (auto x = dyn_cast<CallInst>(inst)) {
-          // move args to r0-r3
-          assert(x->func->params.size() <= 4);
           std::vector<MachineOperand> params;
-          for (int i = 0; i < x->func->params.size(); i++) {
-            auto rhs = resolve(x->args[i].value, mbb);
-            auto mv_inst = new MIMove(mbb);
-            // r0 to r3
-            mv_inst->dst = MachineOperand::R((ArmReg)i);
-            mv_inst->rhs = rhs;
+          int n = x->func->params.size();
+          for (int i = 0; i < n; i++) {
+            if (i < 4) {
+              // move args to r0-r3
+              auto rhs = resolve(x->args[i].value, mbb);
+              auto mv_inst = new MIMove(mbb);
+              mv_inst->dst = MachineOperand::R((ArmReg)i);
+              mv_inst->rhs = rhs;
+            } else {
+              // store to sp-(n-i)*4
+              auto rhs = resolve_no_imm(x->args[i].value, mbb);
+              auto st_inst = new MIStore(mbb);
+              st_inst->addr = MachineOperand::R(sp);
+              st_inst->offset = MachineOperand::I(-(n-i));
+              st_inst->shift = 2;
+              st_inst->data = rhs;
+            }
+          }
+
+          if (n > 4) {
+            // sub sp, sp, (n-4)*4
+            auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);
+            add_inst->dst = MachineOperand::R(sp);
+            add_inst->lhs = MachineOperand::R(sp);
+            add_inst->rhs = MachineOperand::I(4*(n-4));
           }
 
           auto new_inst = new MICall(mbb);
           new_inst->func = x->func;
+
+          if (n > 4) {
+            // add sp, sp, (n-4)*4
+            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+            add_inst->dst = MachineOperand::R(sp);
+            add_inst->lhs = MachineOperand::R(sp);
+            add_inst->rhs = MachineOperand::I(4*(n-4));
+          }
 
           // return
           if (x->func->is_int) {

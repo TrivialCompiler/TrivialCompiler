@@ -254,6 +254,10 @@ struct MILoad : MIAccess {
 
   MILoad(MachineBB *insertAtEnd) : MIAccess(Tag::Load, insertAtEnd) {}
   MILoad(MachineInst *insertBefore) : MIAccess(Tag::Load, insertBefore) {}
+  MILoad(MachineBB *insertAtBegin, int) : MIAccess(Tag::Load) {
+    bb = insertAtBegin;
+    insertAtBegin->insts.insertAtBegin(this);
+  }
 };
 
 struct MIStore : MIAccess {
