@@ -341,29 +341,39 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // lhs && rhs:
             // cmp lhs, #0
             // movne v1, #1
+            // moveq v1, #0
             // cmp rhs, #0
             // movne v2, #1
+            // moveq v2, #0
             // and/or dst, v1, v2
 
             // lhs
             auto cmp_lhs_inst = new MICompare(mbb);
             cmp_lhs_inst->lhs = lhs;
             cmp_lhs_inst->rhs = get_imm_operand(0, mbb);
-            auto mv_lhs_inst = new MIMove(mbb);
             auto lhs_vreg = new_virtual_reg();
-            mv_lhs_inst->dst = lhs_vreg;
-            mv_lhs_inst->cond = ArmCond::Ne;
-            mv_lhs_inst->rhs = get_imm_operand(1, mbb);
+            auto mv1_lhs_inst = new MIMove(mbb);
+            mv1_lhs_inst->dst = lhs_vreg;
+            mv1_lhs_inst->cond = ArmCond::Ne;
+            mv1_lhs_inst->rhs = get_imm_operand(1, mbb);
+            auto mv0_lhs_inst = new MIMove(mbb);
+            mv0_lhs_inst->dst = lhs_vreg;
+            mv0_lhs_inst->cond = ArmCond::Eq;
+            mv0_lhs_inst->rhs = get_imm_operand(0, mbb);
 
             // rhs
             auto cmp_rhs_inst = new MICompare(mbb);
             cmp_rhs_inst->lhs = rhs;
             cmp_rhs_inst->rhs = get_imm_operand(0, mbb);
-            auto mv_rhs_inst = new MIMove(mbb);
             auto rhs_vreg = new_virtual_reg();
-            mv_rhs_inst->dst = rhs_vreg;
-            mv_rhs_inst->cond = ArmCond::Ne;
-            mv_rhs_inst->rhs = get_imm_operand(1, mbb);
+            auto mv1_rhs_inst = new MIMove(mbb);
+            mv1_rhs_inst->dst = rhs_vreg;
+            mv1_rhs_inst->cond = ArmCond::Ne;
+            mv1_rhs_inst->rhs = get_imm_operand(1, mbb);
+            auto mv0_rhs_inst = new MIMove(mbb);
+            mv0_rhs_inst->dst = rhs_vreg;
+            mv0_rhs_inst->cond = ArmCond::Eq;
+            mv0_rhs_inst->rhs = get_imm_operand(0, mbb);
 
             // and
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
