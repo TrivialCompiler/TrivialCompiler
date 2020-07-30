@@ -23,7 +23,8 @@ endif()
 
 file(GLOB func_test_cases "sysyruntimelibrary/functional_test/*.sy")
 file(GLOB perf_test_cases "sysyruntimelibrary/performance_test/*.sy")
-set(all_test_cases ${func_test_cases} ${perf_test_cases})
+file(GLOB custom_test_cases "custom_test/*.sy")
+set(all_test_cases ${func_test_cases} ${perf_test_cases} ${custom_test_cases})
 
 
 # create test cases
