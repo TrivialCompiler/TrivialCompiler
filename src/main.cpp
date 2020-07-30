@@ -82,6 +82,7 @@ int main(int argc, char *argv[]) {
     if (output != nullptr) {
       auto *gen = machine_code_selection(ir);
       register_allocate(gen);
+      run_asm_passes(gen, opt);
       std::ofstream(output) << *gen;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
