@@ -53,6 +53,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     std::map<Value *, MachineOperand> val_map;
     // map global decl to MachineOperand
     std::map<Decl *, MachineOperand> glob_map;
+    // map param decl to MachineOperand
+    std::map<Decl *, MachineOperand> param_map;
 
     // virtual registers
     i32 virtual_max = 0;
@@ -88,13 +90,25 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     // resolve value reference
     auto resolve = [&](Value *value, MachineBB *mbb) {
       if (auto x = dyn_cast<ParamRef>(value)) {
-        // TODO: more than 4 args?
-        for (int i = 0; i < f->func->params.size(); i++) {
-          if (&f->func->params[i] == x->decl) {
-            return MachineOperand{.state = MachineOperand::PreColored, .value = i};
+        auto it = param_map.find(x->decl);
+        if (it == param_map.end()) {
+          // copy param to vreg in entry bb
+          auto new_inst = new MIMove(mf->bb.head);
+          // allocate virtual reg
+          auto res = new_virtual_reg();
+          val_map[value] = res;
+          param_map[x->decl] = res;
+          new_inst->dst = res;
+          // TODO: more than 4 args?
+          for (int i = 0; i < f->func->params.size(); i++) {
+            if (&f->func->params[i] == x->decl) {
+              new_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = i};
+            }
           }
+          return res;
+        } else {
+          return it->second;
         }
-        UNREACHABLE();
       } else if (auto x = dyn_cast<GlobalRef>(value)) {
         auto it = glob_map.find(x->decl);
         if (it == glob_map.end()) {
