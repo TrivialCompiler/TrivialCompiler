@@ -75,7 +75,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}.S")
     # .o -> exe
     add_custom_target("${case_name}_tc"
-            COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_tc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_tc"
+            COMMAND arm-linux-gnueabihf-gcc -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_tc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_tc"
             DEPENDS "${case_name}_tc.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_tc"
