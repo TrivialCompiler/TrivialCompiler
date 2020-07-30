@@ -247,12 +247,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       }
     }
   }
+  // reference to libsysy to avoid optimization
+  os << "\tblx getint" << endl;
 
   // data section
   os << endl << endl << ".section .data" << endl;
   os << ".align 4" << endl;
-  // reference to libsysy to avoid optimization
-  //os << ".word getint" << endl;
   for (auto &decl : p.glob_decl) {
     os << endl << ".global " << decl->name << endl;
     os << "\t"
