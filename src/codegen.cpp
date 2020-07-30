@@ -105,7 +105,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           for (int i = 0; i < f->func->params.size(); i++) {
             if (&f->func->params[i] == x->decl) {
-              new_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = i};
+              new_inst->rhs = MachineOperand::R(i);
             }
           }
           return res;
@@ -265,7 +265,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto val = resolve(x->ret.value, mbb);
             // move val to a0
             auto mv_inst = new MIMove(mbb);
-            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
+            mv_inst->dst = MachineOperand::R(r0);
             mv_inst->rhs = val;
             auto new_inst = new MIReturn(mbb);
             mbb->control_transfer_inst = mv_inst;
@@ -281,7 +281,25 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
-          if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
+          if (x->tag == BinaryInst::Mod) { // no MOD instruction, need to use libgcc here
+            auto mod_replace = "Replacing MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
+            dbg(mod_replace);
+            // move r0, lhs
+            auto mv_lhs = new MIMove(mbb);
+            mv_lhs->dst = MachineOperand::R(r0);
+            mv_lhs->rhs = lhs;
+            // move r1, rhs
+            auto mv_rhs = new MIMove(mbb);
+            mv_rhs->dst = MachineOperand::R(r1);
+            mv_rhs->rhs = rhs;
+            // call __aeabi_idivmod
+            auto new_inst = new MICall(mbb);
+            new_inst->func = new Func{true, "__aeabi_idivmod"};
+            // move dst, r1
+            auto mv_dst = new MIMove(mbb);
+            mv_dst->dst = resolve(inst, mbb);
+            mv_dst->rhs = MachineOperand::R(r1);
+          } else if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
             // transform compare instructions
             auto dst = resolve(inst, mbb);
             auto new_inst = new MICompare(mbb);
@@ -377,7 +395,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto rhs = resolve(x->args[i].value, mbb);
             auto mv_inst = new MIMove(mbb);
             // r0 to r3
-            mv_inst->dst = MachineOperand{.state = MachineOperand::PreColored, .value = i};
+            mv_inst->dst = MachineOperand::R(i);
             mv_inst->rhs = rhs;
           }
 
@@ -391,7 +409,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto dst = resolve(inst, mbb);
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = dst;
-            mv_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = 0};
+            mv_inst->rhs = MachineOperand::R(r0);
           }
         } else if (auto x = dyn_cast<AllocaInst>(inst)) {
           i32 size = 1;
@@ -405,8 +423,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto add_inst = new MIBinary(MachineInst::Add, mbb);
           add_inst->dst = dst;
           // fp is r11
-          add_inst->lhs = MachineOperand{.state = MachineOperand::PreColored, r11};
-          add_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, -offset};
+          add_inst->lhs = MachineOperand::R(r11);
+          add_inst->rhs = get_imm_operand(-offset, mbb);
         }
       }
     }
@@ -475,14 +493,14 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
     for (int i = r0; i <= r3; i++) {
-      def.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
-      use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = i});
+      def.push_back(MachineOperand::R(i));
+      use.push_back(MachineOperand::R(i));
     }
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (auto x = dyn_cast<MIReturn>(inst)) {
     // ret
-    use.push_back(MachineOperand{.state = MachineOperand::PreColored, .value = r0});
+    use.push_back(MachineOperand::R(r0));
   }
   return {def, use};
 }
@@ -607,7 +625,7 @@ void register_allocate(MachineProgram *p) {
       i32 k = r11 - r0 + 1;
       // init degree for pre colored nodes
       for (i32 i = r0; i <= r3; i++) {
-        MachineOperand op = {.state = MachineOperand::PreColored, .value = i};
+        auto op = MachineOperand::R(i);
         // very large
         degree[op] = 0x40000000;
       }
@@ -908,7 +926,7 @@ void register_allocate(MachineProgram *p) {
 
           for (auto w : adj_list[n]) {
             auto a = get_alias(w);
-            if (a.state == MachineOperand::Allocated || a.state == MachineOperand::PreColored) {
+            if (a.state == MachineOperand::Allocated || a.is_precolored()) {
               ok_colors.erase(a.value);
             } else if (a.state == MachineOperand::Virtual) {
               auto it = colored.find(a);

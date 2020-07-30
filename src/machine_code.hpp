@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <set>
+#include <cassert>
 
 #include "ast.hpp"
 #include "common.hpp"
@@ -108,6 +109,11 @@ struct MachineOperand {
     Immediate,
   } state;
   i32 value;
+
+  inline static MachineOperand R(int n) {
+    assert(n >= 0 && n < 16);
+    return MachineOperand{PreColored, n};
+  }
 
   bool operator<(const MachineOperand &other) const {
     if (state != other.state) {
