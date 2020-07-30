@@ -281,8 +281,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
-          if (x->tag == BinaryInst::Mod) {  // no MOD instruction, need to use libgcc here
-            auto mod_replace = "Replacing MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
+          if (x->tag == BinaryInst::Mod ||
+              x->tag == BinaryInst::Div) {  // no DIV/MOD instruction, need to use libgcc here
+            auto mod_replace =
+                "Replacing DIV/MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
             dbg(mod_replace);
             // move r0, lhs
             auto mv_lhs = new MIMove(mbb);
@@ -295,10 +297,15 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // call __aeabi_idivmod
             auto new_inst = new MICall(mbb);
             new_inst->func = new Func{true, "__aeabi_idivmod"};
-            // move dst, r1
+            // div is r0, mod is r1
+            // move dst, r0/r1
             auto mv_dst = new MIMove(mbb);
             mv_dst->dst = resolve(inst, mbb);
-            mv_dst->rhs = MachineOperand::R(r1);
+            if (x->tag == BinaryInst::Mod) {
+              mv_dst->rhs = MachineOperand::R(r1);
+            } else {
+              mv_dst->rhs = MachineOperand::R(r0);
+            }
           } else if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
             // transform compare instructions
             auto dst = resolve(inst, mbb);
