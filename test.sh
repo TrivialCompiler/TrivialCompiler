@@ -1,6 +1,12 @@
 #!/bin/sh
 
-QEMU="timeout -v 60 qemu-arm"
+ARCH=`arch`
+if [ "$ARCH" = "aarch64" ]; then
+    PATH=$PWD:$PATH
+    QEMU="sh -c "
+else
+    QEMU="timeout -v 60 qemu-arm"
+fi
 
 set -v
 rm -rf "$3"
