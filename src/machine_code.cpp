@@ -21,8 +21,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << "\tstmfd\tsp!, {r4-r11,lr}" << endl;
     // fp = sp
     os << "\tmov\tr11, sp" << endl;
-    // decrease sp
-    os << "\tadd\tsp, sp, #-" << f->sp_offset << endl;
+    if (f->sp_offset) {
+      // decrease sp
+      os << "\tadd\tsp, sp, #-" << f->sp_offset << endl;
+    }
 
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
@@ -131,16 +133,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)low_bits};
             auto high_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)high_bits};
             // debug output
-            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " + to_string(high_bits) +
-                              " and " + to_string(low_bits);
+            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
+                              to_string(high_bits) + " and " + to_string(low_bits);
             dbg(move_split);
             // output asm
-            os << "@ original imm: " << (i32) imm << endl;
+            os << "@ original imm: " << (i32)imm << endl;
             os << std::hex;
-            os << "\t" << "movw"
+            os << "\t"
+               << "movw"
                << "\t" << x->dst << ", " << low_operand << "@ 0x" << low_bits << endl;
             if (high_bits != 0) {
-              os << "\t" << "movt"
+              os << "\t"
+                 << "movt"
                  << "\t" << x->dst << ", " << high_operand << "@ 0x" << high_bits << endl;
             }
             os << std::dec;
@@ -151,7 +155,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // function epilogue
           // restore registers and pc from stack
           // increase sp
-          os << "add\tsp, sp, #" << f->sp_offset << endl;
+          if (f->sp_offset) {
+            os << "add\tsp, sp, #" << f->sp_offset << endl;
+          }
           os << "\tldmfd\t sp!, {r4-r11,pc}" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;
@@ -163,7 +169,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       }
     }
     // generate a constant pool at the end of each function
-    os << "\t" << ".pool" << endl;
+    os << "\t"
+       << ".pool" << endl;
   }
 
   // data section
