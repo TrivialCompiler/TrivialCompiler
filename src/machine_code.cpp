@@ -252,7 +252,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   os << endl << endl << ".section .data" << endl;
   os << ".align 4" << endl;
   // reference to libsysy to avoid optimization
-  os << ".word getint" << endl;
+  //os << ".word getint" << endl;
   for (auto &decl : p.glob_decl) {
     os << endl << ".global " << decl->name << endl;
     os << "\t"
