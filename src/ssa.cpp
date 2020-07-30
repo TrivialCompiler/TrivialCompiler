@@ -15,9 +15,17 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
   if (auto x = dyn_cast<Binary>(expr)) {
     auto lhs = convert_expr(ctx, x->lhs);
     auto rhs = convert_expr(ctx, x->rhs);
-    // happened to have same tag values
-    auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
-    return inst;
+    if (x->tag == Expr::Tag::Mod) {
+      // a % b := a - b * a / b (ARM has no MOD instruction)
+      auto quotient = new BinaryInst(Value::Tag::Div, lhs, rhs, ctx->bb);
+      auto multiple = new BinaryInst(Value::Tag::Mul, rhs, quotient, ctx->bb);
+      auto remainder = new BinaryInst(Value::Tag::Sub, lhs, multiple, ctx->bb);
+      return remainder;
+    } else {
+      // happened to have same tag values
+      auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
+      return inst;
+    }
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->result);
   } else if (auto x = dyn_cast<Index>(expr)) {

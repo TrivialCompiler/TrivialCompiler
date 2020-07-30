@@ -22,13 +22,13 @@ struct Expr {
 
 // 操作符保存在Expr::tag中
 struct Binary : Expr {
-  DEFINE_CLASSOF(Expr, Add <= p->tag && p->tag <= Or);
+  DEFINE_CLASSOF(Expr, Tag::Add <= p->tag && p->tag <= Tag::Or);
   Expr *lhs;
   Expr *rhs;
 };
 
 struct Index : Expr {
-  DEFINE_CLASSOF(Expr, p->tag == Expr::Index);
+  DEFINE_CLASSOF(Expr, p->tag == Tag::Index);
   std::string_view name;
   // dims为空时即是直接访问普通变量
   std::vector<Expr *> dims;
@@ -36,19 +36,19 @@ struct Index : Expr {
 };
 
 struct IntConst : Expr {
-  DEFINE_CLASSOF(Expr, p->tag == Expr::IntConst);
+  DEFINE_CLASSOF(Expr, p->tag == Tag::IntConst);
   i32 val;
   static IntConst ZERO;  // 值为0的IntConst，很多地方会用到，所以做个单例
 };
 
 struct Call : Expr {
-  DEFINE_CLASSOF(Expr, p->tag == Expr::Call);
+  DEFINE_CLASSOF(Expr, p->tag == Tag::Call);
   std::string_view func;
   std::vector<Expr *> args;
   Func *f = nullptr;  // typeck前是nullptr，若typeck成功则非空
 
   // do some simple preprocess in constructor
-  explicit Call(std::string_view func, std::vector<Expr *> args, u32 line_no) : Expr{Expr::Call, 0}, func(func) {
+  explicit Call(std::string_view func, std::vector<Expr *> args, u32 line_no) : Expr{Tag::Call, 0}, func(func) {
     // map some builtin function names
     constexpr static std::pair<std::string_view, std::string_view> func_mapping[3] {
       {"starttime", "_sysy_starttime"},
@@ -66,7 +66,7 @@ struct Call : Expr {
     // modify parameters
     if (this->func == "_sysy_starttime" || this->func == "_sysy_stoptime") {
       // manually add line number as parameter
-      this->args.push_back(new ::IntConst{Expr::IntConst, 0, (i32) line_no});
+      this->args.push_back(new ::IntConst{Tag::IntConst, 0, (i32) line_no});
     } else {
       this->args = std::move(args);
     }

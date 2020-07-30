@@ -106,6 +106,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "sub";
           } else if (x->tag == MachineInst::Tag::Rsb) {
             op = "rsb";
+          } else if (x->tag == MachineInst::Tag::Div) {
+            op = "sdiv";
           } else if (x->tag == MachineInst::Tag::And) {
             op = "and";
           } else if (x->tag == MachineInst::Tag::Or) {
@@ -162,7 +164,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         }
       }
     }
-    os << "\t" << ".ltorg" << endl;
+    // generate a constant pool at the end of each function
+    os << "\t" << ".pool" << endl;
   }
 
   // data section

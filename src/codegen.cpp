@@ -304,30 +304,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
-          if (x->tag == Value::Tag::Mod ||
-              x->tag == Value::Tag::Div) {  // no DIV/MOD instruction, need to use libgcc here
-            auto div_mod = "Replacing DIV/MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
-            dbg(div_mod);
-            // move r0, lhs
-            auto mv_lhs = new MIMove(mbb);
-            mv_lhs->dst = MachineOperand::R(ArmReg::r0);
-            mv_lhs->rhs = lhs;
-            // move r1, rhs
-            auto mv_rhs = new MIMove(mbb);
-            mv_rhs->dst = MachineOperand::R(ArmReg::r1);
-            mv_rhs->rhs = rhs;
-            // call __aeabi_idivmod
-            auto new_inst = new MICall(mbb);
-            new_inst->func = new Func{true, "__aeabi_idivmod"};
-            // div is r0, mod is r1
-            // move dst, r0/r1
-            auto mv_dst = new MIMove(mbb);
-            mv_dst->dst = resolve(inst, mbb);
-            if (x->tag == Value::Tag::Mod) {
-              mv_dst->rhs = MachineOperand::R(ArmReg::r1);
-            } else {
-              mv_dst->rhs = MachineOperand::R(ArmReg::r0);
-            }
+          if (x->tag == Value::Tag::Mod) {
+            UNREACHABLE(); // should be replaced
           } else if (Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne) {
             // transform compare instructions
             auto dst = resolve(inst, mbb);
