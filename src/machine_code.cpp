@@ -4,12 +4,31 @@
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
-  static const std::string BB_PREFIX = "_BB";
+  static const std::string BB_PREFIX = "_BB_";
   IndexMapper<MachineBB> bb_index;
+  auto pool_count = 0;
 
   // code section
   os << ".section .text" << endl;
   for (auto f = p.func.head; f; f = f->next) {
+    // count instructions, avoid constant pool problem
+    auto inst_count = 0;
+    auto insert_pool = [&]() {
+      inst_count = 0;
+      os << ".pool" << endl;
+    };
+    auto increase_count = [&](int count = 1) {
+      inst_count += count;
+      if (inst_count > 1000) {
+        // force insert a constant pool, slow but necessary
+        auto sec_name = "_AFTER_POOL_" + std::to_string(pool_count++);
+        auto force_pool = "forcibly insert constant pool " + sec_name;
+        dbg(force_pool);
+        os << "\t" << "b" << "\t" << sec_name << endl;
+        os << "\t"; insert_pool();
+        os << sec_name << ":" << endl;
+      }
+    };
     // generate symbol for function
     os << endl << ".global " << f->func->func->name << endl;
     os << "\t"
@@ -25,6 +44,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       // decrease sp
       os << "\tadd\tsp, sp, #-" << f->sp_offset << endl;
     }
+    increase_count(3);
 
     auto pb = [&](MachineBB *bb) {
       os << BB_PREFIX << bb_index.get(bb);
@@ -69,8 +89,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         if (auto x = dyn_cast<MIJump>(inst)) {
           os << "b"
              << "\t" << pb(x->target) << endl;
+          insert_pool();
+          increase_count();
         } else if (auto x = dyn_cast<MIBranch>(inst)) {
           os << "b" << x->cond << "\t" << pb(x->target) << endl;
+          insert_pool();
+          increase_count();
         } else if (auto x = dyn_cast<MIAccess>(inst)) {
           MachineOperand data{};
           std::string inst_name;
@@ -88,9 +112,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             os << inst_name << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]"
                << endl;
           }
+          increase_count();
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
           os << "ldr"
              << "\t" << x->dst << ", =" << x->sym->name << endl;
+          increase_count();
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
           if (x->tag == MachineInst::Tag::Mul) {
@@ -125,9 +151,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           if (x->tag != MachineInst::Tag::Div) {
             os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
           }
+          increase_count();
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;
+          increase_count();
         } else if (auto x = dyn_cast<MIMove>(inst)) {
           // limit of ARM immediate number, see
           // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
@@ -149,14 +177,17 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             os << "\t"
                << "movw"
                << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
+            increase_count();
             if (high_bits != 0) {
               os << "\t"
                  << "movt"
                  << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
+              increase_count();
             }
             os << std::dec;
           } else {
             os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
+            increase_count();
           }
         } else if (auto x = dyn_cast<MIReturn>(inst)) {
           // function epilogue
@@ -164,11 +195,13 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // increase sp
           if (f->sp_offset) {
             os << "add\tsp, sp, #" << f->sp_offset << endl;
-            os << "\t";
           }
           os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
+          insert_pool();
+          increase_count(2);
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;
+          increase_count();
         } else if (auto x = dyn_cast<MIComment>(inst)) {
           os << "@ " << x->content << endl;
         } else {
@@ -176,9 +209,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         }
       }
     }
-    // generate a constant pool at the end of each function
-    os << "\t"
-       << ".pool" << endl;
   }
 
   // data section
