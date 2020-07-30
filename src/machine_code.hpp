@@ -202,6 +202,7 @@ struct MIMove : MachineInst {
   MachineOperand rhs;
 
   MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
+  MIMove(MachineBB *insertAtBegin, int) : MachineInst(Mv), cond(Any) { insertAtBegin->insts.insertAtBegin(this); }
   MIMove(MachineInst *insertBefore) : MachineInst(Mv, insertBefore), cond(Any) {}
 };
 

@@ -93,7 +93,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         auto it = param_map.find(x->decl);
         if (it == param_map.end()) {
           // copy param to vreg in entry bb
-          auto new_inst = new MIMove(mf->bb.head);
+          auto new_inst = new MIMove(mf->bb.head, 0);
           // allocate virtual reg
           auto res = new_virtual_reg();
           val_map[value] = res;
@@ -924,7 +924,12 @@ void register_allocate(MachineProgram *p) {
         }
 
         for (auto n : coalesced_nodes) {
-          colored[n] = colored[get_alias(n)];
+          auto a = get_alias(n);
+          if (a.is_precolored()) {
+            colored[n] = a;
+          } else {
+            colored[n] = colored[a];
+          }
         }
 
         for (auto &[before, after] : colored) {
