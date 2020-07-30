@@ -184,9 +184,15 @@ struct MachineInst {
     Comment,  // for printing comments
   } tag;
 
-  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) { insertAtEnd->insts.insertAtEnd(this); }
+  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) {
+    if (insertAtEnd) {
+      insertAtEnd->insts.insertAtEnd(this);
+    }
+  }
   MachineInst(Tag tag, MachineInst *insertBefore) : tag(tag), bb(insertBefore->bb) {
-    bb->insts.insertBefore(this, insertBefore);
+    if (bb) {
+      bb->insts.insertBefore(this, insertBefore);
+    }
   }
   MachineInst(Tag tag) : tag(tag) {}
 };
@@ -208,8 +214,10 @@ struct MIMove : MachineInst {
 
   MIMove(MachineBB *insertAtEnd) : MachineInst(Tag::Mv, insertAtEnd), cond(ArmCond::Any) {}
   MIMove(MachineBB *insertAtBegin, int) : MachineInst(Tag::Mv), cond(ArmCond::Any) {
-    bb = insertAtBegin;
-    insertAtBegin->insts.insertAtBegin(this);
+    if (insertAtBegin) {
+      bb = insertAtBegin;
+      insertAtBegin->insts.insertAtBegin(this);
+    }
   }
   MIMove(MachineInst *insertBefore) : MachineInst(Tag::Mv, insertBefore), cond(ArmCond::Any) {}
 };
