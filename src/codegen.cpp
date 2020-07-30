@@ -494,9 +494,6 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
   if (auto x = dyn_cast<MIBinary>(inst)) {
     def = {x->dst};
     use = {x->lhs, x->rhs};
-  } else if (auto x = dyn_cast<MIUnary>(inst)) {
-    def = {x->dst};
-    use = {x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -529,9 +526,6 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
   if (auto x = dyn_cast<MIBinary>(inst)) {
     def = &x->dst;
     use = {&x->lhs, &x->rhs};
-  } else if (auto x = dyn_cast<MIUnary>(inst)) {
-    def = &x->dst;
-    use = {&x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = &x->dst;
     use = {&x->rhs};

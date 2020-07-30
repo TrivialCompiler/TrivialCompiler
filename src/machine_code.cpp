@@ -116,8 +116,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             UNREACHABLE();
           }
           os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
-        } else if (auto x = dyn_cast<MIUnary>(inst)) {
-          UNREACHABLE();
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;

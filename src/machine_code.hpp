@@ -172,8 +172,6 @@ struct MachineInst {
   enum class Tag {
 #include "op.inc"
     // Binary
-    Neg,
-    Not,  // Unary
     Mv,
     Branch,
     Jump,
@@ -200,14 +198,6 @@ struct MIBinary : MachineInst {
   MachineOperand rhs;
 
   MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
-};
-
-struct MIUnary : MachineInst {
-  DEFINE_CLASSOF(MachineInst, Tag::Neg <= p->tag && p->tag <= Tag::Not);
-  MachineOperand dst;
-  MachineOperand rhs;
-
-  MIUnary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
 struct MIMove : MachineInst {
