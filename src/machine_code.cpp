@@ -104,6 +104,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "add";
           } else if (x->tag == MachineInst::Tag::Sub) {
             op = "sub";
+          } else if (x->tag == MachineInst::Tag::Rsb) {
+            op = "rsb";
           } else if (x->tag == MachineInst::Tag::And) {
             op = "and";
           } else if (x->tag == MachineInst::Tag::Or) {
