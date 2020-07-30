@@ -420,11 +420,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           mf->sp_offset += size;
           i32 offset = mf->sp_offset;
           auto dst = resolve(inst, mbb);
+          auto rhs = get_imm_operand(-offset, mbb);
           auto add_inst = new MIBinary(MachineInst::Add, mbb);
           add_inst->dst = dst;
           // fp is r11
           add_inst->lhs = MachineOperand::R(r11);
-          add_inst->rhs = get_imm_operand(-offset, mbb);
+          add_inst->rhs = rhs;
         }
       }
     }
