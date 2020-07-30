@@ -110,6 +110,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "rsb";
           } else if (x->tag == MachineInst::Tag::Div) {
             op = "sdiv";
+            auto inst = std::string(op) + " " + std::string(x->dst) + ", " + std::string(x->lhs) + ", " + std::string(x->rhs);
+            u32 rd = x->dst.value, rm = x->rhs.value, rn = x->lhs.value;
+            u32 instruction = 0b1110'01110'001'0000'1111'0000'000'1'0000 | rd << 16 | rm << 8 | rn;
+            dbg("Manually constructed SDIV instruction", inst, dbg::hex(instruction));
+            os << ".word" << "\t" << "0x" << std::hex << instruction << std::dec << " @ " << inst << endl;
           } else if (x->tag == MachineInst::Tag::And) {
             op = "and";
           } else if (x->tag == MachineInst::Tag::Or) {
@@ -117,7 +122,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           } else {
             UNREACHABLE();
           }
-          os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          if (x->tag != MachineInst::Tag::Div) {
+            os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+          }
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;

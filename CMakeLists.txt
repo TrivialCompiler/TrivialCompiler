@@ -52,7 +52,7 @@ foreach(case_file ${all_test_cases})
     # use LLVM to generate exe
     # .bc -> .o
     add_custom_command(OUTPUT "${case_name}_llvm.o"
-            COMMAND llc -O1 -march=arm -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
+            COMMAND llc -O2 -march=arm -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
 	    DEPENDS "${case_name}.bc")
     # .o -> exe
     add_custom_target("${case_name}_llvm"
