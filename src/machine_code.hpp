@@ -16,7 +16,7 @@ struct MachineInst;
 struct MachineOperand;
 
 // ref: https://en.wikipedia.org/wiki/Calling_convention#ARM_(A32)
-enum ArmReg {
+enum class ArmReg {
   // args and return value (caller saved)
   r0,
   r1,
@@ -41,22 +41,22 @@ enum ArmReg {
   r15,
 };
 
-enum ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
+enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
-  if (cond == Eq) {
+  if (cond == ArmCond::Eq) {
     os << "eq";
-  } else if (cond == Ne) {
+  } else if (cond == ArmCond::Ne) {
     os << "ne";
-  } else if (cond == Any) {
+  } else if (cond == ArmCond::Any) {
     os << "";
-  } else if (cond == Gt) {
+  } else if (cond == ArmCond::Gt) {
     os << "gt";
-  } else if (cond == Ge) {
+  } else if (cond == ArmCond::Ge) {
     os << "ge";
-  } else if (cond == Lt) {
+  } else if (cond == ArmCond::Lt) {
     os << "lt";
-  } else if (cond == Le) {
+  } else if (cond == ArmCond::Le) {
     os << "le";
   } else {
     UNREACHABLE();
@@ -108,8 +108,9 @@ struct MachineOperand {
   } state;
   i32 value;
 
-  inline static MachineOperand R(int n) {
-    assert(n >= 0 && n < 16);
+  inline static MachineOperand R(ArmReg r) {
+    auto n = (int) r;
+    assert(n >= 0 && n <= 16);
     return MachineOperand{PreColored, n};
   }
 
@@ -164,7 +165,7 @@ struct MachineInst {
   DEFINE_ILIST(MachineInst)
   MachineBB *bb;
 
-  enum Tag {
+  enum class Tag {
 #include "op.inc"
     // Binary
     Neg,
@@ -189,7 +190,7 @@ struct MachineInst {
 };
 
 struct MIBinary : MachineInst {
-  DEFINE_CLASSOF(MachineInst, Add <= p->tag && p->tag <= Or);
+  DEFINE_CLASSOF(MachineInst, Tag::Add <= p->tag && p->tag <= Tag::Or);
   MachineOperand dst;
   MachineOperand lhs;
   MachineOperand rhs;
@@ -198,7 +199,7 @@ struct MIBinary : MachineInst {
 };
 
 struct MIUnary : MachineInst {
-  DEFINE_CLASSOF(MachineInst, Neg <= p->tag && p->tag <= Not);
+  DEFINE_CLASSOF(MachineInst, Tag::Neg <= p->tag && p->tag <= Tag::Not);
   MachineOperand dst;
   MachineOperand rhs;
 
@@ -206,41 +207,41 @@ struct MIUnary : MachineInst {
 };
 
 struct MIMove : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Mv);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Mv);
   ArmCond cond;
   MachineOperand dst;
   MachineOperand rhs;
 
-  MIMove(MachineBB *insertAtEnd) : MachineInst(Mv, insertAtEnd), cond(Any) {}
-  MIMove(MachineBB *insertAtBegin, int) : MachineInst(Mv), cond(Any) {
+  MIMove(MachineBB *insertAtEnd) : MachineInst(Tag::Mv, insertAtEnd), cond(ArmCond::Any) {}
+  MIMove(MachineBB *insertAtBegin, int) : MachineInst(Tag::Mv), cond(ArmCond::Any) {
     bb = insertAtBegin;
     insertAtBegin->insts.insertAtBegin(this);
   }
-  MIMove(MachineInst *insertBefore) : MachineInst(Mv, insertBefore), cond(Any) {}
+  MIMove(MachineInst *insertBefore) : MachineInst(Tag::Mv, insertBefore), cond(ArmCond::Any) {}
 };
 
 struct MIBranch : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Branch);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Branch);
   ArmCond cond;
   MachineBB *target;
-  MIBranch(MachineBB *insertAtEnd) : MachineInst(Branch, insertAtEnd) {}
+  MIBranch(MachineBB *insertAtEnd) : MachineInst(Tag::Branch, insertAtEnd) {}
 };
 
 struct MIJump : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Jump);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Jump);
   MachineBB *target;
 
-  MIJump(MachineBB *target, MachineBB *insertAtEnd) : MachineInst(Jump, insertAtEnd), target(target) {}
+  MIJump(MachineBB *target, MachineBB *insertAtEnd) : MachineInst(Tag::Jump, insertAtEnd), target(target) {}
 };
 
 struct MIReturn : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Return);
-  MIReturn(MachineBB *insertAtEnd) : MachineInst(Return, insertAtEnd) {}
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Return);
+  MIReturn(MachineBB *insertAtEnd) : MachineInst(Tag::Return, insertAtEnd) {}
 };
 
 struct MIAccess : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Load || p->tag == Store);
-  enum Mode {
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Load || p->tag == Tag::Store);
+  enum class Mode {
     Offset,
     Prefix,
     Postfix,
@@ -254,49 +255,49 @@ struct MIAccess : MachineInst {
 };
 
 struct MILoad : MIAccess {
-  DEFINE_CLASSOF(MachineInst, p->tag == Load);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Load);
   MachineOperand dst;
 
-  MILoad(MachineBB *insertAtEnd) : MIAccess(Load, insertAtEnd) {}
-  MILoad(MachineInst *insertBefore) : MIAccess(Load, insertBefore) {}
+  MILoad(MachineBB *insertAtEnd) : MIAccess(Tag::Load, insertAtEnd) {}
+  MILoad(MachineInst *insertBefore) : MIAccess(Tag::Load, insertBefore) {}
 };
 
 struct MIStore : MIAccess {
-  DEFINE_CLASSOF(MachineInst, p->tag == Store);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Store);
   MachineOperand data;
 
-  MIStore(MachineBB *insertAtEnd) : MIAccess(Store, insertAtEnd) {}
-  MIStore() : MIAccess(Store) {}
+  MIStore(MachineBB *insertAtEnd) : MIAccess(Tag::Store, insertAtEnd) {}
+  MIStore() : MIAccess(Tag::Store) {}
 };
 
 struct MICompare : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Compare);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Compare);
   MachineOperand lhs;
   MachineOperand rhs;
 
-  MICompare(MachineBB *insertAtEnd) : MachineInst(Compare, insertAtEnd) {}
+  MICompare(MachineBB *insertAtEnd) : MachineInst(Tag::Compare, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Call);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Call);
   Func *func;
 
-  MICall(MachineBB *insertAtEnd) : MachineInst(Call, insertAtEnd) {}
+  MICall(MachineBB *insertAtEnd) : MachineInst(Tag::Call, insertAtEnd) {}
 };
 
 struct MIGlobal : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Global);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Global);
   MachineOperand dst;
   Decl *sym;
 
-  MIGlobal(Decl *sym, MachineBB *insertAtBegin) : MachineInst(Global), sym(sym) {
+  MIGlobal(Decl *sym, MachineBB *insertAtBegin) : MachineInst(Tag::Global), sym(sym) {
     insertAtBegin->insts.insertAtBegin(this);
   }
 };
 
 struct MIComment : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Comment);
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::Comment);
   std::string content;
 
-  MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Comment, insertAtEnd), content(content) {}
+  MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Tag::Comment, insertAtEnd), content(content) {}
 };

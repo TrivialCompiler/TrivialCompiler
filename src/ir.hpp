@@ -24,7 +24,7 @@ struct Value {
   // value is used by ...
   ilist<Use> uses;
   // tag
-  enum Tag {
+  enum class Tag {
 #include "op.inc"  // Binary
     Branch,
     Jump,
@@ -120,36 +120,36 @@ struct IrFunc {
 };
 
 struct ConstValue : Value {
-  DEFINE_CLASSOF(Value, p->tag == Const);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Const);
   i32 imm;
 
-  ConstValue(i32 imm) : Value(Const), imm(imm) {}
+  ConstValue(i32 imm) : Value(Tag::Const), imm(imm) {}
 };
 
 struct GlobalRef : Value {
-  DEFINE_CLASSOF(Value, p->tag == Global);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Global);
   Decl *decl;
 
-  GlobalRef(Decl *decl) : Value(Global), decl(decl) {}
+  GlobalRef(Decl *decl) : Value(Tag::Global), decl(decl) {}
 };
 
 struct ParamRef : Value {
-  DEFINE_CLASSOF(Value, p->tag == Param);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Param);
   Decl *decl;
 
-  ParamRef(Decl *decl) : Value(Param), decl(decl) {}
+  ParamRef(Decl *decl) : Value(Tag::Param), decl(decl) {}
 };
 
 struct UndefValue : Value {
-  DEFINE_CLASSOF(Value, p->tag == Undef);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Undef);
 
-  UndefValue() : Value(Undef) {}
+  UndefValue() : Value(Tag::Undef) {}
   // 这是一个全局可变变量，不过反正也不涉及多线程，不会有冲突
   static UndefValue INSTANCE;
 };
 
 struct Inst : Value {
-  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= MemPhi);
+  DEFINE_CLASSOF(Value, Tag::Add <= p->tag && p->tag <= Tag::MemPhi);
   // instruction linked list
   DEFINE_ILIST(Inst)
   // basic block
@@ -166,7 +166,7 @@ struct Inst : Value {
 };
 
 struct BinaryInst : Inst {
-  DEFINE_CLASSOF(Value, Add <= p->tag && p->tag <= Or);
+  DEFINE_CLASSOF(Value, Tag::Add <= p->tag && p->tag <= Tag::Or);
   // operands
   Use lhs;
   Use rhs;
@@ -176,12 +176,35 @@ struct BinaryInst : Inst {
 
   bool canUseImmOperand() {
     // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
-    return tag == Add || tag == Sub || (tag >= Lt && tag <= Or);
+    return tag == Tag::Add || tag == Tag::Sub || (tag >= Tag::Lt && tag <= Tag::Or);
   }
+
+  constexpr static std::pair<Tag, Tag> swapableOperators[8] = {
+      {Tag::Add, Tag::Add},
+      {Tag::Eq,  Tag::Eq},
+      {Tag::Ne,  Tag::Ne},
+      {Tag::Lt,  Tag::Gt},
+      {Tag::Gt,  Tag::Lt},
+      {Tag::Le,  Tag::Ge},
+      {Tag::Ge,  Tag::Le},
+      {Tag::Sub, Tag::Rsb},
+  };
+
+  bool swapOperand() {
+    for (auto &[before, after] : swapableOperators) {
+      if (this->tag == before) {
+        this->tag = after;
+        std::swap(this->lhs, this->rhs);
+        return true;
+      }
+    }
+    return false;
+  }
+
 };
 
 struct BranchInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Branch);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Branch);
   Use cond;
   // true
   BasicBlock *left;
@@ -189,25 +212,25 @@ struct BranchInst : Inst {
   BasicBlock *right;
 
   BranchInst(Value *cond, BasicBlock *left, BasicBlock *right, BasicBlock *insertAtEnd)
-      : Inst(Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
+      : Inst(Tag::Branch, insertAtEnd), cond(cond, this), left(left), right(right) {}
 };
 
 struct JumpInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Jump);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Jump);
   BasicBlock *next;
 
-  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd) : Inst(Jump, insertAtEnd), next(next) {}
+  JumpInst(BasicBlock *next, BasicBlock *insertAtEnd) : Inst(Tag::Jump, insertAtEnd), next(next) {}
 };
 
 struct ReturnInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Return);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Return);
   Use ret;
 
-  ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Return, insertAtEnd), ret(ret, this) {}
+  ReturnInst(Value *ret, BasicBlock *insertAtEnd) : Inst(Tag::Return, insertAtEnd), ret(ret, this) {}
 };
 
 struct AccessInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Load || p->tag == Store);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Load || p->tag == Tag::Store);
   Decl *lhs_sym;
   Use arr;
   std::vector<Use> dims;
@@ -216,7 +239,7 @@ struct AccessInst : Inst {
 };
 
 struct LoadInst : AccessInst {
-  DEFINE_CLASSOF(Value, p->tag == Load);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Load);
   // 由memdep pass计算
   // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
   // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
@@ -224,40 +247,40 @@ struct LoadInst : AccessInst {
 //  std::vector<Inst *> dep;
 //  std::unordered_set<Inst *> alias;
   Use mem_token;
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Load, lhs_sym, arr, insertAtEnd), mem_token(nullptr, this) {}
+  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Tag::Load, lhs_sym, arr, insertAtEnd), mem_token(nullptr, this) {}
 };
 
 struct StoreInst : AccessInst {
-  DEFINE_CLASSOF(Value, p->tag == Store);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Store);
   Use data;
   StoreInst(Decl *lhs_sym, Value *arr, Value *data, BasicBlock *insertAtEnd)
-      : AccessInst(Store, lhs_sym, arr, insertAtEnd), data(data, this) {}
+      : AccessInst(Tag::Store, lhs_sym, arr, insertAtEnd), data(data, this) {}
 };
 
 struct CallInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Call);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Call);
   // FIXME: IrFunc and Func 是什么关系？
   Func *func;
   std::vector<Use> args;
-  CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Call, insertAtEnd), func(func) {}
+  CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Tag::Call, insertAtEnd), func(func) {}
 };
 
 struct AllocaInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Alloca);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Alloca);
 
   Decl *sym;
-  AllocaInst(Decl *sym, BasicBlock *insertBefore) : Inst(Alloca, insertBefore), sym(sym) {}
+  AllocaInst(Decl *sym, BasicBlock *insertBefore) : Inst(Tag::Alloca, insertBefore), sym(sym) {}
 };
 
 struct PhiInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Phi);
+  DEFINE_CLASSOF(Value, p->tag == Tag::Phi);
 
   // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
 
   explicit PhiInst(BasicBlock *insertAtFront)
-      : Inst(Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+      : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
     incoming_values.reserve(insertAtFront->pred.size());
     for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
@@ -267,16 +290,16 @@ struct PhiInst : Inst {
 };
 
 struct MemOpInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == MemOp);
+  DEFINE_CLASSOF(Value, p->tag == Tag::MemOp);
   Use mem_token;
   LoadInst *load;
-  MemOpInst(LoadInst *load, Inst *insertBefore) : Inst(MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
+  MemOpInst(LoadInst *load, Inst *insertBefore) : Inst(Tag::MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
 };
 
 // 它的前几个字段和PhiInst是兼容的，所以可以当成PhiInst用(也许理论上有隐患，但是实际上应该没有问题)
 // 我不希望让它继承PhiInst，这也许会影响以前的一些对PhiInst的使用
 struct MemPhiInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == MemPhi);
+  DEFINE_CLASSOF(Value, p->tag == Tag::MemPhi);
 
   // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
@@ -287,7 +310,7 @@ struct MemPhiInst : Inst {
   Value *load_or_arr;
 
   explicit MemPhiInst(Value *load_or_arr, BasicBlock *insertAtFront)
-    : Inst(MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
+    : Inst(Tag::MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
     bb = insertAtFront;
     bb->mem_phis.insertAtBegin(this);
     incoming_values.reserve(insertAtFront->pred.size());

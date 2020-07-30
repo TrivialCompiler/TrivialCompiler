@@ -297,23 +297,32 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << endl;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
-          const static char *OPS[] = {
-              [Value::Add] = "add",     [Value::Sub] = "sub",     [Value::Mul] = "mul",     [Value::Div] = "sdiv",
-              [Value::Mod] = "srem",    [Value::Lt] = "icmp slt", [Value::Le] = "icmp sle", [Value::Ge] = "icmp sge",
-              [Value::Gt] = "icmp sgt", [Value::Eq] = "icmp eq",  [Value::Ne] = "icmp ne",  [Value::And] = "and",
-              [Value::Or] = "or",
+          const static std::unordered_map<Value::Tag, const char*> OPS = {
+              {Value::Tag::Add, "add"},
+              {Value::Tag::Sub, "sub"},
+              {Value::Tag::Mul, "mul"},
+              {Value::Tag::Div, "sdiv"},
+              {Value::Tag::Mod, "srem"},
+              {Value::Tag::Lt,  "icmp slt"},
+              {Value::Tag::Le,  "icmp sle"},
+              {Value::Tag::Ge,  "icmp sge"},
+              {Value::Tag::Gt,  "icmp sgt"},
+              {Value::Tag::Eq,  "icmp eq"},
+              {Value::Tag::Ne,  "icmp ne"},
+              {Value::Tag::And, "and"},
+              {Value::Tag::Or,  "or"},
           };
-          const char *op = OPS[x->tag];
-          bool conversion = Value::Lt <= x->tag && x->tag <= Value::Ne;
+          auto op_name = OPS.find(x->tag)->second;
+          bool conversion = Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne;
           if (conversion) {
             u32 temp = v_index.alloc();
-            os << "%t" << temp << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << "%t" << temp << " = " << op_name << " i32 " << pv(v_index, x->lhs.value) << ", "
                << pv(v_index, x->rhs.value) << endl;
             os << "\t" << pv(v_index, inst) << " = "
                << "zext i1 "
                << "%t" << temp << " to i32" << endl;
           } else {
-            os << pv(v_index, inst) << " = " << op << " i32 " << pv(v_index, x->lhs.value) << ", "
+            os << pv(v_index, inst) << " = " << op_name << " i32 " << pv(v_index, x->lhs.value) << ", "
                << pv(v_index, x->rhs.value) << endl;
           }
         } else if (auto x = dyn_cast<JumpInst>(inst)) {

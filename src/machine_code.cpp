@@ -91,7 +91,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
              << "\t" << x->dst << ", =" << x->sym->name << endl;
         } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
-          if (x->tag == MachineInst::Mul) {
+          if (x->tag == MachineInst::Tag::Mul) {
             op = "mul";
             if (x->dst == x->lhs) {
               dbg("Rd and Rm must be different in MUL instruction, swapping Rm and Rn...");
@@ -100,15 +100,13 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
               }
               std::swap(x->lhs, x->rhs);
             }
-          } else if (x->tag == MachineInst::Add) {
+          } else if (x->tag == MachineInst::Tag::Add) {
             op = "add";
-          } else if (x->tag == MachineInst::Sub) {
+          } else if (x->tag == MachineInst::Tag::Sub) {
             op = "sub";
-          } else if (x->tag == MachineInst::Mod) {
-            op = "mod";  // TODO: no MOD instruction here
-          } else if (x->tag == MachineInst::And) {
+          } else if (x->tag == MachineInst::Tag::And) {
             op = "and";
-          } else if (x->tag == MachineInst::Or) {
+          } else if (x->tag == MachineInst::Tag::Or) {
             op = "orr";
           } else {
             UNREACHABLE();
@@ -123,17 +121,27 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // limit of ARM immediate number, see
           // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
           if (x->rhs.state == MachineOperand::Immediate && !can_encode_imm(x->rhs.value)) {
-            dbg("Immediate number in MIMove split to higher and lower bits");
+            using std::to_string;
             // split into high & low 16 bits
             u32 imm = x->rhs.value;
-            auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm & 0xffffu)};
-            os << "movw"
-               << "\t" << x->dst << ", " << low_operand << endl;
-            if (imm > 0xffffu) {
-              auto high_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)(imm >> 16u)};
-              os << "\tmovt"
-                 << "\t" << x->dst << ", " << high_operand << endl;
+            u32 low_bits = imm & 0xffffu;
+            u32 high_bits = imm >> 16u;
+            auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)low_bits};
+            auto high_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)high_bits};
+            // debug output
+            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " + to_string(high_bits) +
+                              " and " + to_string(low_bits);
+            dbg(move_split);
+            // output asm
+            os << "@ original imm: " << (i32) imm << endl;
+            os << std::hex;
+            os << "\t" << "movw"
+               << "\t" << x->dst << ", " << low_operand << "@ 0x" << low_bits << endl;
+            if (high_bits != 0) {
+              os << "\t" << "movt"
+                 << "\t" << x->dst << ", " << high_operand << "@ 0x" << high_bits << endl;
             }
+            os << std::dec;
           } else {
             os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
           }

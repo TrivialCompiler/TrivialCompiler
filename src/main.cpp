@@ -48,7 +48,7 @@ int main(int argc, char *argv[]) {
     src = argv[optind];
   }
 
-  dbg(src, output, ir_file, opt, print_usage);
+  dbg(src, output, ir_file, opt, print_usage, debug_mode);
 
   if (src == nullptr || print_usage) {
     fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-d (debug mode)] [-o output_file] [-O level] input_file\n", argv[0]);

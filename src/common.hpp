@@ -13,7 +13,7 @@ enum { SYSTEM_ERROR = 1, PARSING_ERROR, TYPE_CHECK_ERROR, CODEGEN_ERROR };
     dbg(__VA_ARGS__);       \
     exit(code);             \
   } while (false)
-#define UNREACHABLE() __builtin_unreachable()
+#define UNREACHABLE() ERR_EXIT(SYSTEM_ERROR, "control flow should never reach here")
 
 using i32 = int32_t;
 using u32 = uint32_t;

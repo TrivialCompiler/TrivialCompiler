@@ -38,7 +38,8 @@ overloaded(Ts...) -> overloaded<Ts...>;
 static inline void run_pass(IrProgram *p, const PassDesc &desc) {
 
   auto &[pass, name] = desc;
-  dbg("Running IR pass " + name);
+  auto ir_pass = "Running IR pass " + name;
+  dbg(ir_pass);
 
   std::visit(overloaded {
         [&](IrFuncPass pass) {

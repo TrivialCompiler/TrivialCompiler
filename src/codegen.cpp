@@ -105,7 +105,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           for (int i = 0; i < f->func->params.size(); i++) {
             if (&f->func->params[i] == x->decl) {
-              new_inst->rhs = MachineOperand::R(i);
+              new_inst->rhs = MachineOperand::R((ArmReg)i);
             }
           }
           return res;
@@ -185,14 +185,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
         // mul mul_vreg, dim, mul_vreg
         auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
-        auto mul_inst = new MIBinary(MachineInst::Mul, mbb);
+        auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
         // note: Rd and Rm should be different in mul
         mul_inst->dst = mul_vreg;
         mul_inst->lhs = current_dim_index;
         mul_inst->rhs = mul_vreg;
 
         // add add_vreg, add_vreg, mul_vreg
-        auto add_inst = new MIBinary(MachineInst::Add, mbb);
+        auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
         add_inst->dst = add_vreg;
         add_inst->lhs = add_vreg;
         add_inst->rhs = mul_vreg;
@@ -237,7 +237,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             access_inst->shift = 2;
           } else {
             // access to subarray
-            assert(x->tag != Value::Store);  // you could only store to a specific element
+            assert(x->tag != Value::Tag::Store);  // you could only store to a specific element
             // addr <- &arr
             new MIComment("begin subarray load", mbb);
             auto addr = new_virtual_reg();
@@ -265,7 +265,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto val = resolve(x->ret.value, mbb);
             // move val to a0
             auto mv_inst = new MIMove(mbb);
-            mv_inst->dst = MachineOperand::R(r0);
+            mv_inst->dst = MachineOperand::R(ArmReg::r0);
             mv_inst->rhs = val;
             auto new_inst = new MIReturn(mbb);
             mbb->control_transfer_inst = mv_inst;
@@ -274,25 +274,47 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mbb->control_transfer_inst = new_inst;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
-          auto lhs = resolve_no_imm(x->lhs.value, mbb);
           MachineOperand rhs{};
-          if (x->canUseImmOperand() && x->rhs.value->tag == Value::Const) {
+          auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
+          auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
+          assert(!(lhs_const && rhs_const)); // should be optimized out
+          // try to exchange lhs and rhs to use imm
+          if (lhs_const && x->canUseImmOperand() && x->swapOperand()) {
+            dbg("Imm operand moved from lhs to rhs");
+            std::swap(lhs_const, rhs_const);
+          }
+          // try to use negative imm to reduce instructions
+          if (x->tag == Value::Tag::Add || x->tag == Value::Tag::Sub) {
+            // add r0, #-40 == sub r0, #-40
+            // the former will be splitted into instructions (movw, movt, add), the latter is only one
+            if (rhs_const) {
+              auto &imm = static_cast<ConstValue *>(x->rhs.value)->imm;
+              if(!can_encode_imm(imm) && can_encode_imm(-imm)) {
+                auto negative_imm = "Imm " + std::to_string(imm) + " can be encoded in negative form";
+                dbg(negative_imm);
+                imm = -imm;
+                x->tag = x->tag == Value::Tag::Add ? Value::Tag::Sub : Value::Tag::Add;
+              }
+            }
+          }
+          // try to use imm
+          auto lhs = resolve_no_imm(x->lhs.value, mbb);
+          if (x->canUseImmOperand() && rhs_const) {
             rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb);  // might be imm or register
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
-          if (x->tag == BinaryInst::Mod ||
-              x->tag == BinaryInst::Div) {  // no DIV/MOD instruction, need to use libgcc here
-            auto mod_replace =
-                "Replacing DIV/MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
-            dbg(mod_replace);
+          if (x->tag == Value::Tag::Mod ||
+              x->tag == Value::Tag::Div) {  // no DIV/MOD instruction, need to use libgcc here
+            auto div_mod = "Replacing DIV/MOD " + std::string(lhs) + ", " + std::string(rhs) + " with __aeabi_idivmod";
+            dbg(div_mod);
             // move r0, lhs
             auto mv_lhs = new MIMove(mbb);
-            mv_lhs->dst = MachineOperand::R(r0);
+            mv_lhs->dst = MachineOperand::R(ArmReg::r0);
             mv_lhs->rhs = lhs;
             // move r1, rhs
             auto mv_rhs = new MIMove(mbb);
-            mv_rhs->dst = MachineOperand::R(r1);
+            mv_rhs->dst = MachineOperand::R(ArmReg::r1);
             mv_rhs->rhs = rhs;
             // call __aeabi_idivmod
             auto new_inst = new MICall(mbb);
@@ -301,12 +323,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // move dst, r0/r1
             auto mv_dst = new MIMove(mbb);
             mv_dst->dst = resolve(inst, mbb);
-            if (x->tag == BinaryInst::Mod) {
-              mv_dst->rhs = MachineOperand::R(r1);
+            if (x->tag == Value::Tag::Mod) {
+              mv_dst->rhs = MachineOperand::R(ArmReg::r1);
             } else {
-              mv_dst->rhs = MachineOperand::R(r0);
+              mv_dst->rhs = MachineOperand::R(ArmReg::r0);
             }
-          } else if (BinaryInst::Lt <= x->tag && x->tag <= BinaryInst::Ne) {
+          } else if (Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne) {
             // transform compare instructions
             auto dst = resolve(inst, mbb);
             auto new_inst = new MICompare(mbb);
@@ -314,24 +336,24 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             new_inst->rhs = rhs;
 
             ArmCond cond, opposite;
-            if (x->tag == BinaryInst::Gt) {
-              cond = Gt;
-              opposite = Le;
-            } else if (x->tag == BinaryInst::Ge) {
-              cond = Ge;
-              opposite = Lt;
-            } else if (x->tag == BinaryInst::Le) {
-              cond = Le;
-              opposite = Gt;
-            } else if (x->tag == BinaryInst::Lt) {
-              cond = Lt;
-              opposite = Ge;
-            } else if (x->tag == BinaryInst::Eq) {
-              cond = Eq;
-              opposite = Ne;
-            } else if (x->tag == BinaryInst::Ne) {
-              cond = Ne;
-              opposite = Eq;
+            if (x->tag == Value::Tag::Gt) {
+              cond = ArmCond::Gt;
+              opposite = ArmCond::Le;
+            } else if (x->tag == Value::Tag::Ge) {
+              cond = ArmCond::Ge;
+              opposite = ArmCond::Lt;
+            } else if (x->tag == Value::Tag::Le) {
+              cond = ArmCond::Le;
+              opposite = ArmCond::Gt;
+            } else if (x->tag == Value::Tag::Lt) {
+              cond = ArmCond::Lt;
+              opposite = ArmCond::Ge;
+            } else if (x->tag == Value::Tag::Eq) {
+              cond = ArmCond::Eq;
+              opposite = ArmCond::Ne;
+            } else if (x->tag == Value::Tag::Ne) {
+              cond = ArmCond::Ne;
+              opposite = ArmCond::Eq;
             } else {
               UNREACHABLE();
             }
@@ -344,7 +366,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             mv0_inst->dst = dst;
             mv0_inst->cond = opposite;
             mv0_inst->rhs = get_imm_operand(0, mbb);
-          } else if (BinaryInst::And <= x->tag && x->tag <= BinaryInst::Or) {
+          } else if (Value::Tag::And <= x->tag && x->tag <= Value::Tag::Or) {
             // lhs && rhs:
             // cmp lhs, #0
             // movne v1, #1
@@ -412,7 +434,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto rhs = resolve(x->args[i].value, mbb);
             auto mv_inst = new MIMove(mbb);
             // r0 to r3
-            mv_inst->dst = MachineOperand::R(i);
+            mv_inst->dst = MachineOperand::R((ArmReg)i);
             mv_inst->rhs = rhs;
           }
 
@@ -426,7 +448,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto dst = resolve(inst, mbb);
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = dst;
-            mv_inst->rhs = MachineOperand::R(r0);
+            mv_inst->rhs = MachineOperand::R(ArmReg::r0);
           }
         } else if (auto x = dyn_cast<AllocaInst>(inst)) {
           i32 size = 1;
@@ -437,11 +459,11 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           mf->sp_offset += size;
           i32 offset = mf->sp_offset;
           auto dst = resolve(inst, mbb);
-          auto rhs = get_imm_operand(-offset, mbb);
-          auto add_inst = new MIBinary(MachineInst::Add, mbb);
+          auto rhs = get_imm_operand(offset, mbb);
+          auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb); // sub is more friendly
           add_inst->dst = dst;
           // fp is r11
-          add_inst->lhs = MachineOperand::R(r11);
+          add_inst->lhs = MachineOperand::R(ArmReg::r11);
           add_inst->rhs = rhs;
         }
       }
@@ -510,15 +532,15 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = r0; i <= r3; i++) {
-      def.push_back(MachineOperand::R(i));
-      use.push_back(MachineOperand::R(i));
+    for (int i = (int) ArmReg::r0; i <= (int) ArmReg::r3; i++) {
+      def.push_back(MachineOperand::R((ArmReg) i));
+      use.push_back(MachineOperand::R((ArmReg) i));
     }
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (auto x = dyn_cast<MIReturn>(inst)) {
     // ret
-    use.push_back(MachineOperand::R(r0));
+    use.push_back(MachineOperand::R(ArmReg::r0));
   }
   return {def, use};
 }
@@ -640,10 +662,10 @@ void register_allocate(MachineProgram *p) {
       std::set<MIMove *> active_moves;
 
       // allocatable registers
-      i32 k = r11 - r0 + 1;
+      i32 k = (int) ArmReg::r11 - (int) ArmReg::r0 + 1;
       // init degree for pre colored nodes
-      for (i32 i = r0; i <= r3; i++) {
-        auto op = MachineOperand::R(i);
+      for (i32 i = (int) ArmReg::r0; i <= (int) ArmReg::r3; i++) {
+        auto op = MachineOperand::R((ArmReg)i);
         // very large
         degree[op] = 0x40000000;
       }
@@ -1037,7 +1059,7 @@ void register_allocate(MachineProgram *p) {
                 def->value = vreg;
                 auto new_inst = new MIStore();
                 new_inst->bb = bb;
-                new_inst->addr = MachineOperand::R(r13);  // sp
+                new_inst->addr = MachineOperand::R(ArmReg::r13);  // sp
                 new_inst->shift = 0;
                 new_inst->offset = MachineOperand::I(-offset);
                 new_inst->data = MachineOperand::V(vreg);
@@ -1052,7 +1074,7 @@ void register_allocate(MachineProgram *p) {
                   u->value = vreg;
                   auto new_inst = new MILoad(inst);
                   new_inst->bb = bb;
-                  new_inst->addr = MachineOperand::R(r13);  // sp
+                  new_inst->addr = MachineOperand::R(ArmReg::r13);  // sp
                   new_inst->shift = 0;
                   new_inst->offset = MachineOperand::I(-offset);
                   new_inst->dst = MachineOperand::V(vreg);
