@@ -99,7 +99,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           val_map[value] = res;
           param_map[x->decl] = res;
           new_inst->dst = res;
-          // TODO: more than 4 args?
+          if (f->func->params.size() > 4) {
+            // TODO: more than 4 args, use stack to pass parameters
+            ERR_EXIT(CODEGEN_ERROR, "Too many function arguments", f->func->name);
+          }
           for (int i = 0; i < f->func->params.size(); i++) {
             if (&f->func->params[i] == x->decl) {
               new_inst->rhs = MachineOperand{.state = MachineOperand::PreColored, .value = i};
