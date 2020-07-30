@@ -6,7 +6,6 @@
 #include <cstdio>
 #include <cstring>
 #include <fstream>
-#include <string>
 
 #include "ast.hpp"
 #include "codegen.hpp"
@@ -20,10 +19,13 @@ int main(int argc, char *argv[]) {
   char *src = nullptr, *output = nullptr, *ir_file = nullptr;
 
   // parse command line options and check
-  for (int ch; (ch = getopt(argc, argv, "Sl:o:O:h")) != -1;) {
+  for (int ch; (ch = getopt(argc, argv, "Sdl:o:O:h")) != -1;) {
     switch (ch) {
       case 'S':
         // do nothing
+        break;
+      case 'd':
+        debug_mode = true;
         break;
       case 'l':
         ir_file = strdup(optarg);
@@ -49,7 +51,7 @@ int main(int argc, char *argv[]) {
   dbg(src, output, ir_file, opt, print_usage);
 
   if (src == nullptr || print_usage) {
-    fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-o output_file] [-O level] input_file\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-d (debug mode)] [-o output_file] [-O level] input_file\n", argv[0]);
     return !print_usage && SYSTEM_ERROR;
   }
 

@@ -634,8 +634,10 @@ void register_allocate(MachineProgram *p) {
       // procedure AddEdge(u, v)
       auto add_edge = [&](MachineOperand u, MachineOperand v) {
         if (adj_set.find({u, v}) == adj_set.end() && u != v) {
-          auto interference = std::string(u) + " <-> " + std::string(v);
-          dbg(interference);
+          if (debug_mode) {
+            auto interference = std::string(u) + " <-> " + std::string(v);
+            dbg(interference);
+          }
           adj_set.insert({u, v});
           adj_set.insert({v, u});
           if (!u.is_precolored()) {
@@ -954,9 +956,11 @@ void register_allocate(MachineProgram *p) {
           }
         }
 
-        for (auto &[before, after] : colored) {
-          auto colored = std::string(before) + " => " + std::string(after);
-          dbg(colored);
+        if (debug_mode) {
+          for (auto &[before, after] : colored) {
+            auto colored = std::string(before) + " => " + std::string(after);
+            dbg(colored);
+          }
         }
 
         // replace usage of virtual registers

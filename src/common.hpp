@@ -50,3 +50,5 @@ inline bool can_encode_imm(i32 imm) {
   }
   return false;
 }
+
+extern bool debug_mode;
