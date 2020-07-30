@@ -33,7 +33,6 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, ConstValue *x) {
 static Value *find_eq(std::unordered_map<Value *, Value *> &vn, LoadInst *x) {
   for (auto &[k, v] : vn) {
     if (auto y = dyn_cast<LoadInst>(k); y && y != x) {
-      // todo: 现在的globalref每次都会new新的
       // 对load的arr和dep没有必要用vn，直接要求地址相等就可以了
       bool same = x->arr.value == y->arr.value &&
                   x->dims.size() == y->dims.size() &&

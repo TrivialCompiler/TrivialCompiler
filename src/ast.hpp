@@ -80,6 +80,8 @@ struct InitList {
   std::vector<InitList> val2;
 };
 
+struct Value;
+
 struct Decl {
   bool is_const;
   bool is_glob;
@@ -91,6 +93,11 @@ struct Decl {
   std::vector<Expr *> dims;
   InitList init;  // 配合has_init，逻辑上相当于std::optional<InitList>，但是stl这一套实在是不好用
   std::vector<Expr *> flatten_init;  // parse完后为空，typeck阶段填充，是完全展开+补0后的init
+
+  // ast->ir阶段赋值，每个Decl拥有属于自己的Value，Value *的地址相等等价于指向同一个的变量
+  // 一开始全局变量：GlobalRef，参数中的数组：ParamRef，参数中的int/局部变量：AllocaInst
+  // 经过mem2reg后，参数和局部变量中的int将不再需要这个AllocaInst
+  Value *value;
 };
 
 struct Stmt {

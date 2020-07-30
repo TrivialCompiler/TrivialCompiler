@@ -112,8 +112,6 @@ struct IrFunc {
   DEFINE_ILIST(IrFunc)
   Func *func;
   ilist<BasicBlock> bb;
-  // mapping from decl to its value in this function
-  std::map<Decl *, Value *> decls;
 
   // 将所有bb的vis置false
   void clear_all_vis() {

@@ -9,16 +9,6 @@ struct SsaContext {
   BasicBlock *bb;
   // bb stack for (continue, break)
   std::vector<std::pair<BasicBlock *, BasicBlock *>> loop_stk;
-
-  Value *getDecl(Decl *decl) {
-    auto it = func->decls.find(decl);
-    if (it == func->decls.end()) {
-      // not found, must be a global variable
-      return new GlobalRef(decl);
-    } else {
-      return it->second;
-    }
-  }
 };
 
 Value *convert_expr(SsaContext *ctx, Expr *expr) {
@@ -39,8 +29,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       dims.push_back(value);
     }
 
-    auto value = ctx->getDecl(x->lhs_sym);
-    auto inst = new LoadInst(x->lhs_sym, value, ctx->bb);
+    auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, ctx->bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
@@ -74,7 +63,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     for (auto &decl : x->decls) {
       // local variables
       auto inst = new AllocaInst(&decl, ctx->bb);
-      ctx->func->decls[&decl] = inst;
+      decl.value = inst;
 
       // handle init expr
       if (decl.has_init) {
@@ -94,11 +83,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
       dims.push_back(dim);
     }
 
-    // lhs
-    auto value = ctx->getDecl(x->lhs_sym);
     // rhs
     auto rhs = convert_expr(ctx, x->rhs);
-    auto inst = new StoreInst(x->lhs_sym, value, rhs, ctx->bb);
+    auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, ctx->bb);
 
     // dims
     inst->dims.reserve(x->dims.size());
@@ -202,16 +189,15 @@ IrProgram *convert_ssa(Program &p) {
 
       // setup params
       for (auto &p : f->params) {
-        if (p.dims.size()) {
-          // there is no need to alloca for array param
-          auto ref = new ParamRef(&p);
-          func->decls[&p] = ref;
-        } else {
+        if (p.dims.empty()) {
           // alloca for each non-array param
           auto inst = new AllocaInst(&p, entryBB);
-          func->decls[&p] = inst;
+          p.value = inst;
           // then copy param into it
           auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), entryBB);
+        } else {
+          // there is no need to alloca for array param
+          p.value = new ParamRef(&p);
         }
       }
 
@@ -233,6 +219,7 @@ IrProgram *convert_ssa(Program &p) {
       Decl *d = std::get_if<1>(&g);
       // TODO
       ret->glob_decl.push_back(d);
+      d->value = new GlobalRef(d);
     }
   }
   return ret;
