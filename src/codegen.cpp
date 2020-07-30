@@ -462,8 +462,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto rhs = get_imm_operand(offset, mbb);
           auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb); // sub is more friendly
           add_inst->dst = dst;
-          // fp is r11
-          add_inst->lhs = MachineOperand::R(ArmReg::r11);
+          add_inst->lhs = MachineOperand::R(fp);
           add_inst->rhs = rhs;
         }
       }
@@ -1059,7 +1058,7 @@ void register_allocate(MachineProgram *p) {
                 def->value = vreg;
                 auto new_inst = new MIStore();
                 new_inst->bb = bb;
-                new_inst->addr = MachineOperand::R(ArmReg::r13);  // sp
+                new_inst->addr = MachineOperand::R(fp);  // fp
                 new_inst->shift = 0;
                 new_inst->offset = MachineOperand::I(-offset);
                 new_inst->data = MachineOperand::V(vreg);
@@ -1074,7 +1073,7 @@ void register_allocate(MachineProgram *p) {
                   u->value = vreg;
                   auto new_inst = new MILoad(inst);
                   new_inst->bb = bb;
-                  new_inst->addr = MachineOperand::R(ArmReg::r13);  // sp
+                  new_inst->addr = MachineOperand::R(fp);  // fp
                   new_inst->shift = 0;
                   new_inst->offset = MachineOperand::I(-offset);
                   new_inst->dst = MachineOperand::V(vreg);

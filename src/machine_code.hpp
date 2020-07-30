@@ -42,6 +42,9 @@ enum class ArmReg {
   r15,
 };
 
+const ArmReg fp = ArmReg::r11;
+const ArmReg sp = ArmReg::r13;
+
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
