@@ -141,11 +141,11 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             os << std::hex;
             os << "\t"
                << "movw"
-               << "\t" << x->dst << ", " << low_operand << "@ 0x" << low_bits << endl;
+               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
             if (high_bits != 0) {
               os << "\t"
                  << "movt"
-                 << "\t" << x->dst << ", " << high_operand << "@ 0x" << high_bits << endl;
+                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
             }
             os << std::dec;
           } else {
@@ -157,8 +157,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // increase sp
           if (f->sp_offset) {
             os << "add\tsp, sp, #" << f->sp_offset << endl;
+            os << "\t";
           }
-          os << "\tldmfd\t sp!, {r4-r11,pc}" << endl;
+          os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
         } else if (auto x = dyn_cast<MICall>(inst)) {
           os << "blx\t" << x->func->name << endl;
         } else if (auto x = dyn_cast<MIComment>(inst)) {
