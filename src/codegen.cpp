@@ -173,29 +173,38 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       mv_inst->dst = add_vreg;
       mv_inst->rhs = get_imm_operand(0, mbb);
 
-      // TODO: eliminate MUL when sub_arr_size == 1
       for (int i = 0; i < access_dims.size(); i++) {
         // number of elements
         i32 sub_arr_size = i + 1 < var_dims.size() ? var_dims[i + 1]->result : 1;
 
-        // mov mul_vreg, sub_arr_size
-        auto mv_inst = new MIMove(mbb);
-        mv_inst->dst = mul_vreg;
-        mv_inst->rhs = get_imm_operand(sub_arr_size, mbb);
+        // eliminate MUL when sub_arr_size == 1
+        if (sub_arr_size == 1) {
+          auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
+          // add add_vreg, add_vreg, dim
+          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+          add_inst->dst = add_vreg;
+          add_inst->lhs = add_vreg;
+          add_inst->rhs = current_dim_index;
+        } else {
+          // mov mul_vreg, sub_arr_size
+          auto mv_inst = new MIMove(mbb);
+          mv_inst->dst = mul_vreg;
+          mv_inst->rhs = get_imm_operand(sub_arr_size, mbb);
 
-        // mul mul_vreg, dim, mul_vreg
-        auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
-        auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-        // note: Rd and Rm should be different in mul
-        mul_inst->dst = mul_vreg;
-        mul_inst->lhs = current_dim_index;
-        mul_inst->rhs = mul_vreg;
+          // mul mul_vreg, dim, mul_vreg
+          auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
+          auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
+          // note: Rd and Rm should be different in mul
+          mul_inst->dst = mul_vreg;
+          mul_inst->lhs = current_dim_index;
+          mul_inst->rhs = mul_vreg;
 
-        // add add_vreg, add_vreg, mul_vreg
-        auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-        add_inst->dst = add_vreg;
-        add_inst->lhs = add_vreg;
-        add_inst->rhs = mul_vreg;
+          // add add_vreg, add_vreg, mul_vreg
+          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+          add_inst->dst = add_vreg;
+          add_inst->lhs = add_vreg;
+          add_inst->rhs = mul_vreg;
+        }
       }
 
       return add_vreg;
@@ -277,7 +286,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           MachineOperand rhs{};
           auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
-          assert(!(lhs_const && rhs_const)); // should be optimized out
+          assert(!(lhs_const && rhs_const));  // should be optimized out
           // try to exchange lhs and rhs to use imm
           if (lhs_const && x->canUseImmOperand() && x->swapOperand()) {
             dbg("Imm operand moved from lhs to rhs");
@@ -289,7 +298,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             // the former will be splitted into instructions (movw, movt, add), the latter is only one
             if (rhs_const) {
               auto &imm = static_cast<ConstValue *>(x->rhs.value)->imm;
-              if(!can_encode_imm(imm) && can_encode_imm(-imm)) {
+              if (!can_encode_imm(imm) && can_encode_imm(-imm)) {
                 auto negative_imm = "Imm " + std::to_string(imm) + " can be encoded in negative form";
                 dbg(negative_imm);
                 imm = -imm;
@@ -305,7 +314,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
           if (x->tag == Value::Tag::Mod) {
-            UNREACHABLE(); // should be replaced
+            UNREACHABLE();  // should be replaced
           } else if (Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne) {
             // transform compare instructions
             auto dst = resolve(inst, mbb);
@@ -438,7 +447,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           i32 offset = mf->sp_offset;
           auto dst = resolve(inst, mbb);
           auto rhs = get_imm_operand(offset, mbb);
-          auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb); // sub is more friendly
+          auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);  // sub is more friendly
           add_inst->dst = dst;
           add_inst->lhs = MachineOperand::R(fp);
           add_inst->rhs = rhs;
@@ -506,9 +515,9 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = (int) ArmReg::r0; i <= (int) ArmReg::r3; i++) {
-      def.push_back(MachineOperand::R((ArmReg) i));
-      use.push_back(MachineOperand::R((ArmReg) i));
+    for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
+      def.push_back(MachineOperand::R((ArmReg)i));
+      use.push_back(MachineOperand::R((ArmReg)i));
     }
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
@@ -633,9 +642,9 @@ void register_allocate(MachineProgram *p) {
       std::set<MIMove *> active_moves;
 
       // allocatable registers
-      i32 k = (int) ArmReg::r10 - (int) ArmReg::r0 + 1;
+      i32 k = (int)ArmReg::r10 - (int)ArmReg::r0 + 1;
       // init degree for pre colored nodes
-      for (i32 i = (int) ArmReg::r0; i <= (int) ArmReg::r3; i++) {
+      for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
         auto op = MachineOperand::R((ArmReg)i);
         // very large
         degree[op] = 0x40000000;
