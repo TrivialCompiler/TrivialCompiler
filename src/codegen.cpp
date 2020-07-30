@@ -662,7 +662,7 @@ void register_allocate(MachineProgram *p) {
       std::set<MIMove *> active_moves;
 
       // allocatable registers
-      i32 k = (int) ArmReg::r11 - (int) ArmReg::r0 + 1;
+      i32 k = (int) ArmReg::r10 - (int) ArmReg::r0 + 1;
       // init degree for pre colored nodes
       for (i32 i = (int) ArmReg::r0; i <= (int) ArmReg::r3; i++) {
         auto op = MachineOperand::R((ArmReg)i);

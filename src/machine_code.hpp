@@ -30,6 +30,7 @@ enum class ArmReg {
   r8,
   r9,
   r10,
+  // frame pointer
   r11,
   // ipc scratch register, what was that?
   r12,
