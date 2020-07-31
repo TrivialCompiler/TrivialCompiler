@@ -1,11 +1,10 @@
 #!/bin/bash
 
 ARCH=`arch`
-if [ "$ARCH" = "aarch64" ]; then
-    PATH=$PWD:$PATH
-    QEMU="sh -c "
+if [ "$ARCH" = "x86_64" ]; then
+    RUN="timeout -v 60 qemu-arm"
 else
-    QEMU="timeout -v 60 qemu-arm"
+    RUN="timeout -v 60 sh -c"
 fi
 
 set -v
@@ -13,9 +12,9 @@ rm -rf "$3"
 
 # run program with QEMU
 if [ -e "$2" ]; then
-    $QEMU "$1" < "$2" > "$3"
+    $RUN "$1" < "$2" > "$3"
 else
-    $QEMU "$1" > "$3"
+    $RUN "$1" > "$3"
 fi
 
 res=$?
