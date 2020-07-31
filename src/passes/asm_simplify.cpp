@@ -8,6 +8,11 @@ void asm_simplify(MachineFunc* f) {
           dbg("Removed identity move");
           bb->insts.remove(inst);
         }
+      } else if (auto x = dyn_cast<MIBinary>(inst)) {
+        if (x->isIdentity()) {
+          dbg("Removed identity binary operation");
+          bb->insts.remove(inst);
+        }
       }
     }
   }
