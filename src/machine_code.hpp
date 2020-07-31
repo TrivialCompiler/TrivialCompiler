@@ -233,16 +233,6 @@ struct MIBinary : MachineInst {
   MachineOperand rhs;
 
   MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
-
-  bool isIdentity() {
-    switch (tag) {
-      case Tag::Add:
-      case Tag::Sub:
-        return dst.is_equiv(lhs) && rhs == MachineOperand::I(0);
-      default:
-        return false;
-    }
-  }
 };
 
 // 应该有四种，但是现在只用到一种UMULL，所以也没有额外定义来区分它们

@@ -15,10 +15,6 @@ void asm_simplify(MachineFunc* f) {
           bb->insts.remove(inst);
         }
       } else if (auto x = dyn_cast<MIBinary>(inst)) {
-        if (x->isIdentity()) {
-          dbg("Removed identity binary operation");
-          bb->insts.remove(inst);
-        }
         if (auto y = dyn_cast_nullable<MIMove>(inst->prev)) {
           if (x->dst.is_equiv(x->rhs) && !x->lhs.is_equiv(x->rhs) && x->rhs.is_equiv(x->dst) && y->rhs.is_imm() && y->is_simple()) {
             // mov r1, imm
