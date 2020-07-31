@@ -74,7 +74,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       increase_count();
     } else if (auto x = dyn_cast<MIBranch>(inst)) {
       os << "b" << x->cond << "\t" << pb(x->target) << endl;
-      insert_pool();
       increase_count();
     } else if (auto x = dyn_cast<MIAccess>(inst)) {
       MachineOperand data{};
