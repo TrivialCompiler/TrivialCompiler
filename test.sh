@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ARCH=`arch`
 if [ "$ARCH" = "aarch64" ]; then
