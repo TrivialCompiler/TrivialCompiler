@@ -26,7 +26,7 @@ then
     echo "${res}" >> "$3"
 else
     # no newline at eof
-    echo -n "\n${res}" >> "$3"
+    echo -en "\n${res}" >> "$3"
 fi
 
 diff -w -B -u "$3" "$4"
