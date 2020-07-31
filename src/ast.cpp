@@ -14,3 +14,8 @@ Func Func::BUILTIN[8] = {
     Func{false, "_sysy_starttime", {Decl{false, false, false, "a"}}},
     Func{false, "_sysy_stoptime", {Decl{false, false, false, "a"}}},
 };
+
+Func Func::MEMSET = {false,
+                     "memset",
+                     {Decl{false, false, false, "arr", {nullptr}}, Decl{false, false, false, "num"},
+                      Decl{false, false, false, "count"}}};

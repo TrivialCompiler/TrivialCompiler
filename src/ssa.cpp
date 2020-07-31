@@ -81,9 +81,52 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
           auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
         } else {
           // assign each element of flatten_init
+          // heuristic: count how many elements are zero
+          int num_zeros = 0;
+          std::vector<Value *> values;
+          values.reserve(decl.flatten_init.size());
           for (int i = 0; i < decl.flatten_init.size(); i++) {
             auto init = convert_expr(ctx, decl.flatten_init[i]);
-            auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
+            values.push_back(init);
+            if (auto x = dyn_cast<ConstValue>(init)) {
+              if (x->imm == 0) {
+                num_zeros++;
+              }
+            }
+          }
+
+          bool emit_memset = false;
+          if (num_zeros > 10) {
+            emit_memset = true;
+            // get addr, to make llvm happy
+            // but we can remove it later
+            auto load_inst = new LoadInst(&decl, inst, ctx->bb);
+
+            // dims: all zero except last
+            load_inst->dims.reserve(decl.dims.size()-1);
+            for (int i = 0;i < decl.dims.size()-1;i++) {
+              load_inst->dims.emplace_back(new ConstValue(0), inst);
+            }
+
+            auto call_inst = new CallInst(&Func::MEMSET, ctx->bb);
+            call_inst->args.reserve(3);
+            // arr
+            call_inst->args.emplace_back(load_inst, call_inst);
+            // ch
+            call_inst->args.emplace_back(new ConstValue(0), call_inst);
+            // count = num * 4
+            call_inst->args.emplace_back(new ConstValue(decl.dims[0]->result * 4), call_inst);
+          }
+
+          for (int i = 0; i < decl.flatten_init.size(); i++) {
+            // skip safely
+            if (auto x = dyn_cast<ConstValue>(values[i])) {
+              if (emit_memset && x->imm == 0) {
+                continue;
+              }
+            }
+
+            auto store_inst = new StoreInst(&decl, inst, values[i], ctx->bb);
             int temp = i;
             store_inst->dims.reserve(decl.dims.size());
             for (int j = 0; j < decl.dims.size(); j++) {

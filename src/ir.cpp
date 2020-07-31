@@ -127,6 +127,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare i32 @getarray(i32*)" << endl;
   os << "declare void @_sysy_starttime(i32)" << endl;
   os << "declare void @_sysy_stoptime(i32)" << endl;
+  os << "declare void @memset(i32*, i32, i32)" << endl;
 
   for (auto &d : p.glob_decl) {
     os << "@" << d->name << " = global ";

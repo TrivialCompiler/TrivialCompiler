@@ -165,6 +165,7 @@ struct Func {
   Block body;
 
   static Func BUILTIN[8];
+  static Func MEMSET;
 };
 
 struct Program {
