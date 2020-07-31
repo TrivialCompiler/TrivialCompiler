@@ -170,10 +170,10 @@ void gvn_gcm(IrFunc *f) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
-        auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value);
-        if (l && x->swapOperand()) {
+        if (dyn_cast<ConstValue>(x->lhs.value) && x->swapOperand()) {
           dbg("IMM operand moved from lhs to rhs");
         }
+        auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value);
         // for most instructions reach here (except AND and OR), rhs is IMM
         if (l && r) {
           // both constant, evaluate and eliminate

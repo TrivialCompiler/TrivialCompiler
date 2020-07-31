@@ -193,7 +193,7 @@ struct BinaryInst : Inst {
   };
 
   bool swapOperand() {
-    for (auto &[before, after] : swapableOperators) {
+    for (auto [before, after] : swapableOperators) {
       if (this->tag == before) {
         this->tag = after;
         std::swap(this->lhs, this->rhs);
