@@ -20,7 +20,7 @@ void asm_simplify(MachineFunc* f) {
           bb->insts.remove(inst);
         }
         if (auto y = dyn_cast_nullable<MIMove>(inst->prev)) {
-          if (x->dst == x->rhs && x->lhs != x->rhs && x->rhs == y->dst && y->rhs.is_imm() && y->is_simple()) {
+          if (x->dst.is_equiv(x->rhs) && !x->lhs.is_equiv(x->rhs) && x->rhs.is_equiv(x->dst) && y->rhs.is_imm() && y->is_simple()) {
             // mov r1, imm
             // mul r1, r2, r1
             // case1: imm is power of 2

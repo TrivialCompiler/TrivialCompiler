@@ -238,7 +238,7 @@ struct MIBinary : MachineInst {
     switch (tag) {
       case Tag::Add:
       case Tag::Sub:
-        return dst == lhs && rhs == MachineOperand::I(0);
+        return dst.is_equiv(lhs) && rhs == MachineOperand::I(0);
       default:
         return false;
     }
