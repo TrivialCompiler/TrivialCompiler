@@ -311,11 +311,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
           assert(!(lhs_const && rhs_const));  // should be optimized out
-          // try to exchange lhs and rhs to use imm
-          if (lhs_const && x->canUseImmOperand() && x->swapOperand()) {
-            dbg("Imm operand moved from lhs to rhs");
-            std::swap(lhs_const, rhs_const);
-          }
           // try to use negative imm to reduce instructions
           if (x->tag == Value::Tag::Add || x->tag == Value::Tag::Sub) {
             // add r0, #-40 == sub r0, #-40
@@ -332,7 +327,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           // try to use imm
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
-          if (x->canUseImmOperand() && rhs_const) {
+          if (x->rhsCanBeImm() && rhs_const) {
             rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb);  // might be imm or register
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);

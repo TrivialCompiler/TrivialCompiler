@@ -174,20 +174,22 @@ struct BinaryInst : Inst {
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 
-  bool canUseImmOperand() {
+  bool rhsCanBeImm() {
     // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
     return tag == Tag::Add || tag == Tag::Sub || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static std::pair<Tag, Tag> swapableOperators[8] = {
+  constexpr static std::pair<Tag, Tag> swapableOperators[9] = {
       {Tag::Add, Tag::Add},
+      {Tag::Sub, Tag::Rsb},
+      {Tag::Mul, Tag::Mul},
+      {Tag::Lt,  Tag::Gt},
+      {Tag::Le,  Tag::Ge},
+      {Tag::Gt,  Tag::Lt},
+      {Tag::Ge,  Tag::Le},
       {Tag::Eq,  Tag::Eq},
       {Tag::Ne,  Tag::Ne},
-      {Tag::Lt,  Tag::Gt},
-      {Tag::Gt,  Tag::Lt},
-      {Tag::Le,  Tag::Ge},
-      {Tag::Ge,  Tag::Le},
-      {Tag::Sub, Tag::Rsb},
+      // And and Or need to be short-circuited
   };
 
   bool swapOperand() {
@@ -199,6 +201,50 @@ struct BinaryInst : Inst {
       }
     }
     return false;
+  }
+
+  std::pair<bool, Value*> optimizedValue() {
+    // some constants
+    std::pair<bool, Value*> no = {false, nullptr};
+    static auto CONST_0 = new ConstValue(0);
+    static auto CONST_1 = new ConstValue(1);
+    // imm on rhs
+    if (auto r = dyn_cast<ConstValue>(rhs.value)) {
+      switch (tag) {
+        case Tag::Add:
+        case Tag::Sub:
+          return {r->imm == 0, lhs.value}; // ADD or SUB 0
+        case Tag::Mul:
+          if (r->imm == 0) return {true, CONST_0}; // MUL 0
+          [[fallthrough]];
+        case Tag::Div:
+          if (r->imm == 1) return {true, lhs.value}; // MUL or DIV 1
+        case Tag::Mod:
+          return {r->imm == 1, CONST_0}; // MOD 1
+        case Tag::And:
+          if (r->imm == 0) return {true, CONST_0};
+          return {r->imm == 1, lhs.value};
+        case Tag::Or:
+          if (r->imm == 1) return {true, CONST_1};
+          return {r->imm == 0, lhs.value};
+        default:
+          return no;
+      }
+    }
+    // imm on lhs, for short-circuit logic only
+    if (auto l = dyn_cast<ConstValue>(lhs.value)) {
+      switch (tag) {
+        case Tag::And:
+          if (l->imm == 0) return {true, CONST_0};
+          return {l->imm == 1, rhs.value};
+        case Tag::Or:
+          if (l->imm == 1) return {true, CONST_1};
+          return {l->imm == 0, lhs.value};
+        default:
+          UNREACHABLE();
+      }
+    }
+    return no;
   }
 
 };
