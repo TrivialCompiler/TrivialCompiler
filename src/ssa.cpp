@@ -85,6 +85,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
             auto init = convert_expr(ctx, decl.flatten_init[i]);
             auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
             int temp = i;
+            store_inst->dims.reserve(decl.dims.size());
             for (int j = 0; j < decl.dims.size(); j++) {
               int size = j + 1 < decl.dims.size() ? decl.dims[j + 1]->result : 1;
               int index = temp / size;
