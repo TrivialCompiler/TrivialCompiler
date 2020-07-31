@@ -10,7 +10,7 @@ void asm_simplify(MachineFunc* f) {
   for (auto bb = f->bb.head; bb; bb = bb->next) {
     for (auto inst = bb->insts.head; inst; inst = inst->next) {
       if (auto x = dyn_cast<MIMove>(inst)) {
-        if (x->dst == x->rhs && x->is_simple()) {
+        if (x->dst.is_equiv(x->rhs) && x->is_simple()) {
           bb->insts.remove(inst);
         }
       } else if (auto x = dyn_cast<MIBinary>(inst)) {

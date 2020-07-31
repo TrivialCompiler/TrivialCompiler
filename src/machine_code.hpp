@@ -144,6 +144,12 @@ struct MachineOperand {
 
   inline static MachineOperand I(int imm) { return MachineOperand{Immediate, imm}; }
 
+  // both are PreColored or Allocated, and has the same value
+  bool is_equiv(const MachineOperand &other) const {
+    return (state == PreColored || state == Allocated) && (other.state == PreColored || state == Allocated) &&
+           value == other.value;
+  }
+
   bool operator<(const MachineOperand &other) const {
     if (state != other.state) {
       return state < other.state;
