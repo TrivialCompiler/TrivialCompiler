@@ -325,6 +325,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               }
             }
           }
+          if (x->tag == Value::Tag::Sub && lhs_const) {
+            x->tag = Value::Tag::Rsb;
+            std::swap(x->lhs, x->rhs);
+          }
           // try to use imm
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           if (x->rhsCanBeImm() && rhs_const) {

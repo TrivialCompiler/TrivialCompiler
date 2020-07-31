@@ -175,13 +175,12 @@ struct BinaryInst : Inst {
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 
   bool rhsCanBeImm() {
-    // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
-    return tag == Tag::Add || tag == Tag::Sub || (tag >= Tag::Lt && tag <= Tag::Or);
+    // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or
+    return (tag >= Tag::Add && tag <= Tag::Rsb) || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static std::pair<Tag, Tag> swapableOperators[9] = {
+  constexpr static std::pair<Tag, Tag> swapableOperators[8] = {
       {Tag::Add, Tag::Add},
-      {Tag::Sub, Tag::Rsb},
       {Tag::Mul, Tag::Mul},
       {Tag::Lt,  Tag::Gt},
       {Tag::Le,  Tag::Ge},
@@ -240,7 +239,10 @@ struct BinaryInst : Inst {
         case Tag::Or:
           if (l->imm == 1) return {true, CONST_1};
           return {l->imm == 0, lhs.value};
+        case Tag::Sub:
+          return no;
         default:
+          // shouldn't be here
           UNREACHABLE();
       }
     }

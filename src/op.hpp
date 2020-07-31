@@ -13,8 +13,6 @@ inline i32 eval(Op op, i32 l, i32 r) {
       return l + r;
     case Sub:
       return l - r;
-    case Rsb:
-      return r - l;
     case Mul:
       return l * r;
     // 除0就随它去吧，反正我们对于错误都是直接退出的
