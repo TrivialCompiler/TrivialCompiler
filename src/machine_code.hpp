@@ -46,6 +46,28 @@ const ArmReg fp = ArmReg::r11;
 const ArmReg sp = ArmReg::r13;
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
+struct ArmShift {
+  enum {
+    // no shifting
+    None,
+    // arithmetic right
+    Asr,
+    // logic left
+    Lsl,
+    // logic right
+    Lsr,
+    // rotate right
+    Ror,
+    // rotate right one bit with extend
+    Rrx
+  } type;
+  int shift;
+
+  ArmShift() {
+    shift = 0;
+    type = None;
+  }
+};
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
   if (cond == ArmCond::Eq) {
@@ -113,14 +135,12 @@ struct MachineOperand {
   i32 value;
 
   inline static MachineOperand R(ArmReg r) {
-    auto n = (int) r;
+    auto n = (int)r;
     assert(n >= 0 && n <= 16);
     return MachineOperand{PreColored, n};
   }
 
-  inline static MachineOperand V(int n) {
-    return MachineOperand{Virtual, n};
-  }
+  inline static MachineOperand V(int n) { return MachineOperand{Virtual, n}; }
 
   inline static MachineOperand I(int imm) { return MachineOperand{Immediate, imm}; }
 
@@ -137,6 +157,7 @@ struct MachineOperand {
   bool operator!=(const MachineOperand &other) const { return state != other.state || value != other.value; }
 
   bool is_virtual() const { return state == Virtual; }
+  bool is_imm() const { return state == Immediate; }
   bool is_precolored() const { return state == PreColored; }
   bool needs_color() const { return state == Virtual || state == PreColored; }
 
@@ -211,6 +232,9 @@ struct MIMove : MachineInst {
   ArmCond cond;
   MachineOperand dst;
   MachineOperand rhs;
+  ArmShift shift;
+
+  bool is_simple() { return cond == ArmCond::Any && shift.type == ArmShift::None; }
 
   MIMove(MachineBB *insertAtEnd) : MachineInst(Tag::Mv, insertAtEnd), cond(ArmCond::Any) {}
   MIMove(MachineBB *insertAtBegin, int) : MachineInst(Tag::Mv), cond(ArmCond::Any) {

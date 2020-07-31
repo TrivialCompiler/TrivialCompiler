@@ -166,7 +166,15 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         }
         os << std::dec;
       } else {
-        os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs << endl;
+        os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs;
+        if (x->shift.type != ArmShift::None) {
+          const char *op = "unknown";
+          if (x->shift.type == ArmShift::Lsl) {
+            op = "lsl";
+          }
+          os << ", " << op << " #" << x->shift.shift;
+        }
+        os << endl;
         increase_count();
       }
     } else if (auto x = dyn_cast<MIReturn>(inst)) {

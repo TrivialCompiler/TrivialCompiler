@@ -713,7 +713,7 @@ void register_allocate(MachineProgram *p) {
           for (auto inst = bb->insts.tail; inst; inst = inst->prev) {
             auto [def, use] = get_def_use(inst);
             if (auto x = dyn_cast<MIMove>(inst)) {
-              if (x->dst.needs_color() && x->rhs.needs_color()) {
+              if (x->dst.needs_color() && x->rhs.needs_color() && x->is_simple()) {
                 live.erase(x->rhs);
                 move_list[x->rhs].insert(x);
                 move_list[x->dst].insert(x);
