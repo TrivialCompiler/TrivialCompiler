@@ -268,7 +268,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     auto print_values = [&]() {
       using std::hex;
       using std::dec;
-      // TODO: print in hex?
       if (count > 1) {
         os << "\t"
            << ".fill"

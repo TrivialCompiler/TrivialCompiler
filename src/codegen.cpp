@@ -9,7 +9,7 @@
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
 
 void insert_parallel_mv(ParMv &movs, MachineInst *insertBefore) {
-  // TODO: serialization
+  // serialization in any order is okay
   for (auto &[lhs, rhs] : movs) {
     auto inst = new MIMove(insertBefore);
     inst->dst = lhs;
@@ -581,7 +581,7 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     use = {&x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
-    // TODO
+    // intentionally blank
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {&x->dst};
   }
@@ -631,7 +631,6 @@ void liveness_analysis(MachineFunc *f) {
         changed = true;
         bb->liveout = new_out;
         std::set<MachineOperand> new_in = bb->liveuse;
-        // TODO: optimize
         for (auto &e : bb->liveout) {
           if (bb->def.find(e) == bb->def.end()) {
             new_in.insert(e);
@@ -962,7 +961,7 @@ void register_allocate(MachineProgram *p) {
 
       // procedure SelectSpill()
       auto select_spill = [&]() {
-        // TODO: heuristic
+        // TODO: heuristic to improve performance
         auto m = *spill_worklist.begin();
         spill_worklist.erase(m);
         simplify_worklist.insert(m);

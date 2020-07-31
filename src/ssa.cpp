@@ -225,7 +225,6 @@ IrProgram *convert_ssa(Program &p) {
       }
     } else {
       Decl *d = std::get_if<1>(&g);
-      // TODO
       ret->glob_decl.push_back(d);
       d->value = new GlobalRef(d);
     }
