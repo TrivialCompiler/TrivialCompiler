@@ -178,7 +178,7 @@ void gvn_gcm(IrFunc *f) {
         if (l && r) {
           // both constant, evaluate and eliminate
           replace(x, new ConstValue(op::eval((op::Op)x->tag, l->imm, r->imm)));
-        } else if (auto [possible, value] = x->optimizedValue(); possible) {
+        } else if (auto value = x->optimizedValue()) {
           // can be (arithmetically) replaced with one single value (constant or one side of operands)
           replace(x, value);
         } else {

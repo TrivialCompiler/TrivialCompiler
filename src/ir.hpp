@@ -203,9 +203,8 @@ struct BinaryInst : Inst {
     return false;
   }
 
-  std::pair<bool, Value*> optimizedValue() {
+  Value* optimizedValue() {
     // some constants
-    std::pair<bool, Value*> no = {false, nullptr};
     static auto CONST_0 = new ConstValue(0);
     static auto CONST_1 = new ConstValue(1);
     // imm on rhs
@@ -213,25 +212,25 @@ struct BinaryInst : Inst {
       switch (tag) {
         case Tag::Add:
         case Tag::Sub:
-          return {r->imm == 0, lhs.value}; // ADD or SUB 0
+          return r->imm == 0 ? lhs.value : nullptr; // ADD or SUB 0
         case Tag::Mul:
-          if (r->imm == 0) return {true, CONST_0}; // MUL 0
+          if (r->imm == 0) return CONST_0; // MUL 0
           [[fallthrough]];
         case Tag::Div:
-          if (r->imm == 1) return {true, lhs.value}; // MUL or DIV 1
+          if (r->imm == 1) return lhs.value; // MUL or DIV 1
         case Tag::Mod:
-          return {r->imm == 1, CONST_0}; // MOD 1
+          return r->imm == 1 ? CONST_0 : nullptr; // MOD 1
         case Tag::And:
-          if (r->imm == 0) return {true, CONST_0}; // AND 0
-          return {r->imm == 1, lhs.value}; // AND 1
+          if (r->imm == 0) return CONST_0; // AND 0
+          return r->imm == 1 ? lhs.value : nullptr; // AND 1
         case Tag::Or:
-          if (r->imm == 1) return {true, CONST_1}; // OR 1
-          return {r->imm == 0, lhs.value}; // OR 0
+          if (r->imm == 1) return CONST_1; // OR 1
+          return r->imm == 0 ? lhs.value : nullptr; // OR 0
         default:
-          return no;
+          return nullptr;
       }
     }
-    return no;
+    return nullptr;
   }
 
 };
