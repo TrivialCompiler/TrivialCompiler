@@ -146,7 +146,7 @@ struct MachineOperand {
 
   // both are PreColored or Allocated, and has the same value
   bool is_equiv(const MachineOperand &other) const {
-    return (state == PreColored || state == Allocated) && (other.state == PreColored || state == Allocated) &&
+    return (state == PreColored || state == Allocated) && (other.state == PreColored || other.state == Allocated) &&
            value == other.value;
   }
 
