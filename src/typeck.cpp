@@ -184,6 +184,7 @@ struct Env {
     u32 cnt = 0, old_len = dst.size();
     for (InitList &l : src) {
       if (l.val1) {
+        ck_expr(l.val1);
         if (need_eval) {
           eval(l.val1);
         }

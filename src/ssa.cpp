@@ -27,7 +27,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       return inst;
     }
   } else if (auto x = dyn_cast<IntConst>(expr)) {
-    return new ConstValue(x->result);
+    return new ConstValue(x->val);
   } else if (auto x = dyn_cast<Index>(expr)) {
     // evalulate dims first
     std::vector<Value *> dims;
@@ -79,6 +79,19 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
           // assign variable to expr
           auto init = convert_expr(ctx, decl.init.val1);
           auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
+        } else {
+          // assign each element of flatten_init
+          for (int i = 0; i < decl.flatten_init.size(); i++) {
+            auto init = convert_expr(ctx, decl.flatten_init[i]);
+            auto store_inst = new StoreInst(&decl, inst, init, ctx->bb);
+            int temp = i;
+            for (int j = 0; j < decl.dims.size(); j++) {
+              int size = j + 1 < decl.dims.size() ? decl.dims[j + 1]->result : 1;
+              int index = temp / size;
+              temp %= size;
+              store_inst->dims.emplace_back(new ConstValue(index), store_inst);
+            }
+          }
         }
       }
     }
