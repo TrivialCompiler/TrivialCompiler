@@ -101,13 +101,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       const char *op = "unknown";
       if (x->tag == MachineInst::Tag::Mul) {
         op = "mul";
-        if (x->dst == x->lhs) {
-          dbg("Rd and Rm must be different in MUL instruction, swapping Rm and Rn...");
-          if (x->dst == x->rhs) {
-            ERR_EXIT(CODEGEN_ERROR, "Rm is same with Rn, could not help");
-          }
-          std::swap(x->lhs, x->rhs);
-        }
       } else if (x->tag == MachineInst::Tag::Add) {
         op = "add";
       } else if (x->tag == MachineInst::Tag::Sub) {
@@ -168,6 +161,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             op = "lsl";
           } else if (x->shift.type == ArmShift::Lsr) {
             op = "lsr";
+          } else {
+            UNREACHABLE();
           }
           os << ", " << op << " #" << x->shift.shift;
         }

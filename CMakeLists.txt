@@ -71,11 +71,11 @@ foreach(case_file ${all_test_cases})
     # use our compiler to generate exe
     # .S -> .o
     add_custom_command(OUTPUT "${case_name}_tc.o"
-            COMMAND arm-linux-gnueabihf-as -g -mfloat-abi=hard "${case_name}.S" -o "${case_name}_tc.o"
+            COMMAND arm-linux-gnueabihf-as -g -march=armv7-a -mfloat-abi=hard "${case_name}.S" -o "${case_name}_tc.o"
             DEPENDS "${case_name}.S")
     # .o -> exe
     add_custom_target("${case_name}_tc"
-            COMMAND arm-linux-gnueabihf-gcc -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_tc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_tc"
+            COMMAND arm-linux-gnueabihf-gcc -g -marm -march=armv7-a -mfpu=neon -mfloat-abi=hard -static "${case_name}_tc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_tc"
             DEPENDS "${case_name}_tc.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_tc"
