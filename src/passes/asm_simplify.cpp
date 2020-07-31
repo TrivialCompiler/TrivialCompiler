@@ -11,9 +11,14 @@ void asm_simplify(MachineFunc* f) {
     for (auto inst = bb->insts.head; inst; inst = inst->next) {
       if (auto x = dyn_cast<MIMove>(inst)) {
         if (x->dst.is_equiv(x->rhs) && x->is_simple()) {
+          dbg("Removed identity move");
           bb->insts.remove(inst);
         }
       } else if (auto x = dyn_cast<MIBinary>(inst)) {
+        if (x->isIdentity()) {
+          dbg("Removed identity binary operation");
+          bb->insts.remove(inst);
+        }
         if (auto y = dyn_cast_nullable<MIMove>(inst->prev)) {
           if (x->dst == x->rhs && x->lhs != x->rhs && x->rhs == y->dst && y->rhs.is_imm() && y->is_simple()) {
             // mov r1, imm
@@ -21,7 +26,8 @@ void asm_simplify(MachineFunc* f) {
             // case1: imm is power of 2
             int imm = y->rhs.value;
             if (imm > 0 && (imm & (imm - 1)) == 0) {
-              dbg("Optimize multiplication of ", imm);
+              auto mul_opt = "Optimize multiplication of " + std::to_string(imm);
+              dbg(mul_opt);
               int power = ilog2(imm);
               // replace by:
               // mov r1, r2, lsl #ilog2(imm)
@@ -31,7 +37,7 @@ void asm_simplify(MachineFunc* f) {
               new_inst->dst = x->dst;
               new_inst->rhs = x->lhs;
               new_inst->shift.type = ArmShift::Lsl;
-              new_inst->shift.shift = ilog2(imm);
+              new_inst->shift.shift = power;
             }
           }
         }

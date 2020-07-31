@@ -6,7 +6,7 @@
     - git submodule update --init
     - mkdir -p build && cd build
     - cmake ..
-    - make
+    - make -j4
     - env CTEST_OUTPUT_ON_FAILURE=1 make test
   after_script:
     - python3 extract_result.py build/Testing/Temporary/LastTest.log

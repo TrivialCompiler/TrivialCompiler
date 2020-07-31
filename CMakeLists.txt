@@ -37,14 +37,14 @@ foreach(case_file ${all_test_cases})
     # check our compiler
     # .sy -> .bc
     add_custom_command(OUTPUT "${case_name}.bc"
-            COMMAND timeout -v 3 ./${project_name} -d -l "${case_name}.bc" "${case_file}"
+            COMMAND timeout -v 15 ./${project_name} -l "${case_name}.bc" "${case_file}"
             DEPENDS ./${project_name})
     add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.bc")
     add_test(NAME check_emit_ir_${case_name}
             COMMAND make "llvm_ir_${case_name}")
     # .sy -> .S
     add_custom_command(OUTPUT "${case_name}.S"
-            COMMAND timeout -v 3 ./${project_name} -d -o "${case_name}.S" "${case_file}"
+            COMMAND timeout -v 15 ./${project_name} -o "${case_name}.S" "${case_file}"
             DEPENDS ./${project_name})
     add_custom_target("asm_${case_name}" DEPENDS "${case_name}.S")
     add_test(NAME check_emit_asm_${case_name}

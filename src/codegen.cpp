@@ -203,7 +203,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
         // eliminate MUL when sub_arr_size == 1
         if (sub_arr_size == 1) {
-          auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
+          auto current_dim_index = resolve(access_dims[i].value, mbb);
           // add add_vreg, add_vreg, dim
           auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
           add_inst->dst = add_vreg;
@@ -425,7 +425,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             const u32 N = 32;
             auto dst = resolve(inst, mbb);
             u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
-            if (d >= (u32(1) << N - 1)) { // >= 2^31，转化成l >= d
+            if (d >= (u32(1) << (N - 1))) { // >= 2^31，转化成l >= d
               auto new_inst = new MICompare(mbb);
               new_inst->lhs = lhs;
               new_inst->rhs = rhs;
