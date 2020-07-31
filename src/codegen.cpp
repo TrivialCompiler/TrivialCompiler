@@ -242,6 +242,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
           mbb->control_transfer_inst = new_inst;
         } else if (auto x = dyn_cast<AccessInst>(inst)) {
+          // TODO
+          /*
           // store or load, nearly all the same
           auto arr = resolve(x->arr.value, mbb);
           new MIComment("begin offset calculation: " + std::string(x->lhs_sym->name), mbb);
@@ -293,6 +295,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             add_inst->rhs = offset;
             new MIComment("end subarray load", mbb);
           }
+          */
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value, mbb);

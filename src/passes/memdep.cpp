@@ -54,7 +54,8 @@ static bool alias(Value *arr1, Value *arr2) {
 static bool is_call_load_alias(Value *arr, CallInst *y) {
   return !isa<AllocaInst>(arr) || std::any_of(y->args.begin(), y->args.end(), [arr](Use &u) {
     auto a = dyn_cast<LoadInst>(u.value);
-    return a && a->lhs_sym->dims.size() < a->dims.size() && alias(arr, a->arr.value);
+          // TODO
+    return a && alias(arr, a->arr.value);
   });
 }
 
@@ -85,7 +86,8 @@ void compute_memdep(IrFunc *f) {
   std::unordered_map<Value *, LoadInfo> loads;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
-      if (auto x = dyn_cast<LoadInst>(i); x && x->lhs_sym->dims.size() == x->dims.size()) {
+          // TODO
+      if (auto x = dyn_cast<LoadInst>(i); x) {
         x->mem_token.set(nullptr);
         Value *arr = x->arr.value;
         auto[it, inserted] = loads.insert({arr, {(u32) loads.size()}});
@@ -135,7 +137,8 @@ void compute_memdep(IrFunc *f) {
           values[loads.find(i1->load_or_arr)->second.id] = i;
         }
         for (Inst *i = bb->insts.head; i; i = i->next) {
-          if (auto x = dyn_cast<LoadInst>(i); x && x->lhs_sym->dims.size() == x->dims.size()) {
+          // TODO
+          if (auto x = dyn_cast<LoadInst>(i); x) {
             x->mem_token.set(values[loads.find(x->arr.value)->second.id]);
           } else if (isa<StoreInst>(i) || isa<CallInst>(i)) {
             for (auto &[load, info] : loads) {
@@ -203,7 +206,8 @@ void compute_memdep(IrFunc *f) {
           }
         }
         for (Inst *i = bb->insts.head; i; i = i->next) {
-          if (auto x = dyn_cast<LoadInst>(i); x && x->lhs_sym->dims.size() == x->dims.size()) {
+          // TODO
+          if (auto x = dyn_cast<LoadInst>(i); x) {
             values[loads2.find(x)->second] = x;
           } else if (auto x = dyn_cast<MemOpInst>(i)) {
             x->mem_token.set(values[loads2.find(x->load)->second]);
