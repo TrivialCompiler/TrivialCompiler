@@ -329,8 +329,110 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             x->tag = Value::Tag::Rsb;
             std::swap(x->lhs, x->rhs);
           }
-          // try to use imm
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
+          // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
+          if (rhs_const) {
+            int imm = static_cast<ConstValue *>(x->rhs.value)->imm;
+            if (x->tag == Value::Tag::Div && imm > 0) {
+              // fixme: this is an unsafe optimization, because it assumes lhs > 0 for correctness
+              const u32 N = 32;
+              auto dst = resolve(inst, mbb);
+              u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
+              if (d >= (u32(1) << (N - 1))) { // >= 2^31，转化成l >= d
+                auto new_inst = new MICompare(mbb);
+                new_inst->lhs = lhs;
+                new_inst->rhs = rhs;
+                auto mv1_inst = new MIMove(mbb);
+                mv1_inst->dst = dst;
+                mv1_inst->cond = ArmCond::Ge;
+                mv1_inst->rhs = get_imm_operand(1, mbb);
+                auto mv0_inst = new MIMove(mbb);
+                mv0_inst->dst = dst;
+                mv0_inst->cond = ArmCond::Lt;
+                mv0_inst->rhs = get_imm_operand(0, mbb);
+              } else {
+                u32 s = __builtin_ctz(d);
+                if (d == (u32(1) << s)) { // d是2的幂次，转化成移位
+                  auto new_inst = new MIMove(mbb);
+                  new_inst->dst = dst;
+                  new_inst->rhs = lhs;
+                  if (s > 0) {
+                    new_inst->shift.shift = s;
+                    new_inst->shift.type = ArmShift::Lsr;
+                  }
+                } else {
+                  auto mul_shift = choose_multiplier(d, N);
+                  if (mul_shift.first < (u64(1) << N)) s = 0;
+                  else mul_shift = choose_multiplier(d >> s, N - s);
+                  if (mul_shift.first < (u64(1) << N)) {
+                    MachineOperand mul_lhs = lhs;
+                    if (s > 0) {
+                      auto i = new MIMove(mbb);
+                      mul_lhs = i->dst = new_virtual_reg();
+                      i->rhs = lhs;
+                      i->shift.shift = s;
+                      i->shift.type = ArmShift::Lsr;
+                    }
+                    auto i0 = new MIMove(mbb);
+                    i0->dst = new_virtual_reg();
+                    i0->rhs = MachineOperand::I(mul_shift.first);
+                    auto i1 = new MILongMul(mbb);
+                    i1->dst_hi = mul_shift.second > 0 ? new_virtual_reg() : dst;
+                    i1->lhs = mul_lhs;
+                    i1->rhs = i0->dst;
+                    if (mul_shift.second > 0) {
+                      auto i = new MIMove(mbb);
+                      i->dst = dst;
+                      i->rhs = i1->dst_hi;
+                      i->shift.shift = mul_shift.second;
+                      i->shift.type = ArmShift::Lsr;
+                    }
+                  } else {
+                    auto i0 = new MIMove(mbb);
+                    i0->dst = new_virtual_reg();
+                    i0->rhs = MachineOperand::I(mul_shift.first - (u64(1) << N));
+                    auto i1 = new MILongMul(mbb);
+                    i1->dst_hi = new_virtual_reg();
+                    i1->lhs = lhs;
+                    i1->rhs = i0->dst;
+                    auto i2 = new MIBinary(MachineInst::Tag::Sub, mbb);
+                    i2->dst = new_virtual_reg();
+                    i2->lhs = lhs;
+                    i2->rhs = i1->dst_hi;
+                    auto i3 = new MIMove(mbb);
+                    i3->dst = new_virtual_reg();
+                    i3->rhs = i2->dst;
+                    i3->shift.shift = 1;
+                    i3->shift.type = ArmShift::Lsr;
+                    auto i4 = new MIBinary(MachineInst::Tag::Add, mbb);
+                    i4->dst = new_virtual_reg();
+                    i4->lhs = i3->dst;
+                    i4->rhs = i1->dst_hi;
+                    auto i5 = new MIMove(mbb);
+                    i5->dst = dst;
+                    i5->rhs = i4->dst;
+                    i5->shift.shift = mul_shift.second - 1;
+                    i5->shift.type = ArmShift::Lsr;
+                  }
+                }
+              }
+              continue;
+            } if (x->tag == Value::Tag::Mul) {
+              u32 log = 31 - __builtin_clz(imm);
+              if (imm == (1 << log)) {
+                auto dst = resolve(inst, mbb);
+                auto new_inst = new MIMove(mbb);
+                new_inst->dst = dst;
+                new_inst->rhs = lhs;
+                if (log > 0) {
+                  new_inst->shift.shift = log;
+                  new_inst->shift.type = ArmShift::Lsl;
+                }
+                continue;
+              }
+            }
+          }
+          // try to use imm
           if (x->rhsCanBeImm() && rhs_const) {
             rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb);  // might be imm or register
           } else {
@@ -419,89 +521,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             new_inst->dst = resolve(inst, mbb);
             new_inst->lhs = lhs_vreg;
             new_inst->rhs = rhs_vreg;
-          } else if (x->tag == Value::Tag::Div && rhs_const && static_cast<ConstValue *>(x->rhs.value)->imm > 0) {
-            // fixme: this is an unsafe optimization, because it assumes lhs > 0 for correctness
-            const u32 N = 32;
-            auto dst = resolve(inst, mbb);
-            u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
-            if (d >= (u32(1) << (N - 1))) { // >= 2^31，转化成l >= d
-              auto new_inst = new MICompare(mbb);
-              new_inst->lhs = lhs;
-              new_inst->rhs = rhs;
-              auto mv1_inst = new MIMove(mbb);
-              mv1_inst->dst = dst;
-              mv1_inst->cond = ArmCond::Ge;
-              mv1_inst->rhs = get_imm_operand(1, mbb);
-              auto mv0_inst = new MIMove(mbb);
-              mv0_inst->dst = dst;
-              mv0_inst->cond = ArmCond::Lt;
-              mv0_inst->rhs = get_imm_operand(0, mbb);
-            } else {
-              u32 s = __builtin_ctz(d);
-              if (d == (u32(1) << s)) { // d是2的幂次，转化成移位
-                auto new_inst = new MIMove(mbb);
-                new_inst->dst = dst;
-                new_inst->rhs = lhs;
-                if (s > 0) {
-                  new_inst->shift.shift = s;
-                  new_inst->shift.type = ArmShift::Lsr;
-                }
-              } else {
-                auto mul_shift = choose_multiplier(d, N);
-                if (mul_shift.first < (u64(1) << N)) s = 0;
-                else mul_shift = choose_multiplier(d >> s, N - s);
-                if (mul_shift.first < (u64(1) << N)) {
-                  MachineOperand mul_lhs = lhs;
-                  if (s > 0) {
-                    auto i = new MIMove(mbb);
-                    mul_lhs = i->dst = new_virtual_reg();
-                    i->rhs = lhs;
-                    i->shift.shift = s;
-                    i->shift.type = ArmShift::Lsr;
-                  }
-                  auto i0 = new MIMove(mbb);
-                  i0->dst = new_virtual_reg();
-                  i0->rhs = MachineOperand::I(mul_shift.first);
-                  auto i1 = new MILongMul(mbb);
-                  i1->dst_hi = mul_shift.second > 0 ? new_virtual_reg() : dst;
-                  i1->lhs = mul_lhs;
-                  i1->rhs = i0->dst;
-                  if (mul_shift.second > 0) {
-                    auto i = new MIMove(mbb);
-                    i->dst = dst;
-                    i->rhs = i1->dst_hi;
-                    i->shift.shift = mul_shift.second;
-                    i->shift.type = ArmShift::Lsr;
-                  }
-                } else {
-                  auto i0 = new MIMove(mbb);
-                  i0->dst = new_virtual_reg();
-                  i0->rhs = MachineOperand::I(mul_shift.first - (u64(1) << N));
-                  auto i1 = new MILongMul(mbb);
-                  i1->dst_hi = new_virtual_reg();
-                  i1->lhs = lhs;
-                  i1->rhs = i0->dst;
-                  auto i2 = new MIBinary(MachineInst::Tag::Sub, mbb);
-                  i2->dst = new_virtual_reg();
-                  i2->lhs = lhs;
-                  i2->rhs = i1->dst_hi;
-                  auto i3 = new MIMove(mbb);
-                  i3->dst = new_virtual_reg();
-                  i3->rhs = i2->dst;
-                  i3->shift.shift = 1;
-                  i3->shift.type = ArmShift::Lsr;
-                  auto i4 = new MIBinary(MachineInst::Tag::Add, mbb);
-                  i4->dst = new_virtual_reg();
-                  i4->lhs = i3->dst;
-                  i4->rhs = i1->dst_hi;
-                  auto i5 = new MIMove(mbb);
-                  i5->dst = dst;
-                  i5->rhs = i4->dst;
-                  i5->shift.shift = mul_shift.second - 1;
-                  i5->shift.type = ArmShift::Lsr;
-                }
-              }
-            }
           } else {
             auto new_inst = new MIBinary((MachineInst::Tag)x->tag, mbb);
             new_inst->dst = resolve(inst, mbb);
