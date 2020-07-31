@@ -116,11 +116,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         op = "rsb";
       } else if (x->tag == MachineInst::Tag::Div) {
         op = "sdiv";
-        auto inst = std::string(op) + " " + std::string(x->dst) + ", " + std::string(x->lhs) + ", " + std::string(x->rhs);
-        u32 rd = x->dst.value, rm = x->rhs.value, rn = x->lhs.value;
-        u32 instruction = 0b1110'01110'001'0000'1111'0000'000'1'0000 | rd << 16 | rm << 8 | rn;
-        dbg("Manually constructed SDIV instruction", inst, dbg::hex(instruction));
-        os << ".word" << "\t" << "0x" << std::hex << instruction << std::dec << " @ " << inst << endl;
       } else if (x->tag == MachineInst::Tag::And) {
         op = "and";
       } else if (x->tag == MachineInst::Tag::Or) {
@@ -128,9 +123,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       } else {
         UNREACHABLE();
       }
-      if (x->tag != MachineInst::Tag::Div) {
-        os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
-      }
+      os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
       increase_count();
     } else if (auto x = dyn_cast<MILongMul>(inst)) {
       os << "umull" << "\t" << "r12, " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
@@ -203,6 +196,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
 
 
   // code section
+  os << ".arch armv7ve" << endl;
   os << ".section .text" << endl;
   for (auto f = p.func.head; f; f = f->next) {
     // generate symbol for function
