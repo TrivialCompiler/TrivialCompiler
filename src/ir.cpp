@@ -124,6 +124,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare void @putint(i32)" << endl;
   os << "declare void @putch(i32)" << endl;
   os << "declare void @putarray(i32, i32*)" << endl;
+  os << "declare i32 @getarray(i32*)" << endl;
   os << "declare void @_sysy_starttime(i32)" << endl;
   os << "declare void @_sysy_stoptime(i32)" << endl;
 
