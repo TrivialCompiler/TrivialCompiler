@@ -9,10 +9,12 @@ int naive_powmod(int a, int b, int n) {
 }
 
 int main() {
+    starttime();
     putint(naive_powmod(2, 5, 3));
     putint(naive_powmod(2, 10000, 3));
     putint(naive_powmod(2, 1000000, 3));
     putint(naive_powmod(2, 100000000, 3));
     putint(naive_powmod(2, 1000000000, 3));
+    stoptime();
     return 0;
 }
