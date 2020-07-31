@@ -444,7 +444,9 @@ break;
 }
 case 59: {
 [[maybe_unused]] Token _1(std::move(*std::get_if<Token>(&stk.back().first))); stk.pop_back();
-__ = new IntConst{Expr::IntConst, 0, atoi(_1.piece.data())};
+const char *data = _1.piece.data();
+int base = data[1] == 'x' ? 16 : data[0] == '0' ? 8 : 10;
+__ = new IntConst{Expr::IntConst, 0, (int) strtol(data, nullptr, base)};
 break;
 }
 case 60: {

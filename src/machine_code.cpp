@@ -132,6 +132,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
         os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
       }
       increase_count();
+    } else if (auto x = dyn_cast<MILongMul>(inst)) {
+      os << "umull" << "\t" << "r12, " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
     } else if (auto x = dyn_cast<MICompare>(inst)) {
       os << "cmp"
          << "\t" << x->lhs << ", " << x->rhs << endl;
@@ -171,6 +173,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           const char *op = "unknown";
           if (x->shift.type == ArmShift::Lsl) {
             op = "lsl";
+          } else if (x->shift.type == ArmShift::Lsr) {
+            op = "lsr";
           }
           os << ", " << op << " #" << x->shift.shift;
         }

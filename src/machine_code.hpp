@@ -193,6 +193,7 @@ struct MachineInst {
   enum class Tag {
 #include "op.inc"
     // Binary
+    LongMul,
     Mv,
     Branch,
     Jump,
@@ -225,6 +226,17 @@ struct MIBinary : MachineInst {
   MachineOperand rhs;
 
   MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
+};
+
+// 应该有四种，但是现在只用到一种UMULL，所以也没有额外定义来区分它们
+// 我们只用到UMULL结果的高32位，低32位的结果写入r12，这个寄存器的值我们不在乎
+struct MILongMul : MachineInst {
+  DEFINE_CLASSOF(MachineInst, p->tag == Tag::LongMul);
+  MachineOperand dst_hi;
+  MachineOperand lhs;
+  MachineOperand rhs;
+
+  MILongMul(MachineBB *insertAtEnd) : MachineInst(Tag::LongMul, insertAtEnd) {}
 };
 
 struct MIMove : MachineInst {
