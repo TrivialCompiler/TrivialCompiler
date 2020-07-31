@@ -179,7 +179,7 @@ struct BinaryInst : Inst {
     return (tag >= Tag::Add && tag <= Tag::Rsb) || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static std::pair<Tag, Tag> swapableOperators[8] = {
+  constexpr static std::pair<Tag, Tag> swapableOperators[10] = {
       {Tag::Add, Tag::Add},
       {Tag::Mul, Tag::Mul},
       {Tag::Lt,  Tag::Gt},
@@ -188,7 +188,8 @@ struct BinaryInst : Inst {
       {Tag::Ge,  Tag::Le},
       {Tag::Eq,  Tag::Eq},
       {Tag::Ne,  Tag::Ne},
-      // And and Or need to be short-circuited
+      {Tag::And, Tag::And},
+      {Tag::Or,  Tag::Or},
   };
 
   bool swapOperand() {
@@ -221,29 +222,13 @@ struct BinaryInst : Inst {
         case Tag::Mod:
           return {r->imm == 1, CONST_0}; // MOD 1
         case Tag::And:
-          if (r->imm == 0) return {true, CONST_0};
-          return {r->imm == 1, lhs.value};
+          if (r->imm == 0) return {true, CONST_0}; // AND 0
+          return {r->imm == 1, lhs.value}; // AND 1
         case Tag::Or:
-          if (r->imm == 1) return {true, CONST_1};
-          return {r->imm == 0, lhs.value};
+          if (r->imm == 1) return {true, CONST_1}; // OR 1
+          return {r->imm == 0, lhs.value}; // OR 0
         default:
           return no;
-      }
-    }
-    // imm on lhs, for short-circuit logic only
-    if (auto l = dyn_cast<ConstValue>(lhs.value)) {
-      switch (tag) {
-        case Tag::And:
-          if (l->imm == 0) return {true, CONST_0};
-          return {l->imm == 1, rhs.value};
-        case Tag::Or:
-          if (l->imm == 1) return {true, CONST_1};
-          return {l->imm == 0, lhs.value};
-        case Tag::Sub:
-          return no;
-        default:
-          // shouldn't be here
-          UNREACHABLE();
       }
     }
     return no;
