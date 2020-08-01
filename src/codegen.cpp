@@ -260,7 +260,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             add_inst->rhs = mul_inst->dst;
           }
           new MIComment("end getelementptr", mbb);
->>>>>>> a8b5b54... Simply instructions in code generation of getelementptr
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value, mbb);
