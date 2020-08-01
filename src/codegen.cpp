@@ -265,14 +265,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           new MIComment("end store", mbb);
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           // dst = getelementptr arr, index, multiplier
-          // v0 = index * multiplier
+          // v0 = index * multiplier * 4
           // v1 = arr + v0
           auto dst = resolve(inst, mbb);
           auto arr = resolve(x->arr.value, mbb);
           auto index = resolve_no_imm(x->index.value, mbb);
           auto move_inst = new MIMove(mbb);
           move_inst->dst = new_virtual_reg();
-          move_inst->rhs = MachineOperand::I(x->multiplier);
+          move_inst->rhs = MachineOperand::I(x->multiplier * 4);
           auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
           mul_inst->dst = new_virtual_reg();
           mul_inst->lhs = index;
