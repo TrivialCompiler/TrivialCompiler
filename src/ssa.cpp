@@ -45,14 +45,16 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
         return inst;
       } else {
         // all levels except last level, emit GetElementPtr
+        Value *val = x->lhs_sym->value;
         Inst *res = nullptr;
         for (int i = 0; i < x->dims.size(); i++) {
           int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
           if (i + 1 < x->dims.size()) {
-            auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+            auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], new ConstValue(size), ctx->bb);
             res = inst;
+            val = inst;
           } else {
-            auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
+            auto inst = new LoadInst(x->lhs_sym, val, dims[i], ctx->bb);
             res = inst;
           }
         }
@@ -62,14 +64,16 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     } else if (x->dims.size()) {
       // access to sub array
       // emit GetElementPtr for each level
+      Value *val = x->lhs_sym->value;
       Inst *res = nullptr;
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         if (i + 1 < x->dims.size()) {
-          auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+          auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], new ConstValue(size), ctx->bb);
           res = inst;
+          val = inst;
         } else {
-          auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
+          auto inst = new LoadInst(x->lhs_sym, val, dims[i], ctx->bb);
           res = inst;
         }
       }
@@ -171,12 +175,14 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
       auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, new ConstValue(0), ctx->bb);
     } else {
       // all levels except last level, emit GetElementPtr
+      auto last = x->lhs_sym->value;
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         if (i + 1 < x->dims.size()) {
-          auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+          auto inst = new GetElementPtrInst(x->lhs_sym, last, dims[i], new ConstValue(size), ctx->bb);
+          last = inst;
         } else {
-          auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, dims[i], ctx->bb);
+          auto inst = new StoreInst(x->lhs_sym, last, rhs, dims[i], ctx->bb);
         }
       }
     }
