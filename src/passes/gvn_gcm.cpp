@@ -2,13 +2,17 @@
 #include "cfg.hpp"
 #include "../op.hpp"
 
-static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x);
+using VN = std::vector<std::pair<Value *, Value *>>;
 
-static Value *find_eq(std::unordered_map<Value *, Value *> &vn, BinaryInst *x) {
+static Value *vn_of(VN &vn, Value *x);
+
+static Value *find_eq(VN &vn, BinaryInst *x) {
   using namespace op;
   Op t1 = (Op) x->tag;
   Value *l1 = vn_of(vn, x->lhs.value), *r1 = vn_of(vn, x->rhs.value);
-  for (auto &[k, v] : vn) {
+  // 不能用迭代器，因为vn_of会往vn中push元素
+  for (u32 i = 0; i < vn.size(); ++i) {
+    auto[k, v] = vn[i];
     // 这时的vn已经插入了{x, x}，所以如果遍历的时候遇到x要跳过
     if (auto y = dyn_cast<BinaryInst>(k); y && y != x) {
       Op t2 = (Op) y->tag;
@@ -23,7 +27,7 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, BinaryInst *x) {
   return x;
 }
 
-static Value *find_eq(std::unordered_map<Value *, Value *> &vn, ConstValue *x) {
+static Value *find_eq(VN &vn, ConstValue *x) {
   for (auto &[k, v] : vn) {
     if (auto y = dyn_cast<ConstValue>(k); y && y != x && y->imm == x->imm) return v;
   }
@@ -31,8 +35,9 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, ConstValue *x) {
 }
 
 // GetElementPtrInst和LoadInst的find_eq中，对x->arr.value的递归搜索最终会终止于AllocaInst, ParamRef, GlobalRef，它们直接用指针比较
-static Value *find_eq(std::unordered_map<Value *, Value *> &vn, GetElementPtrInst *x) {
-  for (auto &[k, v] : vn) {
+static Value *find_eq(VN &vn, GetElementPtrInst *x) {
+  for (u32 i = 0; i < vn.size(); ++i) {
+    auto[k, v] = vn[i];
     if (auto y = dyn_cast<GetElementPtrInst>(k); y && y != x) {
       bool same = vn_of(vn, x->arr.value) == vn_of(vn, y->arr.value) &&
                   vn_of(vn, x->index.value) == vn_of(vn, y->index.value);
@@ -42,30 +47,38 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, GetElementPtrIns
   return x;
 }
 
-static Value *find_eq(std::unordered_map<Value *, Value *> &vn, LoadInst *x) {
-  for (auto &[k, v] : vn) {
+static Value *find_eq(VN &vn, LoadInst *x) {
+  for (u32 i = 0; i < vn.size(); ++i) {
+    auto[k, v] = vn[i];
     if (auto y = dyn_cast<LoadInst>(k); y && y != x) {
       bool same = vn_of(vn, x->arr.value) == vn_of(vn, y->arr.value) &&
                   vn_of(vn, x->index.value) == vn_of(vn, y->index.value) &&
                   x->mem_token.value == y->mem_token.value;
       if (same) return v;
+    } else if (auto y = dyn_cast<StoreInst>(k)) {
+      // a[0] = 1; b = a[0]可以变成b = 1
+      bool same = vn_of(vn, x->arr.value) == vn_of(vn, y->arr.value) &&
+                  vn_of(vn, x->index.value) == vn_of(vn, y->index.value) &&
+                  x->mem_token.value == y; // 这意味着这个store dominates了这个load
+      if (same) return y->data.value;
     }
   }
   return x;
 }
 
 
-static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x) {
-  auto it = vn.insert({x, x});
-  if (it.second) {
-    // 插入成功了意味着没有指针相等的，但是仍然要找是否存在实际相等的，如果没有的话它的vn就是x
-    if (auto y = dyn_cast<BinaryInst>(x)) it.first->second = find_eq(vn, y);
-    else if (auto y = dyn_cast<ConstValue>(x)) it.first->second = find_eq(vn, y);
-    else if (auto y = dyn_cast<GetElementPtrInst>(x)) it.first->second = find_eq(vn, y);
-    else if (auto y = dyn_cast<LoadInst>(x)) it.first->second = find_eq(vn, y);
-    // 其余情况一定要求指针相等
-  }
-  return it.first->second;
+static Value *vn_of(VN &vn, Value *x) {
+  auto it = std::find_if(vn.begin(), vn.end(), [x](std::pair<Value *, Value *> kv) { return kv.first == x; });
+  if (it != vn.end()) return it->second;
+  // 此时没有指针相等的，但是仍然要找是否存在实际相等的，如果没有的话它的vn就是x
+  u32 idx = vn.size();
+  vn.emplace_back(x, x);
+  if (auto y = dyn_cast<BinaryInst>(x)) vn[idx].second = find_eq(vn, y);
+  else if (auto y = dyn_cast<ConstValue>(x)) vn[idx].second = find_eq(vn, y);
+  else if (auto y = dyn_cast<GetElementPtrInst>(x)) vn[idx].second = find_eq(vn, y);
+  else if (auto y = dyn_cast<LoadInst>(x)) vn[idx].second = find_eq(vn, y);
+  // 其余情况一定要求指针相等
+  return vn[idx].second;
 }
 
 // 把形如b = a + 1; c = b + 1的c转化成a + 2
@@ -196,17 +209,20 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
   }
 }
 
-// todo: load的mem_token是store，且dims完全相同时，可以直接用store的src
 void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
   std::vector<BasicBlock *> rpo = compute_rpo(f);
-  std::unordered_map<Value *, Value *> vn;
+  VN vn;
   auto replace = [&vn](Inst *o, Value *n) {
     if (o != n) {
       o->replaceAllUseWith(n);
       o->bb->insts.remove(o);
-      vn.erase(o);
+      auto it = std::find_if(vn.begin(), vn.end(), [o](std::pair<Value *, Value *> kv) { return kv.first == o; });
+      if (it != vn.end()) {
+        std::swap(*it, vn.back());
+        vn.pop_back();
+      }
       o->deleteValue();
     }
   };
@@ -240,6 +256,10 @@ void gvn_gcm(IrFunc *f) {
         if (all_same) replace(x, fst);
       } else if (isa<GetElementPtrInst>(i) || isa<LoadInst>(i)) {
         replace(i, vn_of(vn, i));
+      } else if (isa<StoreInst>(i)) {
+        // 这里没有必要做替换，把StoreInst放进vn的目的是让LoadInst可以用store的右手项
+        // vn中一定不含这个i，因为没有人用到StoreInst(唯一用到StoreInst的地方是mem_token，但是没有加入vn)
+        vn.emplace_back(i, i);
       }
       // 没有必要主动把其他指令加入vn，如果它们被用到的话自然会被加入的
       i = next;

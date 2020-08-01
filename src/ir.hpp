@@ -67,6 +67,13 @@ struct Use {
     if (v) v->addUse(this);
   }
 
+  // 逻辑上这几个函数都是删除的，实际上为了用vector不能这么写，但要注意vector必须有且仅有一次reserve大小
+  // 后续添加元素用emplace_back，且不能超过reserve的大小
+  // Use(const Use &) = delete;
+  // Use(Use &&) = delete;
+  // Use& operator=(const Use &) = delete;
+  // Use& operator=(Use &&) = delete;
+
   void set(Value *v) {
     if (value) value->killUse(this);
     value = v;
@@ -213,9 +220,15 @@ struct BinaryInst : Inst {
 
   bool swapOperand() {
     for (auto [before, after] : swapableOperators) {
-      if (this->tag == before) {
-        this->tag = after;
-        std::swap(this->lhs, this->rhs);
+      if (tag == before) {
+        // note: Use是被pin在内存中的，不能直接swap它们。如果未来希望这样做，需要实现配套的设施，基本上就是把下面的逻辑在构造函数/拷贝运算符中实现
+        tag = after;
+        Value *l = lhs.value, *r = rhs.value;
+        l->killUse(&lhs);
+        r->killUse(&rhs);
+        l->addUse(&rhs);
+        r->addUse(&lhs);
+        std::swap(lhs.value, rhs.value);
         return true;
       }
     }
