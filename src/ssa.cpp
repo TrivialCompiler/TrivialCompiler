@@ -37,12 +37,31 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       dims.push_back(value);
     }
 
-    if (x->dims.empty()) {
-      // direct access
-      auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), ctx->bb);
-      return inst;
-    } else {
-      // all levels except last level, emit GetElementPtr
+    if (x->dims.size() == x->lhs_sym->dims.size()) {
+      // access to element
+      if (x->dims.empty()) {
+        // direct access
+        auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), ctx->bb);
+        return inst;
+      } else {
+        // all levels except last level, emit GetElementPtr
+        Inst *res = nullptr;
+        for (int i = 0; i < x->dims.size(); i++) {
+          int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
+          if (i + 1 < x->dims.size()) {
+            auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+            res = inst;
+          } else {
+            auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
+            res = inst;
+          }
+        }
+
+        return res;
+      }
+    } else if (x->dims.size()) {
+      // access to sub array
+      // emit GetElementPtr for each level
       Inst *res = nullptr;
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
@@ -54,8 +73,11 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
           res = inst;
         }
       }
-
       return res;
+    } else {
+      // access to array itself
+      auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), new ConstValue(0), ctx->bb);
+      return inst;
     }
   } else if (auto x = dyn_cast<Call>(expr)) {
     // must evaluate args before calling
