@@ -39,34 +39,11 @@ void Value::deleteValue() {
 
 UndefValue UndefValue::INSTANCE;
 
-void print_dims_new(std::ostream &os, Expr **dims, Expr **dims_end) {
-  if (dims == dims_end) {
-    os << "i32";
-  } else {
-    os << "[" << dims[0]->result << " x i32]";
-  }
-}
-
 void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
   if (dims == dims_end) {
     os << "i32 ";
-  } else if (dims[0] == nullptr) {
-    // just skip
-    print_dims(os, dims + 1, dims_end);
   } else {
-    for (Expr **d = dims; d != dims_end; d++) {
-      int dim = d[0]->result;
-      if (d + 1 != dims_end) {
-        dim /= d[1]->result;
-      }
-
-      os << "[" << dim << " x ";
-    }
-    os << "i32";
-    for (Expr **d = dims; d != dims_end; d++) {
-      os << "]";
-    }
-    os << " ";
+    os << "[" << dims[0]->result << " x i32] ";
   }
 }
 
@@ -77,22 +54,13 @@ void print_flatten_init(std::ostream &os, Expr **dims, Expr **dims_end, Expr **f
   } else {
     // one or more dims
     os << "[";
-    int count = dims[0]->result;
-    int element = 1;
-    if (dims + 1 != dims_end) {
-      count /= dims[1]->result;
-      element = dims[1]->result;
-    }
-
-    for (int i = 0; i < count; i++) {
-      // print type from dims[1]
-      print_dims(os, dims + 1, dims_end);
-      // recursive
-      print_flatten_init(os, dims + 1, dims_end, flatten_init + i * element, flatten_init_end);
-
-      if (i + 1 < count) {
+    while (flatten_init != flatten_init_end) {
+      os << "i32 ";
+      os << flatten_init[0]->result;
+      if (flatten_init + 1 != flatten_init_end) {
         os << ", ";
       }
+      flatten_init++;
     }
     os << "]";
   }
@@ -165,9 +133,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         os << "i32 ";
       } else {
         // array arg
-        // the first dimension becomes pointer
-        print_dims(os, p.dims.data() + 1, p.dims.data() + p.dims.size());
-        os << "* ";
+        os << "i32 * ";
       }
 
       os << "%" << p.name;
@@ -229,12 +195,12 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           // temp ptr
           u32 temp = v_index.alloc();
           os << "%t" << temp << " = alloca ";
-          print_dims_new(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
           os << ", align 4" << endl;
           os << "\t" << pv(v_index, inst) << " = getelementptr inbounds ";
-          print_dims_new(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
           os << ", ";
-          print_dims_new(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
           os << "* %t" << temp;
           if (x->sym->dims.empty()) {
             os << ", i32 0" << endl;
@@ -321,9 +287,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
               os << "i32 ";
             } else {
               // array param
-              print_dims(os, x->func->params[i].dims.data(),
-                         x->func->params[i].dims.data() + x->func->params[i].dims.size());
-              os << "* ";
+              os << "i32 * ";
             }
             // arg
             os << pv(v_index, x->args[i].value);
