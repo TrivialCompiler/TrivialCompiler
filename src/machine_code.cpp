@@ -116,7 +116,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       } else {
         UNREACHABLE();
       }
-      os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
+      os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
+      if (x->shift.type != ArmShift::None) {
+        assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl); // currently we only use this
+        os << ", " << x->shift;
+      }
+      os << endl;
       increase_count();
     } else if (auto x = dyn_cast<MILongMul>(inst)) {
       os << "umull" << "\t" << "r12, " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;

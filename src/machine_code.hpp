@@ -67,7 +67,37 @@ struct ArmShift {
     shift = 0;
     type = None;
   }
+
+  explicit operator std::string() const{
+    const char* name;
+    switch (type) {
+      case ArmShift::Asr:
+        name = "asr";
+        break;
+      case ArmShift::Lsl:
+        name = "lsl";
+        break;
+      case ArmShift::Lsr:
+        name = "lsr";
+        break;
+      case ArmShift::Ror:
+        name = "ror";
+        break;
+      case ArmShift::Rrx:
+        name = "rrx";
+        break;
+      default:
+        UNREACHABLE();
+    }
+    return std::string(name) + " #" + std::to_string(shift);
+  }
 };
+
+static std::ostream &operator<<(std::ostream &os, const ArmShift &shift) {
+  os << std::string(shift);
+  return os;
+}
+
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
   if (cond == ArmCond::Eq) {
@@ -231,6 +261,7 @@ struct MIBinary : MachineInst {
   MachineOperand dst;
   MachineOperand lhs;
   MachineOperand rhs;
+  ArmShift shift;
 
   MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 
