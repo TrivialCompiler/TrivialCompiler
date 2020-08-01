@@ -215,33 +215,42 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<While>(stmt)) {
-    // 1. jump to `cond`
-    // 2. branch to `end` or `loop`
-    // 3. jump to `cond` at the end of `loop`
-    BasicBlock *bb_cond = new BasicBlock;
+    // four bb:
+    // cond1: loop or end
+    // loop: cond2
+    // cond2 : loop or end
+    // end
+    BasicBlock *bb_cond1 = new BasicBlock;
     BasicBlock *bb_loop = new BasicBlock;
+    BasicBlock *bb_cond2 = new BasicBlock;
     BasicBlock *bb_end = new BasicBlock;
-    ctx->func->bb.insertAtEnd(bb_cond);
+    ctx->func->bb.insertAtEnd(bb_cond1);
     ctx->func->bb.insertAtEnd(bb_loop);
+    ctx->func->bb.insertAtEnd(bb_cond2);
     ctx->func->bb.insertAtEnd(bb_end);
 
-    // jump to cond bb
-    auto inst_cond = new JumpInst(bb_cond, ctx->bb);
+    // jump to cond1 bb
+    auto inst_cond = new JumpInst(bb_cond1, ctx->bb);
 
-    // cond
-    ctx->bb = bb_cond;
+    // cond1
+    ctx->bb = bb_cond1;
     auto cond = convert_expr(ctx, x->cond);
     auto br_inst = new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     // loop
     ctx->bb = bb_loop;
-    ctx->loop_stk.emplace_back(bb_cond, bb_end);
+    ctx->loop_stk.emplace_back(bb_cond2, bb_end);
     convert_stmt(ctx, x->body);
     ctx->loop_stk.pop_back();
-    // jump to cond bb
+    // jump to cond2 bb
     if (!ctx->bb->valid()) {
-      auto inst_continue = new JumpInst(bb_cond, ctx->bb);
+      auto inst_continue = new JumpInst(bb_cond2, ctx->bb);
     }
+
+    // cond2
+    ctx->bb = bb_cond2;
+    cond = convert_expr(ctx, x->cond);
+    br_inst = new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
