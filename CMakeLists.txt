@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 set(project_name TrivialCompiler)
 project(${project_name})
 
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
+
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -9,6 +11,9 @@ if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+endif()
+if (ENABLE_COVERAGE)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
 endif()
 
 file(GLOB_RECURSE source_files "src/*.cpp")
@@ -61,7 +66,7 @@ foreach(case_file ${all_test_cases})
 	    DEPENDS "${case_name}_llvm.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_llvm"
-        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_llvm" "${case_input}" "${case_name}.out" "${case_output}"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_llvm" "${case_input}" "${case_name}_llvm.out" "${case_output}"
         DEPENDS "${case_name}_llvm")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_llvm_${case_name}
@@ -79,7 +84,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_tc.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_tc"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_tc" "${case_input}" "${case_name}.out" "${case_output}"
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_tc" "${case_input}" "${case_name}_tc.out" "${case_output}"
             DEPENDS "${case_name}_tc")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_tc_${case_name}

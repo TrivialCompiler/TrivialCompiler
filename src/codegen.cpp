@@ -180,61 +180,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
       }
     };
 
-    // calculate the offset in array indexing expr arr[a][b][c]
-    // it supports both complete (element) and incomplete (subarray) indexing
-    // e.g. for int a[2][3], it could calculate the offset of a, a[x] and a[x][y]
-    auto calculate_offset = [&](MachineBB *mbb, const std::vector<Use> &access_dims,
-                                const std::vector<Expr *> &var_dims) -> MachineOperand {
-      // direct access
-      if (access_dims.empty()) return get_imm_operand(0, mbb);
-
-      // sum of index * number of elements
-      // allocate two registers: multiply and add
-      auto mul_vreg = new_virtual_reg();
-      auto add_vreg = new_virtual_reg();
-
-      // mov add_vreg, 0
-      auto mv_inst = new MIMove(mbb);
-      mv_inst->dst = add_vreg;
-      mv_inst->rhs = get_imm_operand(0, mbb);
-
-      for (int i = 0; i < access_dims.size(); i++) {
-        // number of elements
-        i32 sub_arr_size = i + 1 < var_dims.size() ? var_dims[i + 1]->result : 1;
-
-        // eliminate MUL when sub_arr_size == 1
-        if (sub_arr_size == 1) {
-          auto current_dim_index = resolve(access_dims[i].value, mbb);
-          // add add_vreg, add_vreg, dim
-          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-          add_inst->dst = add_vreg;
-          add_inst->lhs = add_vreg;
-          add_inst->rhs = current_dim_index;
-        } else {
-          // mov mul_vreg, sub_arr_size
-          auto mv_inst = new MIMove(mbb);
-          mv_inst->dst = mul_vreg;
-          mv_inst->rhs = get_imm_operand(sub_arr_size, mbb);
-
-          // mul mul_vreg, dim, mul_vreg
-          auto current_dim_index = resolve_no_imm(access_dims[i].value, mbb);
-          auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-          // note: Rd and Rm should be different in mul
-          mul_inst->dst = mul_vreg;
-          mul_inst->lhs = current_dim_index;
-          mul_inst->rhs = mul_vreg;
-
-          // add add_vreg, add_vreg, mul_vreg
-          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-          add_inst->dst = add_vreg;
-          add_inst->lhs = add_vreg;
-          add_inst->rhs = mul_vreg;
-        }
-      }
-
-      return add_vreg;
-    };
-
     // 2. translate instructions except phi
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
@@ -245,42 +190,73 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           auto arr = resolve(x->arr.value, mbb);
           auto index = resolve(x->index.value, mbb);
-          new MIComment("begin load", mbb);
           auto load_inst = new MILoad(mbb);
           load_inst->dst = resolve(inst, mbb);
           load_inst->addr = arr;
           load_inst->offset = index;
           load_inst->shift = 2;
-          new MIComment("end load", mbb);
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           auto arr = resolve(x->arr.value, mbb);
           auto data = resolve_no_imm(x->data.value, mbb);
           auto index = resolve(x->index.value, mbb);
-          new MIComment("begin store", mbb);
           auto store_inst = new MIStore(mbb);
           store_inst->addr = arr;
           store_inst->offset = index;
           store_inst->data = data;
           store_inst->shift = 2;
-          new MIComment("end store", mbb);
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           // dst = getelementptr arr, index, multiplier
-          // v0 = index * multiplier
-          // v1 = arr + v0
           auto dst = resolve(inst, mbb);
           auto arr = resolve(x->arr.value, mbb);
-          auto index = resolve_no_imm(x->index.value, mbb);
-          auto move_inst = new MIMove(mbb);
-          move_inst->dst = new_virtual_reg();
-          move_inst->rhs = MachineOperand::I(x->multiplier);
-          auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-          mul_inst->dst = new_virtual_reg();
-          mul_inst->lhs = index;
-          mul_inst->rhs = move_inst->dst;
-          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-          add_inst->dst = dst;
-          add_inst->lhs = arr;
-          add_inst->rhs = mul_inst->dst;
+          auto mult = x->multiplier * 4;
+          auto y = dyn_cast<ConstValue>(x->index.value);
+
+          new MIComment("begin getelementptr " + std::string(x->lhs_sym->name), mbb);
+          if (mult == 0 || (y && y->imm == 0)) {
+            // dst <- arr
+            auto move_inst = new MIMove(mbb);
+            move_inst->dst = dst;
+            move_inst->rhs = arr;
+            dbg("offset 0 eliminated in getelementptr");
+          } else if (y) {
+            // dst <- arr + result
+            auto off = mult * y->imm;
+            auto imm_operand = get_imm_operand(off, mbb);
+            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+            add_inst->dst = dst;
+            add_inst->lhs = arr;
+            add_inst->rhs = imm_operand;
+            auto offset_const = "offset calculated to constant " + std::to_string(off) + " in getelementptr";
+            dbg(offset_const);
+          } else if ((mult & (mult - 1)) == 0) {
+            // dst <- arr + index << log(mult)
+            auto index = resolve(x->index.value, mbb);
+            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+            add_inst->dst = dst;
+            add_inst->lhs = arr;
+            add_inst->rhs = index;
+            add_inst->shift.type = ArmShift::Lsl;
+            add_inst->shift.shift = __builtin_ctz(mult);
+            auto fuse_mul_add = "MUL " + std::to_string(mult) + " and ADD fused into shifted ADD in getelementptr";
+            dbg(fuse_mul_add);
+          } else {
+            // dst <- arr
+            auto index = resolve_no_imm(x->index.value, mbb);
+            auto move_inst = new MIMove(mbb);
+            move_inst->dst = dst;
+            move_inst->rhs = arr;
+            // mult <- mult (imm)
+            auto move_mult = new MIMove(mbb);
+            move_mult->dst = new_virtual_reg();
+            move_mult->rhs = MachineOperand::I(mult);
+            // dst <- dst + index * mult
+            auto fma_inst = new MIFma(mbb);
+            fma_inst->dst_lo = dst;
+            fma_inst->lhs = index;
+            fma_inst->rhs = move_mult->dst;
+            dbg("MUL and ADD fused into SMLAL");
+          }
+          new MIComment("end getelementptr", mbb);
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value, mbb);
@@ -644,6 +620,9 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     def = {x->dst_hi};
     use = {x->lhs, x->rhs};
+  } else if (auto x = dyn_cast<MIFma>(inst)) {
+    def = {x->dst_lo};
+    use = {x->dst_lo, x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -679,6 +658,9 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     def = &x->dst_hi;
     use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MIFma>(inst)) {
+    def = {&x->dst_lo};
+    use = {&x->dst_lo, &x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = &x->dst;
     use = {&x->rhs};

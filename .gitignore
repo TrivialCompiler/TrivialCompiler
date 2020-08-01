@@ -8,3 +8,5 @@ parser.cpp
 .vscode
 Testing/
 src/generated/Testing/
+coverage
+lcov.info
