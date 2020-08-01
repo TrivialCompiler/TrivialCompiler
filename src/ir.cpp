@@ -107,7 +107,7 @@ struct pv {
     if (auto x = dyn_cast<ConstValue>(pv.v)) {
       os << x->imm;
     } else if (auto x = dyn_cast<GlobalRef>(pv.v)) {
-      os << "@" << x->decl->name;
+      os << "%_glob_" << x->decl->name;
     } else if (auto x = dyn_cast<ParamRef>(pv.v)) {
       os << "%" << x->decl->name;
     } else if (auto x = dyn_cast<UndefValue>(pv.v)) {
@@ -139,7 +139,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare void @memset(i32*, i32, i32)" << endl;
 
   for (auto &d : p.glob_decl) {
-    os << "@" << d->name << " = global ";
+    os << "@_" << d->name << " = global ";
     // type
     print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
     if (d->has_init) {
@@ -177,6 +177,21 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
       }
     }
     os << ") {" << endl;
+
+    os << "_entry:" << endl;
+    for (auto &d : p.glob_decl) {
+      os << "\t%_glob_" << d->name << " = getelementptr inbounds ";
+      print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
+      os << ", ";
+      print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
+      os << "* @_" << d->name;
+      if (d->dims.empty()) {
+        os << ", i32 0" << endl;
+      } else {
+        os << ", i32 0, i32 0" << endl;
+      }
+    }
+    os << "\tbr label %_0" << endl;
 
     // bb的标号没有必要用IndexMapper，而且IndexMapper的编号是先到先得，这看着并不是很舒服
     std::map<BasicBlock *, u32> bb_index;
@@ -221,7 +236,11 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           os << ", ";
           print_dims_new(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
           os << "* %t" << temp;
-          os << ", i32 0, i32 0" << endl;
+          if (x->sym->dims.empty()) {
+            os << ", i32 0" << endl;
+          } else {
+            os << ", i32 0, i32 0" << endl;
+          }
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           os << "; getelementptr" << v_index.get(inst) << endl << "\t";
           u32 temp = v_index.alloc();
@@ -250,7 +269,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           os << "* " << pv(v_index, x->arr.value) << ", ";
           os << "i32 " << pv(v_index, x->index.value);
           os << endl;
-          os << "\t" << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
+          os << "\t" << pv(v_index, inst) << " = load i32, i32* %t" << temp << ", align 4" << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           const static std::unordered_map<Value::Tag, const char *> OPS = {
               {Value::Tag::Add, "add"},     {Value::Tag::Sub, "sub"},     {Value::Tag::Mul, "mul"},

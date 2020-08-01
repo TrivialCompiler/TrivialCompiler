@@ -37,20 +37,26 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       dims.push_back(value);
     }
 
-    // all levels except last level, emit GetElementPtr
-    Inst *res;
-    for (int i = 0; i < x->dims.size(); i++) {
-      int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
-      if (i + 1 < x->dims.size()) {
-        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
-        res = inst;
-      } else {
-        auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
-        res = inst;
+    if (x->dims.empty()) {
+      // direct access
+      auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), ctx->bb);
+      return inst;
+    } else {
+      // all levels except last level, emit GetElementPtr
+      Inst *res = nullptr;
+      for (int i = 0; i < x->dims.size(); i++) {
+        int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
+        if (i + 1 < x->dims.size()) {
+          auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+          res = inst;
+        } else {
+          auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
+          res = inst;
+        }
       }
-    }
 
-    return res;
+      return res;
+    }
   } else if (auto x = dyn_cast<Call>(expr)) {
     // must evaluate args before calling
     std::vector<Value *> args;
@@ -139,13 +145,17 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     // rhs
     auto rhs = convert_expr(ctx, x->rhs);
 
-    // all levels except last level, emit GetElementPtr
-    for (int i = 0; i < x->dims.size(); i++) {
-      int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
-      if (i + 1 < x->dims.size()) {
-        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
-      } else {
-        auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, dims[i], ctx->bb);
+    if (x->dims.empty()) {
+      auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, new ConstValue(0), ctx->bb);
+    } else {
+      // all levels except last level, emit GetElementPtr
+      for (int i = 0; i < x->dims.size(); i++) {
+        int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
+        if (i + 1 < x->dims.size()) {
+          auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
+        } else {
+          auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, dims[i], ctx->bb);
+        }
       }
     }
 
