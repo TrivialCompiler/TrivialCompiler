@@ -175,18 +175,27 @@ struct BinaryInst : Inst {
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 
-  bool canUseImmOperand() {
-    // Add, Sub, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
-    return tag == Tag::Add || tag == Tag::Sub || (tag >= Tag::Lt && tag <= Tag::Or);
+  bool rhsCanBeImm() {
+    // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or
+    return (tag >= Tag::Add && tag <= Tag::Rsb) || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static std::pair<Tag, Tag> swapableOperators[8] = {
-      {Tag::Add, Tag::Add}, {Tag::Eq, Tag::Eq}, {Tag::Ne, Tag::Ne}, {Tag::Lt, Tag::Gt},
-      {Tag::Gt, Tag::Lt},   {Tag::Le, Tag::Ge}, {Tag::Ge, Tag::Le}, {Tag::Sub, Tag::Rsb},
+
+  constexpr static std::pair<Tag, Tag> swapableOperators[10] = {
+      {Tag::Add, Tag::Add},
+      {Tag::Mul, Tag::Mul},
+      {Tag::Lt,  Tag::Gt},
+      {Tag::Le,  Tag::Ge},
+      {Tag::Gt,  Tag::Lt},
+      {Tag::Ge,  Tag::Le},
+      {Tag::Eq,  Tag::Eq},
+      {Tag::Ne,  Tag::Ne},
+      {Tag::And, Tag::And},
+      {Tag::Or,  Tag::Or},
   };
 
   bool swapOperand() {
-    for (auto &[before, after] : swapableOperators) {
+    for (auto [before, after] : swapableOperators) {
       if (this->tag == before) {
         this->tag = after;
         std::swap(this->lhs, this->rhs);
@@ -195,6 +204,37 @@ struct BinaryInst : Inst {
     }
     return false;
   }
+
+  Value* optimizedValue() {
+    // some constants
+    static auto CONST_0 = new ConstValue(0);
+    static auto CONST_1 = new ConstValue(1);
+    // imm on rhs
+    if (auto r = dyn_cast<ConstValue>(rhs.value)) {
+      switch (tag) {
+        case Tag::Add:
+        case Tag::Sub:
+          return r->imm == 0 ? lhs.value : nullptr; // ADD or SUB 0
+        case Tag::Mul:
+          if (r->imm == 0) return CONST_0; // MUL 0
+          [[fallthrough]];
+        case Tag::Div:
+          if (r->imm == 1) return lhs.value; // MUL or DIV 1
+        case Tag::Mod:
+          return r->imm == 1 ? CONST_0 : nullptr; // MOD 1
+        case Tag::And:
+          if (r->imm == 0) return CONST_0; // AND 0
+          return r->imm == 1 ? lhs.value : nullptr; // AND 1
+        case Tag::Or:
+          if (r->imm == 1) return CONST_1; // OR 1
+          return r->imm == 0 ? lhs.value : nullptr; // OR 0
+        default:
+          return nullptr;
+      }
+    }
+    return nullptr;
+  }
+  
 };
 
 struct BranchInst : Inst {

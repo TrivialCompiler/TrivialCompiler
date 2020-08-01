@@ -37,6 +37,7 @@ inline i32 eval(Op op, i32 l, i32 r) {
     case Or:
       return l || r;
     default:
+      dbg("Unknown Op", op);
       UNREACHABLE();
   }
 }

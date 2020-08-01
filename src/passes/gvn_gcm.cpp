@@ -171,10 +171,18 @@ void gvn_gcm(IrFunc *f) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
-        if (auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value); l && r) {
-          replace(x, new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
+        if (dyn_cast<ConstValue>(x->lhs.value) && x->swapOperand()) {
+          dbg("IMM operand moved from lhs to rhs");
+        }
+        auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value);
+        // for most instructions reach here (except AND and OR), rhs is IMM
+        if (l && r) {
+          // both constant, evaluate and eliminate
+          replace(x, new ConstValue(op::eval((op::Op)x->tag, l->imm, r->imm)));
+        } else if (auto value = x->optimizedValue()) {
+          // can be (arithmetically) replaced with one single value (constant or one side of operands)
+          replace(x, value);
         } else {
-          // todo: 还可以加入一些别的优化，乘1，乘0之类的
           replace(x, vn_of(vn, x));
         }
       } else if (auto x = dyn_cast<PhiInst>(i)) {
