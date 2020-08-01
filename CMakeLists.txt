@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.13)
 set(project_name TrivialCompiler)
 project(${project_name})
 
+option(ENABLE_COVERAGE "Enable code coverage" OFF)
+
 enable_testing()
 
 set(CMAKE_CXX_STANDARD 17)
@@ -9,6 +11,9 @@ if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+endif()
+if (ENABLE_COVERAGE)
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
 endif()
 
 file(GLOB_RECURSE source_files "src/*.cpp")
