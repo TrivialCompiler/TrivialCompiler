@@ -42,8 +42,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     for (int i = 0; i < x->dims.size(); i++) {
       int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
       if (i + 1 < x->dims.size()) {
-        auto mul_inst = new BinaryInst(Value::Tag::Mul, dims[i], new ConstValue(size), ctx->bb);
-        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, mul_inst, ctx->bb);
+        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
         res = inst;
       } else {
         auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, dims[i], ctx->bb);
@@ -144,8 +143,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     for (int i = 0; i < x->dims.size(); i++) {
       int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
       if (i + 1 < x->dims.size()) {
-        auto mul_inst = new BinaryInst(Value::Tag::Mul, dims[i], new ConstValue(size), ctx->bb);
-        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, mul_inst, ctx->bb);
+        auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, dims[i], new ConstValue(size), ctx->bb);
       } else {
         auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, dims[i], ctx->bb);
       }

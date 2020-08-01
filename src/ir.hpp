@@ -234,8 +234,9 @@ struct AccessInst : Inst {
 
 struct GetElementPtrInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Tag::GetElementPtr);
-  GetElementPtrInst(Decl *lhs_sym, Value *arr, Value *index, BasicBlock *insertAtEnd)
-      : AccessInst(Tag::GetElementPtr, lhs_sym, arr, index, insertAtEnd) {}
+  Use multiplier;
+  GetElementPtrInst(Decl *lhs_sym, Value *arr, Value *index, Value *multiplier, BasicBlock *insertAtEnd)
+      : AccessInst(Tag::GetElementPtr, lhs_sym, arr, index, insertAtEnd), multiplier(multiplier, this) {}
 };
 
 struct LoadInst : AccessInst {
