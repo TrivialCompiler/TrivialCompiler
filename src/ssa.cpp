@@ -68,14 +68,9 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       Inst *res = nullptr;
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
-        if (i + 1 < x->dims.size()) {
-          auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
-          res = inst;
-          val = inst;
-        } else {
-          auto inst = new LoadInst(x->lhs_sym, val, dims[i], ctx->bb);
-          res = inst;
-        }
+        auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
+        res = inst;
+        val = inst;
       }
       return res;
     } else {
