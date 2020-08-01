@@ -66,6 +66,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     }
   };
 
+  auto print_reg_list = [](std::ostream& os, MachineFunc *f) {
+    for (auto r : f->used_caller_saved_regs) {
+      os << "r" << int(r) << ", ";
+    }
+  };
+
   std::function<void(MachineInst *, MachineFunc *, MachineBB *, bool)> output_instruction =
       [&](MachineInst *inst, MachineFunc *f, MachineBB *bb, bool indent) {
         if (bb && inst == bb->control_transfer_inst) {
@@ -192,7 +198,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           if (f->sp_offset) {
             move_stack(false, f->sp_offset, output_instruction, "\t");
           }
-          os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
+          os << "ldmfd\tsp!, {";
+          print_reg_list(os, f);
+          os << "pc}" << endl;
           insert_pool();
           increase_count(2);
         } else if (auto x = dyn_cast<MICall>(inst)) {
@@ -217,7 +225,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << f->func->func->name << ":" << endl;
 
     // function prologue
-    os << "\tstmfd\tsp!, {r4-r11,lr}" << endl;
+    os << "\tstmfd\tsp!, {";
+    print_reg_list(os, f);
+    os << "lr}" << endl;
     // fp = sp
     os << "\tmov\tr11, sp" << endl;
     // move sp down

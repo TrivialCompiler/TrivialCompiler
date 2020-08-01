@@ -3,13 +3,14 @@
 #include <utility>
 #include <variant>
 
-#include "asm_simplify.hpp"
-#include "cfg.hpp"
-#include "dce.hpp"
-#include "fill_pred.hpp"
-#include "gvn_gcm.hpp"
-#include "mem2reg.hpp"
-#include "memdep.hpp"
+#include "asm/asm_simplify.hpp"
+#include "asm/compute_stack_info.hpp"
+#include "ir/cfg.hpp"
+#include "ir/dce.hpp"
+#include "ir/fill_pred.hpp"
+#include "ir/gvn_gcm.hpp"
+#include "ir/mem2reg.hpp"
+#include "ir/memdep.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *);  // for future use (such as inlining functions)
@@ -63,5 +64,6 @@ void run_ir_passes(IrProgram *p, bool opt) {
 void run_asm_passes(MachineProgram *p, bool opt) {
   for (auto *f = p->func.head; f != nullptr; f = f->next) {
     asm_simplify(f);
+    compute_stack_info(f);
   }
 }

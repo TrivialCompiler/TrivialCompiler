@@ -1,5 +1,8 @@
-#include "../ir.hpp"
+#pragma once
+
 #include <unordered_map>
+
+#include "../../ir.hpp"
 
 struct Loop {
   Loop *parent;

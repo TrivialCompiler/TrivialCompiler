@@ -1,8 +1,10 @@
 #include "mem2reg.hpp"
-#include "cfg.hpp"
-#include "../ast.hpp"
+
 #include <algorithm>
 #include <unordered_map>
+
+#include "../../ast.hpp"
+#include "cfg.hpp"
 
 // 这里假定dom树已经造好了
 void mem2reg(IrFunc *f) {

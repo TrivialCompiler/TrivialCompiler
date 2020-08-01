@@ -688,14 +688,14 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
-      def.push_back(MachineOperand::R((ArmReg)i));
+    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + x->func->params.size(); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
+    for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
+      def.push_back(MachineOperand::R((ArmReg)i));
+    }
     def.push_back(MachineOperand::R(ArmReg::lr));
-    use.push_back(MachineOperand::R(ArmReg::lr));
     def.push_back(MachineOperand::R(ArmReg::ip));
-    use.push_back(MachineOperand::R(ArmReg::ip));
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (auto x = dyn_cast<MIReturn>(inst)) {

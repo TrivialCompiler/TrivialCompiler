@@ -1,7 +1,9 @@
 #include "memdep.hpp"
-#include "cfg.hpp"
-#include "../ast.hpp"
+
 #include <unordered_map>
+
+#include "../../ast.hpp"
+#include "cfg.hpp"
 
 // 如果一个是另一个的postfix，则可能alias；nullptr相当于通配符
 static bool dim_alias(const std::vector<Expr *> &dim1, const std::vector<Expr *> &dim2) {

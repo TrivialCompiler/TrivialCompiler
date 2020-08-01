@@ -135,6 +135,7 @@ struct MachineFunc {
   i32 virtual_max = 0;
   // size of stack allocated for local alloca and spilled registers
   i32 sp_offset = 0;
+  std::set<ArmReg> used_caller_saved_regs;
 };
 
 struct MachineBB {

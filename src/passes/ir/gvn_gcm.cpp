@@ -1,6 +1,7 @@
 #include "gvn_gcm.hpp"
+
+#include "../../op.hpp"
 #include "cfg.hpp"
-#include "../op.hpp"
 
 using VN = std::vector<std::pair<Value *, Value *>>;
 
