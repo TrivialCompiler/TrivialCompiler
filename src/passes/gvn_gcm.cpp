@@ -34,9 +34,9 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, LoadInst *x) {
   for (auto &[k, v] : vn) {
     if (auto y = dyn_cast<LoadInst>(k); y && y != x) {
       // 对load的arr和dep没有必要用vn，直接要求地址相等就可以了
+          // TODO
       bool same = x->arr.value == y->arr.value &&
-                  x->dims.size() == y->dims.size() &&
-                  std::equal(x->dims.begin(), x->dims.end(), y->dims.begin(), [&vn](Use &l, Use &r) { return vn_of(vn, l.value) == vn_of(vn, r.value); }) &&
+                  vn_of(vn, x->index.value) == vn_of(vn, y->index.value) &&
                   x->mem_token.value == y->mem_token.value;
       if (same) return v;
     }
@@ -109,7 +109,8 @@ static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, I
     } else if (auto x = dyn_cast<LoadInst>(i)) {
       transfer_inst(x, entry);
       schedule_op(x, x->arr.value);
-      for (Use &op : x->dims) schedule_op(x, op.value);
+          // TODO
+      schedule_op(x, x->index.value);
       if (x->mem_token.value) schedule_op(x, x->mem_token.value);
     }
   }

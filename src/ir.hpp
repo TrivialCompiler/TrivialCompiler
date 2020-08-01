@@ -29,13 +29,14 @@ struct Value {
     Branch,
     Jump,
     Return,  // Control flow
+    GetElementPtr,
     Load,
     Store,  // Memory
     Call,
     Alloca,
     Phi,
     MemOp,
-    MemPhi, // 虚拟的MemPhi指令，保证不出现在指令序列中，只出现在BasicBlock::mem_phis中
+    MemPhi,  // 虚拟的MemPhi指令，保证不出现在指令序列中，只出现在BasicBlock::mem_phis中
     Const,
     Global,
     Param,
@@ -100,7 +101,7 @@ struct BasicBlock {
   u32 dom_level;                            // dom树中的深度，根深度为0
   bool vis;  // 各种算法中用到，标记是否访问过，算法开头应把所有vis置false(调用IrFunc::clear_all_vis)
   ilist<Inst> insts;
-  ilist<Inst> mem_phis; // 元素都是MemPhiInst
+  ilist<Inst> mem_phis;  // 元素都是MemPhiInst
 
   inline std::array<BasicBlock *, 2> succ();
   inline std::array<BasicBlock **, 2> succ_ref();  // 想修改succ时使用
@@ -250,7 +251,7 @@ struct BinaryInst : Inst {
     }
     return nullptr;
   }
-
+  
 };
 
 struct BranchInst : Inst {
@@ -280,12 +281,19 @@ struct ReturnInst : Inst {
 };
 
 struct AccessInst : Inst {
-  DEFINE_CLASSOF(Value, p->tag == Tag::Load || p->tag == Tag::Store);
+  DEFINE_CLASSOF(Value, p->tag == Tag::GetElementPtr || p->tag == Tag::Load || p->tag == Tag::Store);
   Decl *lhs_sym;
   Use arr;
-  std::vector<Use> dims;
-  AccessInst(Inst::Tag tag, Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd)
-      : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this) {}
+  Use index;
+  AccessInst(Inst::Tag tag, Decl *lhs_sym, Value *arr, Value *index, BasicBlock *insertAtEnd)
+      : Inst(tag, insertAtEnd), lhs_sym(lhs_sym), arr(arr, this), index(index, this) {}
+};
+
+struct GetElementPtrInst : AccessInst {
+  DEFINE_CLASSOF(Value, p->tag == Tag::GetElementPtr);
+  Use multiplier;
+  GetElementPtrInst(Decl *lhs_sym, Value *arr, Value *index, Value *multiplier, BasicBlock *insertAtEnd)
+      : AccessInst(Tag::GetElementPtr, lhs_sym, arr, index, insertAtEnd), multiplier(multiplier, this) {}
 };
 
 struct LoadInst : AccessInst {
@@ -294,17 +302,18 @@ struct LoadInst : AccessInst {
   // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
   // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
   // LoadInst只可能依赖StoreInst, CallInst
-//  std::vector<Inst *> dep;
-//  std::unordered_set<Inst *> alias;
+  //  std::vector<Inst *> dep;
+  //  std::unordered_set<Inst *> alias;
   Use mem_token;
-  LoadInst(Decl *lhs_sym, Value *arr, BasicBlock *insertAtEnd) : AccessInst(Tag::Load, lhs_sym, arr, insertAtEnd), mem_token(nullptr, this) {}
+  LoadInst(Decl *lhs_sym, Value *arr, Value *index, BasicBlock *insertAtEnd)
+      : AccessInst(Tag::Load, lhs_sym, arr, index, insertAtEnd), mem_token(nullptr, this) {}
 };
 
 struct StoreInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Store);
   Use data;
-  StoreInst(Decl *lhs_sym, Value *arr, Value *data, BasicBlock *insertAtEnd)
-      : AccessInst(Tag::Store, lhs_sym, arr, insertAtEnd), data(data, this) {}
+  StoreInst(Decl *lhs_sym, Value *arr, Value *data, Value *index, BasicBlock *insertAtEnd)
+      : AccessInst(Tag::Store, lhs_sym, arr, index, insertAtEnd), data(data, this) {}
 };
 
 struct CallInst : Inst {
@@ -343,7 +352,8 @@ struct MemOpInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Tag::MemOp);
   Use mem_token;
   LoadInst *load;
-  MemOpInst(LoadInst *load, Inst *insertBefore) : Inst(Tag::MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
+  MemOpInst(LoadInst *load, Inst *insertBefore)
+      : Inst(Tag::MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
 };
 
 // 它的前几个字段和PhiInst是兼容的，所以可以当成PhiInst用(也许理论上有隐患，但是实际上应该没有问题)
@@ -360,7 +370,7 @@ struct MemPhiInst : Inst {
   Value *load_or_arr;
 
   explicit MemPhiInst(Value *load_or_arr, BasicBlock *insertAtFront)
-    : Inst(Tag::MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
+      : Inst(Tag::MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
     bb = insertAtFront;
     bb->mem_phis.insertAtBegin(this);
     incoming_values.reserve(insertAtFront->pred.size());

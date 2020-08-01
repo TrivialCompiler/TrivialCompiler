@@ -1,9 +1,10 @@
 #include "codegen.hpp"
-#include "machine_code.hpp"
 
 #include <cassert>
 #include <map>
 #include <optional>
+
+#include "machine_code.hpp"
 
 // list of assignments (lhs, rhs)
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
@@ -23,7 +24,7 @@ std::pair<u64, u32> choose_multiplier(u32 d, u32 p) {
   u32 l = N - __builtin_clz(d - 1);
   u64 lo = (u64(1) << (N + l)) / d;
   u64 hi = ((u64(1) << (N + l)) + (u64(1) << (N + l - p))) / d;
-  while((lo >> 1) < (hi >> 1) && l > 0) {
+  while ((lo >> 1) < (hi >> 1) && l > 0) {
     lo >>= 1;
     hi >>= 1;
     --l;
@@ -241,58 +242,43 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         if (auto x = dyn_cast<JumpInst>(inst)) {
           auto new_inst = new MIJump(bb_map[x->next], mbb);
           mbb->control_transfer_inst = new_inst;
-        } else if (auto x = dyn_cast<AccessInst>(inst)) {
-          // store or load, nearly all the same
+        } else if (auto x = dyn_cast<LoadInst>(inst)) {
           auto arr = resolve(x->arr.value, mbb);
-          new MIComment("begin offset calculation: " + std::string(x->lhs_sym->name), mbb);
-          auto offset = calculate_offset(mbb, x->dims, x->lhs_sym->dims);
-          new MIComment("finish offset calculation", mbb);
-          // resolve index access
-          if (x->dims.size() == x->lhs_sym->dims.size()) {
-            // access to element
-            MIAccess *access_inst;
-            if (auto x = dyn_cast<StoreInst>(inst)) {
-              // store to element
-              new MIComment("begin store", mbb);
-              auto data = resolve_no_imm(x->data.value, mbb);  // must get data first
-              access_inst = new MIStore(mbb);
-              static_cast<MIStore *>(access_inst)->data = data;
-              new MIComment("end store", mbb);
-            } else {
-              // load from element
-              new MIComment("begin load", mbb);
-              access_inst = new MILoad(mbb);
-              static_cast<MILoad *>(access_inst)->dst = resolve(inst, mbb);
-              new MIComment("end load", mbb);
-            }
-            access_inst->addr = arr;
-            access_inst->offset = offset;
-            access_inst->shift = 2;
-          } else {
-            // access to subarray
-            assert(x->tag != Value::Tag::Store);  // you could only store to a specific element
-            // addr <- &arr
-            new MIComment("begin subarray load", mbb);
-            auto addr = new_virtual_reg();
-            auto mv_inst = new MIMove(mbb);
-            mv_inst->dst = addr;
-            mv_inst->rhs = resolve(x->arr.value, mbb);
-            // offset <- offset * 4
-            if (offset.state == MachineOperand::Immediate) {
-              offset.value *= 4;
-            } else {
-              auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-              mul_inst->dst = offset;
-              mul_inst->lhs = offset;
-              mul_inst->rhs = get_imm_operand(4, mbb);
-            }
-            // inst <- addr + offset
-            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-            add_inst->dst = resolve(inst, mbb);
-            add_inst->lhs = addr;
-            add_inst->rhs = offset;
-            new MIComment("end subarray load", mbb);
-          }
+          auto index = resolve(x->index.value, mbb);
+          new MIComment("begin load", mbb);
+          auto load_inst = new MILoad(mbb);
+          load_inst->dst = resolve(inst, mbb);
+          load_inst->addr = arr;
+          load_inst->offset = index;
+          load_inst->shift = 2;
+          new MIComment("end load", mbb);
+        } else if (auto x = dyn_cast<StoreInst>(inst)) {
+          auto arr = resolve(x->arr.value, mbb);
+          auto data = resolve_no_imm(x->data.value, mbb);
+          auto index = resolve(x->index.value, mbb);
+          new MIComment("begin store", mbb);
+          auto store_inst = new MIStore(mbb);
+          store_inst->addr = arr;
+          store_inst->offset = index;
+          store_inst->data = data;
+          store_inst->shift = 2;
+          new MIComment("end store", mbb);
+        } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
+          // dst = getelementptr arr, index, multiplier
+          // v0 = index * multiplier
+          // v1 = arr + v0
+          auto dst = resolve(inst, mbb);
+          auto arr = resolve(x->arr.value, mbb);
+          auto index = resolve_no_imm(x->index.value, mbb);
+          auto multiplier = resolve_no_imm(x->multiplier.value, mbb);
+          auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
+          mul_inst->dst = new_virtual_reg();
+          mul_inst->lhs = index;
+          mul_inst->rhs = multiplier;
+          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+          add_inst->dst = dst;
+          add_inst->lhs = arr;
+          add_inst->rhs = mul_inst->dst;
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
           if (x->ret.value) {
             auto val = resolve(x->ret.value, mbb);
@@ -334,7 +320,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               const u32 N = 32;
               auto dst = resolve(inst, mbb);
               u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
-              if (d >= (u32(1) << (N - 1))) { // >= 2^31，转化成l >= d
+              if (d >= (u32(1) << (N - 1))) {  // >= 2^31，转化成l >= d
                 auto new_inst = new MICompare(mbb);
                 new_inst->lhs = lhs;
                 new_inst->rhs = rhs;
@@ -348,7 +334,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
                 mv0_inst->rhs = get_imm_operand(0, mbb);
               } else {
                 u32 s = __builtin_ctz(d);
-                if (d == (u32(1) << s)) { // d是2的幂次，转化成移位
+                if (d == (u32(1) << s)) {  // d是2的幂次，转化成移位
                   auto new_inst = new MIMove(mbb);
                   new_inst->dst = dst;
                   new_inst->rhs = lhs;
@@ -358,8 +344,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
                   }
                 } else {
                   auto mul_shift = choose_multiplier(d, N);
-                  if (mul_shift.first < (u64(1) << N)) s = 0;
-                  else mul_shift = choose_multiplier(d >> s, N - s);
+                  if (mul_shift.first < (u64(1) << N))
+                    s = 0;
+                  else
+                    mul_shift = choose_multiplier(d >> s, N - s);
                   if (mul_shift.first < (u64(1) << N)) {
                     MachineOperand mul_lhs = lhs;
                     if (s > 0) {
@@ -413,7 +401,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
                 }
               }
               continue;
-            } if (x->tag == Value::Tag::Mul) {
+            }
+            if (x->tag == Value::Tag::Mul) {
               u32 log = 31 - __builtin_clz(imm);
               if (imm == (1 << log)) {
                 auto dst = resolve(inst, mbb);
@@ -550,7 +539,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               auto rhs = resolve_no_imm(x->args[i].value, mbb);
               auto st_inst = new MIStore(mbb);
               st_inst->addr = MachineOperand::R(sp);
-              st_inst->offset = MachineOperand::I(-(n-i));
+              st_inst->offset = MachineOperand::I(-(n - i));
               st_inst->shift = 2;
               st_inst->data = rhs;
             }
@@ -561,7 +550,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);
             add_inst->dst = MachineOperand::R(sp);
             add_inst->lhs = MachineOperand::R(sp);
-            add_inst->rhs = MachineOperand::I(4*(n-4));
+            add_inst->rhs = MachineOperand::I(4 * (n - 4));
           }
 
           auto new_inst = new MICall(mbb);
@@ -572,7 +561,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
             add_inst->dst = MachineOperand::R(sp);
             add_inst->lhs = MachineOperand::R(sp);
-            add_inst->rhs = MachineOperand::I(4*(n-4));
+            add_inst->rhs = MachineOperand::I(4 * (n - 4));
           }
 
           // return

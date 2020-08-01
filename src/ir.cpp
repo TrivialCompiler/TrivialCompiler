@@ -1,7 +1,8 @@
 #include "ir.hpp"
-#include "ast.hpp"
 
 #include <unordered_map>
+
+#include "ast.hpp"
 
 void Value::deleteValue() {
   if (auto x = dyn_cast<BinaryInst>(this))
@@ -41,23 +42,8 @@ UndefValue UndefValue::INSTANCE;
 void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
   if (dims == dims_end) {
     os << "i32 ";
-  } else if (dims[0] == nullptr) {
-    // just skip
-    print_dims(os, dims + 1, dims_end);
   } else {
-    for (Expr **d = dims; d != dims_end; d++) {
-      int dim = d[0]->result;
-      if (d + 1 != dims_end) {
-        dim /= d[1]->result;
-      }
-
-      os << "[" << dim << " x ";
-    }
-    os << "i32";
-    for (Expr **d = dims; d != dims_end; d++) {
-      os << "]";
-    }
-    os << " ";
+    os << "[" << dims[0]->result << " x i32] ";
   }
 }
 
@@ -68,22 +54,13 @@ void print_flatten_init(std::ostream &os, Expr **dims, Expr **dims_end, Expr **f
   } else {
     // one or more dims
     os << "[";
-    int count = dims[0]->result;
-    int element = 1;
-    if (dims + 1 != dims_end) {
-      count /= dims[1]->result;
-      element = dims[1]->result;
-    }
-
-    for (int i = 0; i < count; i++) {
-      // print type from dims[1]
-      print_dims(os, dims + 1, dims_end);
-      // recursive
-      print_flatten_init(os, dims + 1, dims_end, flatten_init + i * element, flatten_init_end);
-
-      if (i + 1 < count) {
+    while (flatten_init != flatten_init_end) {
+      os << "i32 ";
+      os << flatten_init[0]->result;
+      if (flatten_init + 1 != flatten_init_end) {
         os << ", ";
       }
+      flatten_init++;
     }
     os << "]";
   }
@@ -98,7 +75,7 @@ struct pv {
     if (auto x = dyn_cast<ConstValue>(pv.v)) {
       os << x->imm;
     } else if (auto x = dyn_cast<GlobalRef>(pv.v)) {
-      os << "@" << x->decl->name;
+      os << "%_glob_" << x->decl->name;
     } else if (auto x = dyn_cast<ParamRef>(pv.v)) {
       os << "%" << x->decl->name;
     } else if (auto x = dyn_cast<UndefValue>(pv.v)) {
@@ -130,7 +107,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   os << "declare void @memset(i32*, i32, i32)" << endl;
 
   for (auto &d : p.glob_decl) {
-    os << "@" << d->name << " = global ";
+    os << "@_" << d->name << " = global ";
     // type
     print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
     if (d->has_init) {
@@ -156,9 +133,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         os << "i32 ";
       } else {
         // array arg
-        // the first dimension becomes pointer
-        print_dims(os, p.dims.data() + 1, p.dims.data() + p.dims.size());
-        os << "* ";
+        os << "i32 * ";
       }
 
       os << "%" << p.name;
@@ -168,6 +143,21 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
       }
     }
     os << ") {" << endl;
+
+    os << "_entry:" << endl;
+    for (auto &d : p.glob_decl) {
+      os << "\t%_glob_" << d->name << " = getelementptr inbounds ";
+      print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
+      os << ", ";
+      print_dims(os, d->dims.data(), d->dims.data() + d->dims.size());
+      os << "* @_" << d->name;
+      if (d->dims.empty()) {
+        os << ", i32 0" << endl;
+      } else {
+        os << ", i32 0, i32 0" << endl;
+      }
+    }
+    os << "\tbr label %_0" << endl;
 
     // bb的标号没有必要用IndexMapper，而且IndexMapper的编号是先到先得，这看着并不是很舒服
     std::map<BasicBlock *, u32> bb_index;
@@ -202,104 +192,50 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
       for (auto inst = bb->insts.head; inst != nullptr; inst = inst->next) {
         os << "\t";
         if (auto x = dyn_cast<AllocaInst>(inst)) {
-          os << pv(v_index, inst) << " = alloca ";
+          // temp ptr
+          u32 temp = v_index.alloc();
+          os << "%t" << temp << " = alloca ";
           print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
-          os << ", align 4 " << endl;
+          os << ", align 4" << endl;
+          os << "\t" << pv(v_index, inst) << " = getelementptr inbounds ";
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          os << ", ";
+          print_dims(os, x->sym->dims.data(), x->sym->dims.data() + x->sym->dims.size());
+          os << "* %t" << temp;
+          if (x->sym->dims.empty()) {
+            os << ", i32 0" << endl;
+          } else {
+            os << ", i32 0, i32 0" << endl;
+          }
+        } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
+          os << "; getelementptr" << v_index.get(inst) << endl << "\t";
+          u32 temp = v_index.alloc();
+          os << "%t" << temp << " = mul i32 " << pv(v_index, x->index.value) << ", " << pv(v_index, x->multiplier.value)
+             << endl;
+          os << "\t" << pv(v_index, inst) << " = getelementptr inbounds i32, i32* " << pv(v_index, x->arr.value)
+             << ", i32 "
+             << "%t" << temp << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           os << "; store" << v_index.get(x) << endl << "\t";
-          if (x->dims.size() == 0) {
-            // simple case
-            os << "store i32 " << pv(v_index, x->data.value) << ", i32* " << pv(v_index, x->arr.value) << ", align 4"
-               << endl;
-          } else {
-            // dimension
-            // comments
-            os << "; " << pv(v_index, x->arr.value);
-            for (auto &dim : x->dims) {
-              os << "[" << pv(v_index, dim.value) << "]";
-            }
-            os << " = " << pv(v_index, x->data.value) << endl;
-
-            // temp ptr
-            u32 temp = v_index.alloc();
-            os << "\t%t" << temp << " = getelementptr inbounds ";
-            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << ", ";
-            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << "* " << pv(v_index, x->arr.value) << ",";
-            if (x->lhs_sym->dims.size() > 0 && x->lhs_sym->dims[0] == nullptr) {
-              // array param
-            } else {
-              // otherwise first dimension is always 0
-              os << " i32 0, ";
-            }
-            for (auto &dim : x->dims) {
-              os << "i32 " << pv(v_index, dim.value);
-              if (&dim != &x->dims.back()) {
-                os << ", ";
-              }
-            }
-            os << endl;
-            os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
-          }
+          // temp ptr
+          u32 temp = v_index.alloc();
+          os << "%t" << temp << " = getelementptr inbounds i32, i32";
+          os << "* " << pv(v_index, x->arr.value) << ", ";
+          os << "i32 " << pv(v_index, x->index.value);
+          os << endl;
+          os << "\tstore i32 " << pv(v_index, x->data.value) << ", i32* %t" << temp << ", align 4" << endl;
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           if (x->mem_token.value) {
-            os << "; load@" << x << " arr@" << x->arr.value << ", use " << pv(v_index, x->mem_token.value) << endl << "\t";
+            os << "; load@" << x << " arr@" << x->arr.value << ", use " << pv(v_index, x->mem_token.value) << endl
+               << "\t";
           }
-          if (x->dims.size() == x->lhs_sym->dims.size()) {
-            // first case: access to item
-            if (x->dims.size() == 0) {
-              // simple case
-              os << pv(v_index, inst) << " = load i32, i32* " << pv(v_index, x->arr.value) << ", align 4" << endl;
-            } else {
-              // handle dimension
-              u32 temp = v_index.alloc();
-              os << "%t" << temp << " = getelementptr inbounds ";
-              print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-              os << ", ";
-              print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-              os << "* " << pv(v_index, x->arr.value) << ", ";
-              if (x->lhs_sym->dims.size() > 0 && x->lhs_sym->dims[0] == nullptr) {
-                // array param
-                for (auto &dim : x->dims) {
-                  os << "i32 " << pv(v_index, dim.value);
-                  if (&dim != &x->dims.back()) {
-                    os << ", ";
-                  }
-                }
-              } else {
-                // first dimension is always 0
-                os << "i32 0";
-                for (auto &dim : x->dims) {
-                  os << ", i32 " << pv(v_index, dim.value);
-                }
-              }
-              os << endl;
-              os << "\t" << pv(v_index, inst) << " = load i32, i32* "
-                 << "%t" << temp << ", align 4" << endl;
-            }
-          } else {
-            // second case: item is an array, get array address
-            os << pv(v_index, inst) << " = getelementptr inbounds ";
-            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << ", ";
-            print_dims(os, x->lhs_sym->dims.data(), x->lhs_sym->dims.data() + x->lhs_sym->dims.size());
-            os << "* " << pv(v_index, x->arr.value);
-
-            // if it's a local array or global array
-            if (dyn_cast<AllocaInst>(x->arr.value) || dyn_cast<GlobalRef>(x->arr.value)) {
-              // first dimension is 0
-              os << ", i32 0";
-            }
-
-            for (int i = 0; i < x->dims.size(); i++) {
-              os << ", i32 " << pv(v_index, x->dims[i].value);
-            }
-
-            // first element
-            os << ", i32 0";
-            os << endl;
-          }
+          // temp ptr
+          u32 temp = v_index.alloc();
+          os << "%t" << temp << " = getelementptr inbounds i32, i32";
+          os << "* " << pv(v_index, x->arr.value) << ", ";
+          os << "i32 " << pv(v_index, x->index.value);
+          os << endl;
+          os << "\t" << pv(v_index, inst) << " = load i32, i32* %t" << temp << ", align 4" << endl;
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           auto op_name = BinaryInst::LLVM_OPS[(int) x->tag];
           bool conversion = Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne;
@@ -347,9 +283,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
               os << "i32 ";
             } else {
               // array param
-              print_dims(os, x->func->params[i].dims.data(),
-                         x->func->params[i].dims.data() + x->func->params[i].dims.size());
-              os << "* ";
+              os << "i32 * ";
             }
             // arg
             os << pv(v_index, x->args[i].value);
@@ -368,7 +302,8 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           }
           os << endl;
         } else if (auto x = dyn_cast<MemOpInst>(inst)) {
-          os << "; mem" << v_index.get(x) << " for load@" << x->load << ", use " << pv(v_index, x->mem_token.value) << endl;
+          os << "; mem" << v_index.get(x) << " for load@" << x->load << ", use " << pv(v_index, x->mem_token.value)
+             << endl;
         } else {
           UNREACHABLE();
         }
