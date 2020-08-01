@@ -123,16 +123,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       }
       os << endl;
       increase_count();
-    } else if (auto x = dyn_cast<MITernary>(inst)) {
-      const char *op = "unknown";
-      if (x->tag == MachineInst::Tag::LongMul) {
-        op = "umull";
-      } else if (x->tag == MachineInst::Tag::FMA) {
-        op = "smlal";
-      }else {
-        UNREACHABLE();
-      }
-      os << op << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
+    } else if (auto x = dyn_cast<MILongMul>(inst)) {
+      os << "umull" << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
+    } else if (auto x = dyn_cast<MIFma>(inst)) {
+      os << "mla" << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
     } else if (auto x = dyn_cast<MICompare>(inst)) {
       os << "cmp"
          << "\t" << x->lhs << ", " << x->rhs << endl;

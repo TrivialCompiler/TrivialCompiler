@@ -251,11 +251,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto move_mult = new MIMove(mbb);
             move_mult->dst = new_virtual_reg();
             move_mult->rhs = MachineOperand::I(mult);
-            // dst <- dst + index * mult
+            // dst <- index * mult + dst
             auto fma_inst = new MIFma(mbb);
-            fma_inst->dst_lo = dst;
+            fma_inst->dst= dst;
             fma_inst->lhs = index;
             fma_inst->rhs = move_mult->dst;
+            fma_inst->acc = dst;
             dbg("MUL and ADD fused into SMLAL");
           }
           new MIComment("end getelementptr", mbb);
@@ -407,7 +408,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           // Optimization 3:
           // Fused Multiply-Add
-          if (x->tag == Value::Tag::Mul && !lhs_const && !rhs_const && x->uses.head == x->uses.tail) {
+          if (x->tag == Value::Tag::Mul && x->uses.head == x->uses.tail) {
             // only one user, lhs and rhs are not consts
             // match pattern:
             // %x2 = mul %x1, %x0
@@ -422,11 +423,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               auto x1 = resolve(x->rhs.value, mbb);
               auto x3 = resolve(y->lhs.value, mbb);
               auto x4 = resolve(y, mbb);
+              // x4 <- x3
               auto move_inst = new MIMove(mbb);
               move_inst->dst = x4;
               move_inst->rhs = x3;
+              // x4 <- x4 + x1 * x0
               auto fma_inst = new MIFma(mbb);
-              fma_inst->dst_lo = x4;
+              fma_inst->dst = x4;
+              fma_inst->acc = x4;
               fma_inst->lhs = x1;
               fma_inst->rhs = x0;
               // skip y
@@ -670,8 +674,8 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     def = {x->dst_hi, x->dst_lo};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
-    def = {x->dst_hi, x->dst_lo};
-    use = {x->dst_lo, x->lhs, x->rhs}; // not using data from dst_hi (always r12)
+    def = {x->dst};
+    use = {x->dst, x->lhs, x->rhs, x->acc};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -712,8 +716,8 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
     def = &x->dst_hi;
     use = {&x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
-    def = {&x->dst_lo};
-    use = {&x->dst_lo, &x->lhs, &x->rhs};
+    def = {&x->dst};
+    use = {&x->dst, &x->lhs, &x->rhs, &x->acc};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = &x->dst;
     use = {&x->rhs};

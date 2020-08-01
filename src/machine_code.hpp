@@ -279,8 +279,6 @@ struct MIBinary : MachineInst {
 struct MITernary : MachineInst {
   // LongMul, FMA
   DEFINE_CLASSOF(MachineInst, Tag::LongMul <= p->tag && p->tag <= Tag::FMA);
-  MachineOperand dst_lo;
-  MachineOperand dst_hi;
   MachineOperand lhs;
   MachineOperand rhs;
 
@@ -289,19 +287,21 @@ struct MITernary : MachineInst {
 
 struct MILongMul : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
+  MachineOperand dst_lo;
+  MachineOperand dst_hi;
 
   explicit MILongMul(MachineBB *insertAtEnd) : MITernary(Tag::LongMul, insertAtEnd) {
     dst_lo = MachineOperand::R(ArmReg::ip);
   }
 };
 
-// FIXME: not correct if final result is negative
+// FIXME: may not be correct if final result is negative
 struct MIFma : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::FMA == p->tag);
+  MachineOperand acc;
+  MachineOperand dst;
 
-  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {
-    dst_hi = MachineOperand::R(ArmReg::ip);
-  }
+  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {}
 };
 
 struct MIMove : MachineInst {
