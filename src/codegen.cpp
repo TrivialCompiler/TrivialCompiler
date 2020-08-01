@@ -325,10 +325,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               }
             }
           }
-          if (x->tag == Value::Tag::Sub && lhs_const) {
-            x->tag = Value::Tag::Rsb;
-            std::swap(x->lhs, x->rhs);
-          }
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
           if (rhs_const) {
@@ -528,6 +524,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             new_inst->rhs = rhs;
           }
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          // todo: 利用ssa的性质，优化if(a < b)的生成
           auto cond = resolve_no_imm(x->cond.value, mbb);
           // if cond != 0
           auto cmp_inst = new MICompare(mbb);

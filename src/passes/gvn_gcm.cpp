@@ -56,6 +56,33 @@ static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x) {
   return it.first->second;
 }
 
+// 把形如b = a + 1; c = b + 1的c转化成a + 2
+// 乘法：b = a * C1, c = b * C2 => a * (C1 * C2)
+// 加减总共9种情况，b和c都可以是Add, Sub, Rsb，首先把Sub都变成Add负值，剩下四种情况
+// a + C1; b + C2 => a + (C1 + C2)
+// a + C1; rsb b C2 => rsb a (C2 - C1)
+// rsb a C1; b + C2 => rsb a (C1 + C2)
+// rsb a C1; rsb b C2 => a + (C2 - C1)
+// 故两个操作符相同时结果为Add，否则为Rsb; c为Add是C2前是正号，否则是负号
+static void try_fold_lhs(BinaryInst *x) {
+  if (auto r = dyn_cast<ConstValue>(x->rhs.value)) {
+    if (auto l = dyn_cast<BinaryInst>(x->lhs.value)) {
+      if (auto lr = dyn_cast<ConstValue>(l->rhs.value)) {
+        if (x->tag == Value::Tag::Sub) r->imm = -r->imm, x->tag = Value::Tag::Add;
+        if (l->tag == Value::Tag::Sub) lr->imm = -lr->imm, l->tag = Value::Tag::Add;
+        if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
+          x->tag = (x->tag == Value::Tag::Add) == (l->tag == Value::Tag::Add) ? Value::Tag::Add : Value::Tag::Rsb;
+          x->lhs.set(l->lhs.value);
+          x->rhs.set(new ConstValue(lr->imm + (x->tag == Value::Tag::Add ? r->imm : -r->imm)));
+        } else if (x->tag == Value::Tag::Mul && r->tag == Value::Tag::Mul) {
+          x->lhs.set(l->lhs.value);
+          x->rhs.set(new ConstValue(lr->imm * r->imm));
+        }
+      }
+    }
+  }
+}
+
 // 把i放到new_bb的末尾。这个bb中的位置不重要，因为后续还会再调整它在bb中的位置
 static void transfer_inst(Inst *i, BasicBlock *new_bb) {
   i->bb->insts.remove(i);
@@ -136,7 +163,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
         transfer_inst(i, best);
         for (Use *u = i->uses.head; u; u = u->next) {
           // 如果use是PhiInst，一定不用调整位置，因为即使这条指令在bb的最后也能满足这个use
-          if (!isa<PhiInst>(u->user) && !isa<MemPhiInst>(u->user)  && u->user->bb == i->bb) {
+          if (!isa<PhiInst>(u->user) && !isa<MemPhiInst>(u->user) && u->user->bb == i->bb) {
             // 只有当x和u->user在同一个bb，且前者在后者后面时，把它移动到后者的前面一条指令的位置
             // 这里需要判断链表中节点的相对位置，理论上是可以把它卡到非常耗时的，但是应该不会有这么无聊的测例
             for (Inst *j = u->user; j; j = j->next) {
@@ -153,6 +180,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
   }
 }
 
+// todo: load的mem_token是store，且dims完全相同时，可以直接用store的src
 void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
@@ -170,19 +198,22 @@ void gvn_gcm(IrFunc *f) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
-        if (dyn_cast<ConstValue>(x->lhs.value) && x->swapOperand()) {
+        if (isa<ConstValue>(x->lhs.value) && x->swapOperand()) {
           dbg("IMM operand moved from lhs to rhs");
         }
         auto l = dyn_cast<ConstValue>(x->lhs.value), r = dyn_cast<ConstValue>(x->rhs.value);
-        // for most instructions reach here (except AND and OR), rhs is IMM
+        // for most instructions reach here, rhs is IMM
         if (l && r) {
           // both constant, evaluate and eliminate
-          replace(x, new ConstValue(op::eval((op::Op)x->tag, l->imm, r->imm)));
-        } else if (auto value = x->optimizedValue()) {
-          // can be (arithmetically) replaced with one single value (constant or one side of operands)
-          replace(x, value);
+          replace(x, new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
         } else {
-          replace(x, vn_of(vn, x));
+          try_fold_lhs(x);
+          if (auto value = x->optimizedValue()) {
+            // can be (arithmetically) replaced with one single value (constant or one side of operands)
+            replace(x, value);
+          } else {
+            replace(x, vn_of(vn, x));
+          }
         }
       } else if (auto x = dyn_cast<PhiInst>(i)) {
         Value *fst = vn_of(vn, x->incoming_values[0].value);
@@ -209,11 +240,11 @@ void gvn_gcm(IrFunc *f) {
     }
   }
   vis.clear();
+  std::vector<Inst *> insts;
   for (BasicBlock *bb = entry; bb; bb = bb->next) {
-    for (Inst *i = bb->insts.head; i;) {
-      Inst *next = i->next;
-      schedule_late(vis, info, i);
-      i = next;
-    }
+    insts.clear();
+    // 用Inst *next = i->next; ... i = next;也不能保证遍历所有指令，可能后面的一些指令被移走了，所以这里先把所有指令保存下来
+    for (Inst *i = bb->insts.head; i; i = i->next) insts.push_back(i);
+    for (Inst *i : insts) schedule_late(vis, info, i);
   }
 }

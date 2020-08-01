@@ -179,8 +179,26 @@ struct BinaryInst : Inst {
     return (tag >= Tag::Add && tag <= Tag::Rsb) || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static std::pair<Tag, Tag> swapableOperators[10] = {
+  constexpr static const char* LLVM_OPS[14] = {
+    /* Add = */ "add",
+    /* Sub = */ "sub",
+    /* Rsb = */ nullptr,
+    /* Mul = */ "mul",
+    /* Div = */ "sdiv",
+    /* Mod = */ "srem",
+    /* Lt = */  "icmp slt",
+    /* Le = */  "icmp sle",
+    /* Ge = */  "icmp sge",
+    /* Gt = */  "icmp sgt",
+    /* Eq = */  "icmp eq",
+    /* Ne = */  "icmp ne",
+    /* And = */ "and",
+    /* Or = */  "or",
+  };
+
+  constexpr static std::pair<Tag, Tag> swapableOperators[11] = {
       {Tag::Add, Tag::Add},
+      {Tag::Sub, Tag::Rsb},
       {Tag::Mul, Tag::Mul},
       {Tag::Lt,  Tag::Gt},
       {Tag::Le,  Tag::Ge},
