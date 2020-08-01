@@ -71,9 +71,9 @@ static void try_fold_lhs(BinaryInst *x) {
         if (x->tag == Value::Tag::Sub) r->imm = -r->imm, x->tag = Value::Tag::Add;
         if (l->tag == Value::Tag::Sub) lr->imm = -lr->imm, l->tag = Value::Tag::Add;
         if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
-          x->tag = (x->tag == Value::Tag::Add) == (l->tag == Value::Tag::Add) ? Value::Tag::Add : Value::Tag::Rsb;
           x->lhs.set(l->lhs.value);
-          x->rhs.set(new ConstValue(lr->imm + (x->tag == Value::Tag::Add ? r->imm : -r->imm)));
+          x->rhs.set(new ConstValue(r->imm + (x->tag == Value::Tag::Add ? lr->imm : -lr->imm)));
+          x->tag = (x->tag == Value::Tag::Add) == (l->tag == Value::Tag::Add) ? Value::Tag::Add : Value::Tag::Rsb;
         } else if (x->tag == Value::Tag::Mul && r->tag == Value::Tag::Mul) {
           x->lhs.set(l->lhs.value);
           x->rhs.set(new ConstValue(lr->imm * r->imm));
