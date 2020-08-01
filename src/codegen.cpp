@@ -277,9 +277,10 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
           assert(!(lhs_const && rhs_const));  // should be optimized out
+          // Optimization 1:
           // try to use negative imm to reduce instructions
           if (x->tag == Value::Tag::Add || x->tag == Value::Tag::Sub) {
-            // add r0, #-40 == sub r0, #-40
+            // add r0, #-40 == sub r0, #40
             // the former will be splitted into instructions (movw, movt, add), the latter is only one
             if (rhs_const) {
               auto &imm = static_cast<ConstValue *>(x->rhs.value)->imm;
@@ -292,6 +293,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             }
           }
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
+          // Optimization 2:
           // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
           if (rhs_const) {
             int imm = static_cast<ConstValue *>(x->rhs.value)->imm;
@@ -403,6 +405,36 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
+          // Optimization 3:
+          // Fused Multiply-Add
+          if (x->tag == Value::Tag::Mul && !lhs_const && !rhs_const && x->uses.head == x->uses.tail) {
+            // only one user, lhs and rhs are not consts
+            // match pattern:
+            // %x2 = mul %x1, %x0
+            // %x4 = add %x3, %x2
+            // becomes
+            // v4 = v3
+            // fma v4, v1, v0
+            auto y = dyn_cast<BinaryInst>(x->next);
+            if (y && y->tag == Value::Tag::Add && y->rhs.value == x) {
+              dbg("Found FMA location");
+              auto x0 = resolve(x->lhs.value, mbb);
+              auto x1 = resolve(x->rhs.value, mbb);
+              auto x3 = resolve(y->lhs.value, mbb);
+              auto x4 = resolve(y, mbb);
+              auto move_inst = new MIMove(mbb);
+              move_inst->dst = x4;
+              move_inst->rhs = x3;
+              auto fma_inst = new MIFma(mbb);
+              fma_inst->dst_lo = x4;
+              fma_inst->lhs = x1;
+              fma_inst->rhs = x0;
+              // skip y
+              inst = inst->next;
+              continue;
+            }
+          }
+
           if (x->tag == Value::Tag::Mod) {
             UNREACHABLE();  // should be replaced
           } else if (Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne) {
@@ -436,8 +468,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             }
 
             // 一条BinaryInst后紧接着BranchInst，而且前者的结果仅被后者使用，那么就可以不用计算结果，而是直接用bxx的指令
-            if (x->uses.head == x->uses.tail && x->uses.head && isa<BranchInst>(x->uses.head->user)
-                && x->next == x->uses.head->user) {
+            if (x->uses.head == x->uses.tail && x->uses.head && isa<BranchInst>(x->uses.head->user) &&
+                x->next == x->uses.head->user) {
               dbg("Binary comparison inst not computing result");
               cond_map.insert({x, {new_inst, opposite}});
             } else {
