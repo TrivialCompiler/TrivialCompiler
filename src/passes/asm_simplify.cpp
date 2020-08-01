@@ -13,6 +13,11 @@ void asm_simplify(MachineFunc* f) {
           dbg("Removed identity binary operation");
           bb->insts.remove(inst);
         }
+      } else if (auto x = dyn_cast<MIJump>(inst)) {
+        if (x->target == bb->next) {
+          dbg("Removed unconditional jump to next bb");
+          bb->insts.remove(inst);
+        }
       }
     }
   }
