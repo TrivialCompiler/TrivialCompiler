@@ -30,21 +30,19 @@ enum class ArmReg {
   r8,
   r9,
   r10,
-  // frame pointer
+  // special purposes
   r11,
-  // ipc scratch register, used in some instructions
   r12,
-  // stack pointer
   r13,
-  // link register (caller saved)
   r14,
-  // program counter
   r15,
+  // some aliases
+  fp = 11,  // frame pointer
+  ip = r12, // ipc scratch register, used in some instructions (caller saved)
+  sp = r13, // stack pointer
+  lr = r14, // link register (caller saved)
+  pc = r15, // program counter
 };
-
-const ArmReg fp = ArmReg::r11;
-const ArmReg sp = ArmReg::r13;
-const ArmReg lr = ArmReg::r14;
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
 struct ArmShift {
@@ -293,7 +291,7 @@ struct MILongMul : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
 
   explicit MILongMul(MachineBB *insertAtEnd) : MITernary(Tag::LongMul, insertAtEnd) {
-    dst_lo = MachineOperand::R(ArmReg::r12);
+    dst_lo = MachineOperand::R(ArmReg::ip);
   }
 };
 
@@ -302,7 +300,7 @@ struct MIFma : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::FMA == p->tag);
 
   explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {
-    dst_hi = MachineOperand::R(ArmReg::r12);
+    dst_hi = MachineOperand::R(ArmReg::ip);
   }
 };
 

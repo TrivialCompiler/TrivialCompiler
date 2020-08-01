@@ -123,7 +123,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               } else {
                 // read from fp + (i-4+saved_regs)*4 in entry bb
                 auto new_inst = new MILoad(mf->bb.head, 0);
-                new_inst->addr = MachineOperand::R(fp);
+                new_inst->addr = MachineOperand::R(ArmReg::fp);
                 new_inst->shift = 2;
                 // skip saved registers: r4-r11, lr
                 i32 saved_regs = 11 - 4 + 1 + 1;
@@ -533,7 +533,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               // store to sp-(n-i)*4
               auto rhs = resolve_no_imm(x->args[i].value, mbb);
               auto st_inst = new MIStore(mbb);
-              st_inst->addr = MachineOperand::R(sp);
+              st_inst->addr = MachineOperand::R(ArmReg::sp);
               st_inst->offset = MachineOperand::I(-(n - i));
               st_inst->shift = 2;
               st_inst->data = rhs;
@@ -543,8 +543,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           if (n > 4) {
             // sub sp, sp, (n-4)*4
             auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);
-            add_inst->dst = MachineOperand::R(sp);
-            add_inst->lhs = MachineOperand::R(sp);
+            add_inst->dst = MachineOperand::R(ArmReg::sp);
+            add_inst->lhs = MachineOperand::R(ArmReg::sp);
             add_inst->rhs = MachineOperand::I(4 * (n - 4));
           }
 
@@ -554,8 +554,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           if (n > 4) {
             // add sp, sp, (n-4)*4
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-            add_inst->dst = MachineOperand::R(sp);
-            add_inst->lhs = MachineOperand::R(sp);
+            add_inst->dst = MachineOperand::R(ArmReg::sp);
+            add_inst->lhs = MachineOperand::R(ArmReg::sp);
             add_inst->rhs = MachineOperand::I(4 * (n - 4));
           }
 
@@ -580,7 +580,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto rhs = get_imm_operand(offset, mbb);
           auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);  // sub is more friendly
           add_inst->dst = dst;
-          add_inst->lhs = MachineOperand::R(fp);
+          add_inst->lhs = MachineOperand::R(ArmReg::fp);
           add_inst->rhs = rhs;
         }
       }
@@ -635,11 +635,11 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     def = {x->dst};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
-    def = {x->dst_hi};
+    def = {x->dst_hi, x->dst_lo};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
-    def = {x->dst_lo};
-    use = {x->dst_lo, x->lhs, x->rhs};
+    def = {x->dst_hi, x->dst_lo};
+    use = {x->dst_lo, x->lhs, x->rhs}; // not using data from dst_hi (always r12)
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -656,8 +656,10 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
       def.push_back(MachineOperand::R((ArmReg)i));
       use.push_back(MachineOperand::R((ArmReg)i));
     }
-    def.push_back(MachineOperand::R(lr));
-    use.push_back(MachineOperand::R(lr));
+    def.push_back(MachineOperand::R(ArmReg::lr));
+    use.push_back(MachineOperand::R(ArmReg::lr));
+    def.push_back(MachineOperand::R(ArmReg::ip));
+    use.push_back(MachineOperand::R(ArmReg::ip));
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (auto x = dyn_cast<MIReturn>(inst)) {
@@ -785,8 +787,8 @@ void register_allocate(MachineProgram *p) {
       std::set<MIMove *> worklist_moves;
       std::set<MIMove *> active_moves;
 
-      // allocatable registers: r0 to r10 and lr
-      i32 k = (int)ArmReg::r10 - (int)ArmReg::r0 + 1 + 1;
+      // allocatable registers: r0 to r10, lr, ip
+      i32 k = (int)ArmReg::r10 - (int)ArmReg::r0 + 1 + 2;
       // init degree for pre colored nodes
       for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
         auto op = MachineOperand::R((ArmReg)i);
@@ -1086,10 +1088,11 @@ void register_allocate(MachineProgram *p) {
           auto n = select_stack.back();
           select_stack.pop_back();
           std::set<i32> ok_colors;
-          for (int i = 0; i < k-1; i++) {
+          for (int i = 0; i < k - 2; i++) {
             ok_colors.insert(i);
           }
-          ok_colors.insert((i32)lr);
+          ok_colors.insert((i32) ArmReg::lr);
+          ok_colors.insert((i32) ArmReg::ip);
 
           for (auto w : adj_list[n]) {
             auto a = get_alias(w);
@@ -1184,7 +1187,7 @@ void register_allocate(MachineProgram *p) {
                 def->value = vreg;
                 auto new_inst = new MIStore();
                 new_inst->bb = bb;
-                new_inst->addr = MachineOperand::R(fp);  // fp
+                new_inst->addr = MachineOperand::R(ArmReg::fp);
                 new_inst->shift = 0;
                 new_inst->offset = MachineOperand::I(-offset);
                 new_inst->data = MachineOperand::V(vreg);
@@ -1199,7 +1202,7 @@ void register_allocate(MachineProgram *p) {
                   u->value = vreg;
                   auto new_inst = new MILoad(inst);
                   new_inst->bb = bb;
-                  new_inst->addr = MachineOperand::R(fp);  // fp
+                  new_inst->addr = MachineOperand::R(ArmReg::fp);
                   new_inst->shift = 0;
                   new_inst->offset = MachineOperand::I(-offset);
                   new_inst->dst = MachineOperand::V(vreg);
