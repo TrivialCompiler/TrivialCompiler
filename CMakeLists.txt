@@ -61,7 +61,7 @@ foreach(case_file ${all_test_cases})
 	    DEPENDS "${case_name}_llvm.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_llvm"
-        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_llvm" "${case_input}" "${case_name}.out" "${case_output}"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_llvm" "${case_input}" "${case_name}_llvm.out" "${case_output}"
         DEPENDS "${case_name}_llvm")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_llvm_${case_name}
@@ -79,7 +79,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_tc.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_tc"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_tc" "${case_input}" "${case_name}.out" "${case_output}"
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_tc" "${case_input}" "${case_name}_tc.out" "${case_output}"
             DEPENDS "${case_name}_tc")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_tc_${case_name}
