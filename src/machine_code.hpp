@@ -155,7 +155,7 @@ struct MachineBB {
 };
 
 struct MachineOperand {
-  enum {
+  enum class State {
     PreColored,
     Allocated,
     Virtual,
@@ -166,16 +166,16 @@ struct MachineOperand {
   inline static MachineOperand R(ArmReg r) {
     auto n = (int)r;
     assert(n >= 0 && n <= 16);
-    return MachineOperand{PreColored, n};
+    return MachineOperand{State::PreColored, n};
   }
 
-  inline static MachineOperand V(int n) { return MachineOperand{Virtual, n}; }
+  inline static MachineOperand V(int n) { return MachineOperand{State::Virtual, n}; }
 
-  inline static MachineOperand I(int imm) { return MachineOperand{Immediate, imm}; }
+  inline static MachineOperand I(int imm) { return MachineOperand{State::Immediate, imm}; }
 
   // both are PreColored or Allocated, and has the same value
   bool is_equiv(const MachineOperand &other) const {
-    return (state == PreColored || state == Allocated) && (other.state == PreColored || other.state == Allocated) &&
+    return (state == State::PreColored || state == State::Allocated) && (other.state == State::PreColored || other.state == State::Allocated) &&
            value == other.value;
   }
 
@@ -191,22 +191,22 @@ struct MachineOperand {
 
   bool operator!=(const MachineOperand &other) const { return state != other.state || value != other.value; }
 
-  bool is_virtual() const { return state == Virtual; }
-  bool is_imm() const { return state == Immediate; }
-  bool is_precolored() const { return state == PreColored; }
-  bool needs_color() const { return state == Virtual || state == PreColored; }
+  bool is_virtual() const { return state == State::Virtual; }
+  bool is_imm() const { return state == State::Immediate; }
+  bool is_precolored() const { return state == State::PreColored; }
+  bool needs_color() const { return state == State::Virtual || state == State::PreColored; }
 
   explicit operator std::string() const {
     char prefix = '?';
     switch (this->state) {
-      case PreColored:
-      case Allocated:
+      case State::PreColored:
+      case State::Allocated:
         prefix = 'r';
         break;
-      case Virtual:
+      case State::Virtual:
         prefix = 'v';
         break;
-      case Immediate:
+      case State::Immediate:
         prefix = '#';
         break;
       default:
@@ -373,7 +373,7 @@ struct MIStore : MIAccess {
   DEFINE_CLASSOF(MachineInst, p->tag == Tag::Store);
   MachineOperand data;
 
-  MIStore(MachineBB *insertAtEnd) : MIAccess(Tag::Store, insertAtEnd) {}
+  explicit MIStore(MachineBB *insertAtEnd) : MIAccess(Tag::Store, insertAtEnd) {}
   MIStore() : MIAccess(Tag::Store) {}
 };
 
@@ -382,14 +382,14 @@ struct MICompare : MachineInst {
   MachineOperand lhs;
   MachineOperand rhs;
 
-  MICompare(MachineBB *insertAtEnd) : MachineInst(Tag::Compare, insertAtEnd) {}
+  explicit MICompare(MachineBB *insertAtEnd) : MachineInst(Tag::Compare, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Tag::Call);
   Func *func;
 
-  MICall(MachineBB *insertAtEnd) : MachineInst(Tag::Call, insertAtEnd) {}
+  explicit MICall(MachineBB *insertAtEnd) : MachineInst(Tag::Call, insertAtEnd) {}
 };
 
 struct MIGlobal : MachineInst {

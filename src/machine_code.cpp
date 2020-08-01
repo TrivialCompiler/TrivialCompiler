@@ -1,7 +1,7 @@
 #include "machine_code.hpp"
 
-#include <iomanip>
 #include <functional>
+#include <iomanip>
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
@@ -17,10 +17,13 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     auto sec_name = "_POOL_" + std::to_string(pool_num++);
     auto after_sec_name = "_AFTER" + sec_name;
     if (insert_jump) {
-      os << "\t" << "b" << "\t" << after_sec_name << " @ forcibly insert constant pool" << endl;
+      os << "\t"
+         << "b"
+         << "\t" << after_sec_name << " @ forcibly insert constant pool" << endl;
     }
     os << sec_name << ":" << endl;
-    os << "\t" << ".pool" << endl;
+    os << "\t"
+       << ".pool" << endl;
     os << after_sec_name << ":" << endl;
     return sec_name;
   };
@@ -29,7 +32,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     if (int old_count = inst_count; inst_count > 1000) {
       // force insert a constant pool, slow but necessary
       auto sec_name = insert_pool(true);
-      auto force_pool = "forcibly insert constant pool " + sec_name + ", instruction count: " + std::to_string(old_count);
+      auto force_pool =
+          "forcibly insert constant pool " + sec_name + ", instruction count: " + std::to_string(old_count);
       dbg(force_pool);
     }
   };
@@ -49,153 +53,157 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       cmd = enter ? "add" : "sub";
       imm_operand.value = -imm_operand.value;
     }
-      if (can_encode_imm(offset) || can_encode_imm(-offset)) {
-        os << cmd << "\t" << "sp, sp, " << imm_operand << endl;
-      } else {
-        auto mv_to_r4 = new MIMove{nullptr, 0};
-        mv_to_r4->rhs = MachineOperand::I(offset);
-        mv_to_r4->dst = MachineOperand::R(ArmReg::r4);
-        output(mv_to_r4, nullptr, nullptr, true);
-        os << prefix << cmd << "\t" << "sp, sp, " << MachineOperand::R(ArmReg::r4) << endl;
+    if (can_encode_imm(offset) || can_encode_imm(-offset)) {
+      os << cmd << "\t"
+         << "sp, sp, " << imm_operand << endl;
+    } else {
+      auto mv_to_r4 = new MIMove{nullptr, 0};
+      mv_to_r4->rhs = MachineOperand::I(offset);
+      mv_to_r4->dst = MachineOperand::R(ArmReg::r4);
+      output(mv_to_r4, nullptr, nullptr, true);
+      os << prefix << cmd << "\t"
+         << "sp, sp, " << MachineOperand::R(ArmReg::r4) << endl;
     }
   };
 
-  std::function<void(MachineInst*, MachineFunc*, MachineBB*, bool)> output_instruction = [&](MachineInst *inst, MachineFunc *f, MachineBB *bb, bool indent) {
-    if (bb && inst == bb->control_transfer_inst) {
-      os << "@ control transfer" << endl;
-    }
-    if (indent) {
-      os << "\t";
-    }
-    if (auto x = dyn_cast<MIJump>(inst)) {
-      os << "b"
-         << "\t" << pb(x->target) << endl;
-      insert_pool();
-      increase_count();
-    } else if (auto x = dyn_cast<MIBranch>(inst)) {
-      os << "b" << x->cond << "\t" << pb(x->target) << endl;
-      increase_count();
-    } else if (auto x = dyn_cast<MIAccess>(inst)) {
-      MachineOperand data{};
-      std::string inst_name;
-      if (auto x = dyn_cast<MILoad>(inst)) {
-        data = x->dst;
-        inst_name = "ldr";
-      } else if (auto x = dyn_cast<MIStore>(inst)) {
-        data = x->data;
-        inst_name = "str";
-      }
-      if (x->offset.state == MachineOperand::Immediate) {
-        i32 offset = x->offset.value << x->shift;
-        os << inst_name << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
-      } else {
-        os << inst_name << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]"
-           << endl;
-      }
-      increase_count();
-    } else if (auto x = dyn_cast<MIGlobal>(inst)) {
-      os << "ldr"
-         << "\t" << x->dst << ", =" << x->sym->name << endl;
-      increase_count();
-    } else if (auto x = dyn_cast<MIBinary>(inst)) {
-      const char *op = "unknown";
-      if (x->tag == MachineInst::Tag::Mul) {
-        op = "mul";
-      } else if (x->tag == MachineInst::Tag::Add) {
-        op = "add";
-      } else if (x->tag == MachineInst::Tag::Sub) {
-        op = "sub";
-      } else if (x->tag == MachineInst::Tag::Rsb) {
-        op = "rsb";
-      } else if (x->tag == MachineInst::Tag::Div) {
-        op = "sdiv";
-      } else if (x->tag == MachineInst::Tag::And) {
-        op = "and";
-      } else if (x->tag == MachineInst::Tag::Or) {
-        op = "orr";
-      } else {
-        UNREACHABLE();
-      }
-      os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
-      if (x->shift.type != ArmShift::None) {
-        assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl); // currently we only use this
-        os << ", " << x->shift;
-      }
-      os << endl;
-      increase_count();
-    } else if (auto x = dyn_cast<MILongMul>(inst)) {
-      os << "umull" << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
-    } else if (auto x = dyn_cast<MIFma>(inst)) {
-      os << "mla" << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
-    } else if (auto x = dyn_cast<MICompare>(inst)) {
-      os << "cmp"
-         << "\t" << x->lhs << ", " << x->rhs << endl;
-      increase_count();
-    } else if (auto x = dyn_cast<MIMove>(inst)) {
-      // limit of ARM immediate number, see
-      // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
-      if (x->rhs.state == MachineOperand::Immediate && !can_encode_imm(x->rhs.value)) {
-        using std::to_string;
-        // split into high & low 16 bits
-        u32 imm = x->rhs.value;
-        u32 low_bits = imm & 0xffffu;
-        u32 high_bits = imm >> 16u;
-        auto low_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)low_bits};
-        auto high_operand = MachineOperand{.state = MachineOperand::Immediate, .value = (i32)high_bits};
-        // debug output
-        auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
-                          to_string(high_bits) + " and " + to_string(low_bits);
-        dbg(move_split);
-        // output asm
-        os << "@ original imm: " << (i32)imm << endl;
-        os << std::hex;
-        os << "\t"
-           << "movw"
-           << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
-        increase_count();
-        if (high_bits != 0) {
-          os << "\t"
-             << "movt"
-             << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
-          increase_count();
+  std::function<void(MachineInst *, MachineFunc *, MachineBB *, bool)> output_instruction =
+      [&](MachineInst *inst, MachineFunc *f, MachineBB *bb, bool indent) {
+        if (bb && inst == bb->control_transfer_inst) {
+          os << "@ control transfer" << endl;
         }
-        os << std::dec;
-      } else {
-        os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs;
-        if (x->shift.type != ArmShift::None) {
+        if (indent) {
+          os << "\t";
+        }
+        if (auto x = dyn_cast<MIJump>(inst)) {
+          os << "b"
+             << "\t" << pb(x->target) << endl;
+          insert_pool();
+          increase_count();
+        } else if (auto x = dyn_cast<MIBranch>(inst)) {
+          os << "b" << x->cond << "\t" << pb(x->target) << endl;
+          increase_count();
+        } else if (auto x = dyn_cast<MIAccess>(inst)) {
+          MachineOperand data{};
+          std::string inst_name;
+          if (auto x = dyn_cast<MILoad>(inst)) {
+            data = x->dst;
+            inst_name = "ldr";
+          } else if (auto x = dyn_cast<MIStore>(inst)) {
+            data = x->data;
+            inst_name = "str";
+          }
+          if (x->offset.is_imm()) {
+            i32 offset = x->offset.value << x->shift;
+            os << inst_name << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
+          } else {
+            os << inst_name << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]"
+               << endl;
+          }
+          increase_count();
+        } else if (auto x = dyn_cast<MIGlobal>(inst)) {
+          os << "ldr"
+             << "\t" << x->dst << ", =" << x->sym->name << endl;
+          increase_count();
+        } else if (auto x = dyn_cast<MIBinary>(inst)) {
           const char *op = "unknown";
-          if (x->shift.type == ArmShift::Lsl) {
-            op = "lsl";
-          } else if (x->shift.type == ArmShift::Lsr) {
-            op = "lsr";
+          if (x->tag == MachineInst::Tag::Mul) {
+            op = "mul";
+          } else if (x->tag == MachineInst::Tag::Add) {
+            op = "add";
+          } else if (x->tag == MachineInst::Tag::Sub) {
+            op = "sub";
+          } else if (x->tag == MachineInst::Tag::Rsb) {
+            op = "rsb";
+          } else if (x->tag == MachineInst::Tag::Div) {
+            op = "sdiv";
+          } else if (x->tag == MachineInst::Tag::And) {
+            op = "and";
+          } else if (x->tag == MachineInst::Tag::Or) {
+            op = "orr";
           } else {
             UNREACHABLE();
           }
-          os << ", " << op << " #" << x->shift.shift;
+          os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
+          if (x->shift.type != ArmShift::None) {
+            assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
+            os << ", " << x->shift;
+          }
+          os << endl;
+          increase_count();
+        } else if (auto x = dyn_cast<MILongMul>(inst)) {
+          os << "umull"
+             << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
+        } else if (auto x = dyn_cast<MIFma>(inst)) {
+          os << "mla"
+             << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
+        } else if (auto x = dyn_cast<MICompare>(inst)) {
+          os << "cmp"
+             << "\t" << x->lhs << ", " << x->rhs << endl;
+          increase_count();
+        } else if (auto x = dyn_cast<MIMove>(inst)) {
+          // limit of ARM immediate number, see
+          // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
+          if (x->rhs.is_imm() && !can_encode_imm(x->rhs.value)) {
+            using std::to_string;
+            // split into high & low 16 bits
+            u32 imm = x->rhs.value;
+            u32 low_bits = imm & 0xffffu;
+            u32 high_bits = imm >> 16u;
+            auto low_operand = MachineOperand::I((i32)low_bits);
+            auto high_operand = MachineOperand::I((i32)high_bits);
+            // debug output
+            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
+                              to_string(high_bits) + " and " + to_string(low_bits);
+            dbg(move_split);
+            // output asm
+            os << "@ original imm: " << (i32)imm << endl;
+            os << std::hex;
+            os << "\t"
+               << "movw"
+               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
+            increase_count();
+            if (high_bits != 0) {
+              os << "\t"
+                 << "movt"
+                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
+              increase_count();
+            }
+            os << std::dec;
+          } else {
+            os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs;
+            if (x->shift.type != ArmShift::None) {
+              const char *op = "unknown";
+              if (x->shift.type == ArmShift::Lsl) {
+                op = "lsl";
+              } else if (x->shift.type == ArmShift::Lsr) {
+                op = "lsr";
+              } else {
+                UNREACHABLE();
+              }
+              os << ", " << op << " #" << x->shift.shift;
+            }
+            os << endl;
+            increase_count();
+          }
+        } else if (auto x = dyn_cast<MIReturn>(inst)) {
+          // function epilogue
+          // restore registers and pc from stack
+          // increase sp
+          if (f->sp_offset) {
+            move_stack(false, f->sp_offset, output_instruction, "\t");
+          }
+          os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
+          insert_pool();
+          increase_count(2);
+        } else if (auto x = dyn_cast<MICall>(inst)) {
+          os << "blx\t" << x->func->name << endl;
+          increase_count();
+        } else if (auto x = dyn_cast<MIComment>(inst)) {
+          os << "@ " << x->content << endl;
+        } else {
+          UNREACHABLE();
         }
-        os << endl;
-        increase_count();
-      }
-    } else if (auto x = dyn_cast<MIReturn>(inst)) {
-      // function epilogue
-      // restore registers and pc from stack
-      // increase sp
-      if (f->sp_offset) {
-        move_stack(false, f->sp_offset, output_instruction, "\t");
-      }
-      os << "ldmfd\t sp!, {r4-r11,pc}" << endl;
-      insert_pool();
-      increase_count(2);
-    } else if (auto x = dyn_cast<MICall>(inst)) {
-      os << "blx\t" << x->func->name << endl;
-      increase_count();
-    } else if (auto x = dyn_cast<MIComment>(inst)) {
-      os << "@ " << x->content << endl;
-    } else {
-      UNREACHABLE();
-    }
-  };
-
+      };
 
   // code section
   os << ".arch armv7ve" << endl;

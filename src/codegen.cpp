@@ -74,12 +74,12 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
     // virtual registers
     i32 virtual_max = 0;
-    auto new_virtual_reg = [&]() { return MachineOperand{.state = MachineOperand::Virtual, .value = virtual_max++}; };
+    auto new_virtual_reg = [&]() { return MachineOperand::V(virtual_max++); };
 
     // resolve imm as instruction operand
     // ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
     auto get_imm_operand = [&](i32 imm, MachineBB *mbb) {
-      auto operand = MachineOperand{.state = MachineOperand::Immediate, .value = imm};
+      auto operand = MachineOperand::I(imm);
       if (can_encode_imm(imm)) {
         // directly encoded in instruction as imm
         return operand;
@@ -173,7 +173,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         // move val to vreg
         auto mv_inst = new MIMove(mbb);
         mv_inst->dst = res;
-        mv_inst->rhs = MachineOperand{.state = MachineOperand::Immediate, .value = y->imm};
+        mv_inst->rhs = MachineOperand::I(y->imm);
         return res;
       } else {
         return resolve(value, mbb);
@@ -253,7 +253,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             move_mult->rhs = MachineOperand::I(mult);
             // dst <- index * mult + dst
             auto fma_inst = new MIFma(mbb);
-            fma_inst->dst= dst;
+            fma_inst->dst = dst;
             fma_inst->lhs = index;
             fma_inst->rhs = move_mult->dst;
             fma_inst->acc = dst;
@@ -923,12 +923,12 @@ void register_allocate(MachineProgram *p) {
         return res;
       };
 
-      auto move_related = [&](MachineOperand n) { return node_moves(n).size() > 0; };
+      auto move_related = [&](MachineOperand n) { return !node_moves(n).empty(); };
 
       auto mk_worklist = [&]() {
         for (i32 i = 0; i < f->virtual_max; i++) {
           // initial
-          MachineOperand vreg = {.state = MachineOperand::Virtual, .value = i};
+          auto vreg = MachineOperand::V(i);
           if (degree[vreg] >= k) {
             spill_worklist.insert(vreg);
           } else if (move_related(vreg)) {
@@ -1127,14 +1127,14 @@ void register_allocate(MachineProgram *p) {
           for (int i = 0; i < k - 2; i++) {
             ok_colors.insert(i);
           }
-          ok_colors.insert((i32) ArmReg::lr);
-          ok_colors.insert((i32) ArmReg::ip);
+          ok_colors.insert((i32)ArmReg::lr);
+          ok_colors.insert((i32)ArmReg::ip);
 
           for (auto w : adj_list[n]) {
             auto a = get_alias(w);
-            if (a.state == MachineOperand::Allocated || a.is_precolored()) {
+            if (a.state == MachineOperand::State::Allocated || a.is_precolored()) {
               ok_colors.erase(a.value);
-            } else if (a.state == MachineOperand::Virtual) {
+            } else if (a.state == MachineOperand::State::Virtual) {
               auto it = colored.find(a);
               if (it != colored.end()) {
                 ok_colors.erase(it->second.value);
@@ -1146,7 +1146,7 @@ void register_allocate(MachineProgram *p) {
             spilled_nodes.insert(n);
           } else {
             auto color = *ok_colors.begin();
-            colored[n] = MachineOperand{.state = MachineOperand::Allocated, .value = color};
+            colored[n] = MachineOperand{.state = MachineOperand::State::Allocated, .value = color};
           }
         }
 
