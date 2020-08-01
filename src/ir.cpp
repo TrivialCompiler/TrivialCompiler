@@ -13,6 +13,8 @@ void Value::deleteValue() {
     delete x;
   else if (auto x = dyn_cast<ReturnInst>(this))
     delete x;
+  else if (auto x = dyn_cast<GetElementPtrInst>(this))
+    delete x;
   else if (auto x = dyn_cast<LoadInst>(this))
     delete x;
   else if (auto x = dyn_cast<StoreInst>(this))
@@ -210,7 +212,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           os << "; getelementptr" << v_index.get(inst) << endl << "\t";
           u32 temp = v_index.alloc();
-          os << "%t" << temp << " = mul i32 " << pv(v_index, x->index.value) << ", " << pv(v_index, x->multiplier.value)
+          os << "%t" << temp << " = mul i32 " << pv(v_index, x->index.value) << ", " << x->multiplier
              << endl;
           os << "\t" << pv(v_index, inst) << " = getelementptr inbounds i32, i32* " << pv(v_index, x->arr.value)
              << ", i32 "

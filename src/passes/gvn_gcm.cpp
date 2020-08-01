@@ -30,12 +30,22 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, ConstValue *x) {
   return x;
 }
 
+// GetElementPtrInst和LoadInst的find_eq中，对x->arr.value的递归搜索最终会终止于AllocaInst, ParamRef, GlobalRef，它们直接用指针比较
+static Value *find_eq(std::unordered_map<Value *, Value *> &vn, GetElementPtrInst *x) {
+  for (auto &[k, v] : vn) {
+    if (auto y = dyn_cast<GetElementPtrInst>(k); y && y != x) {
+      bool same = vn_of(vn, x->arr.value) == vn_of(vn, y->arr.value) &&
+                  vn_of(vn, x->index.value) == vn_of(vn, y->index.value);
+      if (same) return v;
+    }
+  }
+  return x;
+}
+
 static Value *find_eq(std::unordered_map<Value *, Value *> &vn, LoadInst *x) {
   for (auto &[k, v] : vn) {
     if (auto y = dyn_cast<LoadInst>(k); y && y != x) {
-      // 对load的arr和dep没有必要用vn，直接要求地址相等就可以了
-          // TODO
-      bool same = x->arr.value == y->arr.value &&
+      bool same = vn_of(vn, x->arr.value) == vn_of(vn, y->arr.value) &&
                   vn_of(vn, x->index.value) == vn_of(vn, y->index.value) &&
                   x->mem_token.value == y->mem_token.value;
       if (same) return v;
@@ -44,12 +54,14 @@ static Value *find_eq(std::unordered_map<Value *, Value *> &vn, LoadInst *x) {
   return x;
 }
 
+
 static Value *vn_of(std::unordered_map<Value *, Value *> &vn, Value *x) {
   auto it = vn.insert({x, x});
   if (it.second) {
     // 插入成功了意味着没有指针相等的，但是仍然要找是否存在实际相等的，如果没有的话它的vn就是x
     if (auto y = dyn_cast<BinaryInst>(x)) it.first->second = find_eq(vn, y);
     else if (auto y = dyn_cast<ConstValue>(x)) it.first->second = find_eq(vn, y);
+    else if (auto y = dyn_cast<GetElementPtrInst>(x)) it.first->second = find_eq(vn, y);
     else if (auto y = dyn_cast<LoadInst>(x)) it.first->second = find_eq(vn, y);
     // 其余情况一定要求指针相等
   }
@@ -106,12 +118,15 @@ static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, I
       for (Use *op : {&x->lhs, &x->rhs}) {
         schedule_op(x, op->value);
       }
+    } else if (auto x = dyn_cast<GetElementPtrInst>(i)) {
+      transfer_inst(x, entry);
+      schedule_op(x, x->arr.value);
+      schedule_op(x, x->index.value);
     } else if (auto x = dyn_cast<LoadInst>(i)) {
       transfer_inst(x, entry);
       schedule_op(x, x->arr.value);
-          // TODO
       schedule_op(x, x->index.value);
-      if (x->mem_token.value) schedule_op(x, x->mem_token.value);
+      schedule_op(x, x->mem_token.value);
     }
   }
 }
@@ -128,7 +143,7 @@ static BasicBlock *find_lca(BasicBlock *a, BasicBlock *b) {
 
 static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst *i) {
   if (vis.insert(i).second) {
-    if (isa<BinaryInst>(i) || isa<LoadInst>(i)) {
+    if (isa<BinaryInst>(i) || isa<GetElementPtrInst>(i) || isa<LoadInst>(i)) {
       BasicBlock *lca = nullptr;
       for (Use *u = i->uses.head; u; u = u->next) {
         Inst *u1 = u->user;
@@ -223,8 +238,8 @@ void gvn_gcm(IrFunc *f) {
           all_same = fst == vn_of(vn, x->incoming_values[i].value);
         }
         if (all_same) replace(x, fst);
-      } else if (auto x = dyn_cast<LoadInst>(i)) {
-        replace(x, vn_of(vn, x));
+      } else if (isa<GetElementPtrInst>(i) || isa<LoadInst>(i)) {
+        replace(i, vn_of(vn, i));
       }
       // 没有必要主动把其他指令加入vn，如果它们被用到的话自然会被加入的
       i = next;

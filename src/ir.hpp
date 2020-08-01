@@ -291,20 +291,14 @@ struct AccessInst : Inst {
 
 struct GetElementPtrInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Tag::GetElementPtr);
-  Use multiplier;
-  GetElementPtrInst(Decl *lhs_sym, Value *arr, Value *index, Value *multiplier, BasicBlock *insertAtEnd)
-      : AccessInst(Tag::GetElementPtr, lhs_sym, arr, index, insertAtEnd), multiplier(multiplier, this) {}
+  int multiplier;
+  GetElementPtrInst(Decl *lhs_sym, Value *arr, Value *index, int multiplier, BasicBlock *insertAtEnd)
+      : AccessInst(Tag::GetElementPtr, lhs_sym, arr, index, insertAtEnd), multiplier(multiplier) {}
 };
 
 struct LoadInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Load);
-  // 由memdep pass计算
-  // 记录本条指令依赖的指令，这条指令不能在它依赖的指令之前执行，但是有可能它依赖的指令从来没有被执行
-  // 这种依赖关系算作某种意义上的operand，所以用Use来表示(不完全一样，一般的operand的计算必须在本条指令之前)
-  // LoadInst只可能依赖StoreInst, CallInst
-  //  std::vector<Inst *> dep;
-  //  std::unordered_set<Inst *> alias;
-  Use mem_token;
+  Use mem_token; // 由memdep pass计算
   LoadInst(Decl *lhs_sym, Value *arr, Value *index, BasicBlock *insertAtEnd)
       : AccessInst(Tag::Load, lhs_sym, arr, index, insertAtEnd), mem_token(nullptr, this) {}
 };
@@ -366,10 +360,10 @@ struct MemPhiInst : Inst {
   std::vector<BasicBlock *> *incoming_bbs;
 
   // load依赖store和store依赖load两种依赖用到的MemPhiInst不一样
-  // 前者的load_or_arr来自于load的数组地址，后者的load_or_arr来自于LoadInst
-  Value *load_or_arr;
+  // 前者的load_or_arr来自于load的数组地址，类型是Decl *，后者的load_or_arr来自于LoadInst
+  void *load_or_arr;
 
-  explicit MemPhiInst(Value *load_or_arr, BasicBlock *insertAtFront)
+  explicit MemPhiInst(void *load_or_arr, BasicBlock *insertAtFront)
       : Inst(Tag::MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
     bb = insertAtFront;
     bb->mem_phis.insertAtBegin(this);

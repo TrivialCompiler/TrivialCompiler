@@ -50,7 +50,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
         for (int i = 0; i < x->dims.size(); i++) {
           int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
           if (i + 1 < x->dims.size()) {
-            auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], new ConstValue(size), ctx->bb);
+            auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
             res = inst;
             val = inst;
           } else {
@@ -69,7 +69,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         if (i + 1 < x->dims.size()) {
-          auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], new ConstValue(size), ctx->bb);
+          auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
           res = inst;
           val = inst;
         } else {
@@ -80,7 +80,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       return res;
     } else {
       // access to array itself
-      auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), new ConstValue(0), ctx->bb);
+      auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), 0, ctx->bb);
       return inst;
     }
   } else if (auto x = dyn_cast<Call>(expr)) {
@@ -179,7 +179,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
       for (int i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         if (i + 1 < x->dims.size()) {
-          auto inst = new GetElementPtrInst(x->lhs_sym, last, dims[i], new ConstValue(size), ctx->bb);
+          auto inst = new GetElementPtrInst(x->lhs_sym, last, dims[i], size, ctx->bb);
           last = inst;
         } else {
           auto inst = new StoreInst(x->lhs_sym, last, rhs, dims[i], ctx->bb);

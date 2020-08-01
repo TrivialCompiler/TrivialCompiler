@@ -12,50 +12,40 @@ static bool dim_alias(const std::vector<Expr *> &dim1, const std::vector<Expr *>
 }
 
 // 目前只考虑用数组的类型/维度来排除alias，不考虑用下标来排除
-// arr1, arr2只可能是ParamRef, GlobalRef, AllocaInst
-// todo: 如果以后支持把a[b][c]转化成t = a[b], t[c]的话，arr还可能是LoadInst
+// 分三种情况：!dims.empty() && dims[0] == nullptr => 参数数组; 否则is_glob == true => 全局变量; 否则是局部数组
 // 这个关系是对称的，但不是传递的，例如参数中的int []和int [][5]，int [][10]都alias，但int [][5]和int [][10]不alias
 // todo: 测试发现公开测例中可以直接假定不同的参数不alias，也许还可以进一步面向测例编程
-static bool alias(Value *arr1, Value *arr2) {
-  if (auto x = dyn_cast<ParamRef>(arr1)) {
-    if (auto y = dyn_cast<ParamRef>(arr2))
-      return dim_alias(x->decl->dims, y->decl->dims);
-    else if (auto y = dyn_cast<GlobalRef>(arr2))
-      return dim_alias(x->decl->dims, y->decl->dims);
-    else if (auto y = dyn_cast<AllocaInst>(arr2))
+static bool alias(Decl *arr1, Decl *arr2) {
+  if (arr1->is_param_array()) { // 参数
+    if (arr2->is_param_array())
+      return dim_alias(arr1->dims, arr2->dims);
+    else if (arr2->is_glob)
+      return dim_alias(arr1->dims, arr2->dims);
+    else
+      return false;
+  } else if (arr1->is_glob) { // 全局变量
+    if (arr2->is_param_array())
+      return dim_alias(arr1->dims, arr2->dims);
+    else if (arr2->is_glob)
+      return arr1 == arr2;
+    else
+      return false;
+  } else { // 局部数组
+    if (arr2->is_param_array())
+      return false;
+    else if (arr2->is_glob)
       return false;
     else
-      UNREACHABLE();
-  } else if (auto x = dyn_cast<GlobalRef>(arr1)) {
-    if (auto y = dyn_cast<ParamRef>(arr2))
-      return dim_alias(x->decl->dims, y->decl->dims);
-    else if (auto y = dyn_cast<GlobalRef>(arr2))
-      return x->decl == y->decl;
-    else if (auto y = dyn_cast<AllocaInst>(arr2))
-      return false;
-    else
-      UNREACHABLE();
-  } else if (auto x = dyn_cast<AllocaInst>(arr1)) {
-    if (auto y = dyn_cast<ParamRef>(arr2))
-      return false;
-    else if (auto y = dyn_cast<GlobalRef>(arr2))
-      return false;
-    else if (auto y = dyn_cast<AllocaInst>(arr2))
-      return x == y; // 与x->sym == y->sym的值应该是一致的
-    else
-      UNREACHABLE();
-  } else {
-    UNREACHABLE();
+      return arr1 == arr2;
   }
 }
 
 // 如果load的数组不是本函数内定义的，一个函数调用就可能修改其内容，这包括ParamRef和GlobalRef
 // 如果load的数组是本函数内定义的，即是AllocaInst，则只有当其地址被不完全load作为参数传递给一个函数时，这个函数才可能修改它
-static bool is_call_load_alias(Value *arr, CallInst *y) {
-  return !isa<AllocaInst>(arr) || std::any_of(y->args.begin(), y->args.end(), [arr](Use &u) {
-    auto a = dyn_cast<LoadInst>(u.value);
-          // TODO
-    return a && alias(arr, a->arr.value);
+static bool is_call_load_alias(Decl *arr, CallInst *y) {
+  return arr->is_param_array() || arr->is_glob || std::any_of(y->args.begin(), y->args.end(), [arr](Use &u) {
+    auto a = dyn_cast<GetElementPtrInst>(u.value);
+    return a && alias(arr, a->lhs_sym);
   });
 }
 
@@ -83,20 +73,19 @@ void compute_memdep(IrFunc *f) {
     }
   }
   // 把所有数组地址相同的load一起考虑，因为相关的store集合计算出来必定是一样的
-  std::unordered_map<Value *, LoadInfo> loads;
+  std::unordered_map<Decl *, LoadInfo> loads;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
-          // TODO
-      if (auto x = dyn_cast<LoadInst>(i); x) {
+      if (auto x = dyn_cast<LoadInst>(i)) {
         x->mem_token.set(nullptr);
-        Value *arr = x->arr.value;
+        Decl *arr = x->lhs_sym;
         auto[it, inserted] = loads.insert({arr, {(u32) loads.size()}});
         LoadInfo &info = it->second;
         info.loads.push_back(x);
         if (!inserted) continue; // stores已经计算过了
         for (BasicBlock *bb1 = f->bb.head; bb1; bb1 = bb1->next) {
           for (Inst *i1 = bb1->insts.head; i1; i1 = i1->next) {
-            if ((isa<StoreInst>(i1) && alias(arr, static_cast<StoreInst *>(i1)->arr.value)) ||
+            if ((isa<StoreInst>(i1) && alias(arr, static_cast<StoreInst *>(i1)->lhs_sym)) ||
                 (isa<CallInst>(i1) && is_call_load_alias(arr, static_cast<CallInst *>(i1)))) {
               info.stores.insert(i1);
             }
@@ -134,12 +123,11 @@ void compute_memdep(IrFunc *f) {
         bb->vis = true;
         for (Inst *i = bb->mem_phis.head; i; i = i->next) {
           auto i1 = static_cast<MemPhiInst *>(i);
-          values[loads.find(i1->load_or_arr)->second.id] = i;
+          values[loads.find(static_cast<Decl *>(i1->load_or_arr))->second.id] = i;
         }
         for (Inst *i = bb->insts.head; i; i = i->next) {
-          // TODO
-          if (auto x = dyn_cast<LoadInst>(i); x) {
-            x->mem_token.set(values[loads.find(x->arr.value)->second.id]);
+          if (auto x = dyn_cast<LoadInst>(i)) {
+            x->mem_token.set(values[loads.find(x->lhs_sym)->second.id]);
           } else if (isa<StoreInst>(i) || isa<CallInst>(i)) {
             for (auto &[load, info] : loads) {
               if (info.stores.find(i) != info.stores.end()) {
@@ -153,7 +141,7 @@ void compute_memdep(IrFunc *f) {
             worklist2.emplace_back(x, values);
             for (Inst *i = x->mem_phis.head; i; i = i->next) {
               auto i1 = static_cast<MemPhiInst *>(i);
-              u32 id = loads.find(i1->load_or_arr)->second.id;
+              u32 id = loads.find(static_cast<Decl *>(i1->load_or_arr))->second.id;
               u32 idx = std::find(x->pred.begin(), x->pred.end(), bb) - x->pred.begin();
               i1->incoming_values[idx].set(values[id]);
             }
@@ -206,7 +194,6 @@ void compute_memdep(IrFunc *f) {
           }
         }
         for (Inst *i = bb->insts.head; i; i = i->next) {
-          // TODO
           if (auto x = dyn_cast<LoadInst>(i); x) {
             values[loads2.find(x)->second] = x;
           } else if (auto x = dyn_cast<MemOpInst>(i)) {

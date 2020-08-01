@@ -98,6 +98,10 @@ struct Decl {
   // 一开始全局变量：GlobalRef，参数中的数组：ParamRef，参数中的int/局部变量：AllocaInst
   // 经过mem2reg后，参数和局部变量中的int将不再需要这个AllocaInst
   Value *value;
+
+  bool is_param_array() const {
+    return !dims.empty() && dims[0] == nullptr;
+  }
 };
 
 struct Stmt {

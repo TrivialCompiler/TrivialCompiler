@@ -270,11 +270,13 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           auto dst = resolve(inst, mbb);
           auto arr = resolve(x->arr.value, mbb);
           auto index = resolve_no_imm(x->index.value, mbb);
-          auto multiplier = resolve_no_imm(x->multiplier.value, mbb);
+          auto move_inst = new MIMove(mbb);
+          move_inst->dst = new_virtual_reg();
+          move_inst->rhs = MachineOperand::I(x->multiplier);
           auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
           mul_inst->dst = new_virtual_reg();
           mul_inst->lhs = index;
-          mul_inst->rhs = multiplier;
+          mul_inst->rhs = move_inst->dst;
           auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
           add_inst->dst = dst;
           add_inst->lhs = arr;
