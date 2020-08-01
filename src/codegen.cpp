@@ -639,6 +639,8 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
       def.push_back(MachineOperand::R((ArmReg)i));
       use.push_back(MachineOperand::R((ArmReg)i));
     }
+    def.push_back(MachineOperand::R(lr));
+    use.push_back(MachineOperand::R(lr));
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (auto x = dyn_cast<MIReturn>(inst)) {
@@ -766,8 +768,8 @@ void register_allocate(MachineProgram *p) {
       std::set<MIMove *> worklist_moves;
       std::set<MIMove *> active_moves;
 
-      // allocatable registers
-      i32 k = (int)ArmReg::r10 - (int)ArmReg::r0 + 1;
+      // allocatable registers: r0 to r10 and lr
+      i32 k = (int)ArmReg::r10 - (int)ArmReg::r0 + 1 + 1;
       // init degree for pre colored nodes
       for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
         auto op = MachineOperand::R((ArmReg)i);
@@ -1067,9 +1069,10 @@ void register_allocate(MachineProgram *p) {
           auto n = select_stack.back();
           select_stack.pop_back();
           std::set<i32> ok_colors;
-          for (int i = 0; i < k; i++) {
+          for (int i = 0; i < k-1; i++) {
             ok_colors.insert(i);
           }
+          ok_colors.insert((i32)lr);
 
           for (auto w : adj_list[n]) {
             auto a = get_alias(w);

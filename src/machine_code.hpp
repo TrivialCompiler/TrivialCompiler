@@ -32,7 +32,7 @@ enum class ArmReg {
   r10,
   // frame pointer
   r11,
-  // ipc scratch register, what was that?
+  // ipc scratch register, used in some instructions
   r12,
   // stack pointer
   r13,
@@ -44,6 +44,7 @@ enum class ArmReg {
 
 const ArmReg fp = ArmReg::r11;
 const ArmReg sp = ArmReg::r13;
+const ArmReg lr = ArmReg::r14;
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
 struct ArmShift {
