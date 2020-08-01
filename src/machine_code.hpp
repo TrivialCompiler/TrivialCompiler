@@ -230,6 +230,7 @@ struct MachineInst {
 #include "op.inc"
     // Binary
     LongMul,
+    FMA,
     Mv,
     Branch,
     Jump,
@@ -256,7 +257,7 @@ struct MachineInst {
 };
 
 struct MIBinary : MachineInst {
-  // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or,
+  // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, LongMul, FMA
   DEFINE_CLASSOF(MachineInst, Tag::Add <= p->tag && p->tag <= Tag::Or);
   MachineOperand dst;
   MachineOperand lhs;
@@ -276,15 +277,32 @@ struct MIBinary : MachineInst {
   }
 };
 
-// 应该有四种，但是现在只用到一种UMULL，所以也没有额外定义来区分它们
-// 我们只用到UMULL结果的高32位，低32位的结果写入r12，这个寄存器的值我们不在乎
-struct MILongMul : MachineInst {
-  DEFINE_CLASSOF(MachineInst, p->tag == Tag::LongMul);
+struct MITernary : MachineInst {
+  // LongMul, FMA
+  DEFINE_CLASSOF(MachineInst, Tag::LongMul <= p->tag && p->tag <= Tag::FMA);
+  MachineOperand dst_lo;
   MachineOperand dst_hi;
   MachineOperand lhs;
   MachineOperand rhs;
 
-  MILongMul(MachineBB *insertAtEnd) : MachineInst(Tag::LongMul, insertAtEnd) {}
+  MITernary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
+};
+
+struct MILongMul : MITernary {
+  DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
+
+  explicit MILongMul(MachineBB *insertAtEnd) : MITernary(Tag::LongMul, insertAtEnd) {
+    dst_lo = MachineOperand::R(ArmReg::r12);
+  }
+};
+
+// FIXME: not correct if final result is negative
+struct MIFma : MITernary {
+  DEFINE_CLASSOF(MachineInst, Tag::FMA == p->tag);
+
+  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {
+    dst_hi = MachineOperand::R(ArmReg::r12);
+  }
 };
 
 struct MIMove : MachineInst {

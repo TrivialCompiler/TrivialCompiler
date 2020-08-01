@@ -190,24 +190,20 @@ MachineProgram *machine_code_selection(IrProgram *p) {
         } else if (auto x = dyn_cast<LoadInst>(inst)) {
           auto arr = resolve(x->arr.value, mbb);
           auto index = resolve(x->index.value, mbb);
-          new MIComment("begin load", mbb);
           auto load_inst = new MILoad(mbb);
           load_inst->dst = resolve(inst, mbb);
           load_inst->addr = arr;
           load_inst->offset = index;
           load_inst->shift = 2;
-          new MIComment("end load", mbb);
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
           auto arr = resolve(x->arr.value, mbb);
           auto data = resolve_no_imm(x->data.value, mbb);
           auto index = resolve(x->index.value, mbb);
-          new MIComment("begin store", mbb);
           auto store_inst = new MIStore(mbb);
           store_inst->addr = arr;
           store_inst->offset = index;
           store_inst->data = data;
           store_inst->shift = 2;
-          new MIComment("end store", mbb);
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           // dst = getelementptr arr, index, multiplier
           auto dst = resolve(inst, mbb);
@@ -217,13 +213,13 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
           new MIComment("begin getelementptr " + std::string(x->lhs_sym->name), mbb);
           if (mult == 0 || (y && y->imm == 0)) {
-            // dst = arr
+            // dst <- arr
             auto move_inst = new MIMove(mbb);
             move_inst->dst = dst;
             move_inst->rhs = arr;
             dbg("offset 0 eliminated in getelementptr");
           } else if (y) {
-            // dst = arr + result
+            // dst <- arr + result
             auto off = mult * y->imm;
             auto imm_operand = get_imm_operand(off, mbb);
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
@@ -233,7 +229,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto offset_const = "offset calculated to constant " + std::to_string(off) + " in getelementptr";
             dbg(offset_const);
           } else if ((mult & (mult - 1)) == 0) {
-            // dst = arr + index << log(mult)
+            // dst <- arr + index << log(mult)
             auto index = resolve(x->index.value, mbb);
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
             add_inst->dst = dst;
@@ -244,20 +240,21 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto fuse_mul_add = "MUL " + std::to_string(mult) + " and ADD fused into shifted ADD in getelementptr";
             dbg(fuse_mul_add);
           } else {
-            // v0 = index * mult
-            // dst = arr + v0
+            // dst <- arr
             auto index = resolve_no_imm(x->index.value, mbb);
             auto move_inst = new MIMove(mbb);
-            move_inst->dst = new_virtual_reg();
-            move_inst->rhs = MachineOperand::I(x->multiplier);
-            auto mul_inst = new MIBinary(MachineInst::Tag::Mul, mbb);
-            mul_inst->dst = new_virtual_reg();
-            mul_inst->lhs = index;
-            mul_inst->rhs = move_inst->dst;
-            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-            add_inst->dst = dst;
-            add_inst->lhs = arr;
-            add_inst->rhs = mul_inst->dst;
+            move_inst->dst = dst;
+            move_inst->rhs = arr;
+            // mult <- mult (imm)
+            auto move_mult = new MIMove(mbb);
+            move_mult->dst = new_virtual_reg();
+            move_mult->rhs = MachineOperand::I(mult);
+            // dst <- dst + index * mult
+            auto fma_inst = new MIFma(mbb);
+            fma_inst->dst_lo = dst;
+            fma_inst->lhs = index;
+            fma_inst->rhs = move_mult->dst;
+            dbg("MUL and ADD fused into SMLAL");
           }
           new MIComment("end getelementptr", mbb);
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
@@ -623,6 +620,9 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     def = {x->dst_hi};
     use = {x->lhs, x->rhs};
+  } else if (auto x = dyn_cast<MIFma>(inst)) {
+    def = {x->dst_lo};
+    use = {x->dst_lo, x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -658,6 +658,9 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     def = &x->dst_hi;
     use = {&x->lhs, &x->rhs};
+  } else if (auto x = dyn_cast<MIFma>(inst)) {
+    def = {&x->dst_lo};
+    use = {&x->dst_lo, &x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = &x->dst;
     use = {&x->rhs};
