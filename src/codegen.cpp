@@ -287,27 +287,13 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           MachineOperand rhs{};
           auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
+          auto imm = static_cast<ConstValue *>(x->rhs.value)->imm;
           assert(!(lhs_const && rhs_const));  // should be optimized out
-          // Optimization 1:
-          // try to use negative imm to reduce instructions
-          if (x->tag == Value::Tag::Add || x->tag == Value::Tag::Sub) {
-            // add r0, #-40 == sub r0, #40
-            // the former will be splitted into instructions (movw, movt, add), the latter is only one
-            if (rhs_const) {
-              auto &imm = static_cast<ConstValue *>(x->rhs.value)->imm;
-              if (!can_encode_imm(imm) && can_encode_imm(-imm)) {
-                auto negative_imm = "Imm " + std::to_string(imm) + " can be encoded in negative form";
-                dbg(negative_imm);
-                imm = -imm;
-                x->tag = x->tag == Value::Tag::Add ? Value::Tag::Sub : Value::Tag::Add;
-              }
-            }
-          }
+
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           // Optimization 2:
           // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
           if (rhs_const) {
-            int imm = static_cast<ConstValue *>(x->rhs.value)->imm;
             if (x->tag == Value::Tag::Div && imm > 0) {
               // fixme: this is an unsafe optimization, because it assumes lhs > 0 for correctness
               const u32 N = 32;
@@ -412,7 +398,19 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           // try to use imm
           if (x->rhsCanBeImm() && rhs_const) {
-            rhs = get_imm_operand(static_cast<ConstValue *>(x->rhs.value)->imm, mbb);  // might be imm or register
+            // Optimization 1:
+            // try to use negative imm to reduce instructions
+            if (x->tag == Value::Tag::Add || x->tag == Value::Tag::Sub) {
+              // add r0, #-40 == sub r0, #40
+              // the former will be splitted into instructions (movw, movt, add), the latter is only one
+              if (!can_encode_imm(imm) && can_encode_imm(-imm)) {
+                auto negative_imm = "Imm " + std::to_string(imm) + " can be encoded in negative form";
+                dbg(negative_imm);
+                imm = -imm;
+                x->tag = x->tag == Value::Tag::Add ? Value::Tag::Sub : Value::Tag::Add;
+              }
+            }
+            rhs = get_imm_operand(imm, mbb);  // might be imm or register
           } else {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
