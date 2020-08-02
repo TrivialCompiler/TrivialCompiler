@@ -14,8 +14,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   auto insert_pool = [&](bool insert_jump = false) {
     inst_count = 0;
     auto pool_num = pool_count++;
-    auto sec_name = "_POOL_" + std::to_string(pool_num++);
-    auto after_sec_name = "_AFTER" + sec_name;
+    auto pool_name = "_POOL_" + std::to_string(pool_num++);
+    auto sec_name = ".L" + pool_name;
+    auto after_sec_name = ".L_AFTER" + pool_name;
     if (insert_jump) {
       os << "\t"
          << "b"
