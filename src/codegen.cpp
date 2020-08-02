@@ -3,6 +3,7 @@
 #include <cassert>
 #include <map>
 #include <optional>
+#include <algorithm>
 
 #include "machine_code.hpp"
 
@@ -1115,11 +1116,13 @@ void register_allocate(MachineProgram *p) {
 
       // procedure SelectSpill()
       auto select_spill = [&]() {
-        // TODO: heuristic to improve performance
-        auto m = *spill_worklist.begin();
+        // select node with max degree (heuristic)
+        auto m = std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b){
+          return degree[a] < degree[b];
+        });
+        simplify_worklist.insert(*m);
+        freeze_moves(*m);
         spill_worklist.erase(m);
-        simplify_worklist.insert(m);
-        freeze_moves(m);
       };
 
       // procedure AssignColors()
