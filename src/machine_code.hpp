@@ -223,6 +223,23 @@ struct MachineOperand {
   }
 };
 
+namespace std {
+template<> struct hash<MachineOperand> {
+  std::size_t operator()(MachineOperand const& m) const noexcept {
+    // state (32), value (32)
+    return (((size_t) m.state) << 32u) | (u32) m.value;
+  }
+};
+
+template<> struct hash<std::pair<MachineOperand, MachineOperand>> {
+  std::size_t operator()(std::pair<MachineOperand, MachineOperand> const& m) const noexcept {
+    // state2 (16), state1 (16), value2 (16), value1 (16)
+    return (((size_t) m.second.state) << 48u) | (((size_t) m.first.state) << 32u)
+           | ((u32) m.second.value << 16u) | (u32) m.first.value;
+  }
+};
+}
+
 struct MachineInst {
   DEFINE_ILIST(MachineInst)
   MachineBB *bb;
