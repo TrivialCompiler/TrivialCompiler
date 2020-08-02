@@ -72,7 +72,7 @@ foreach(case_file ${all_test_cases})
     # use GCC to generate exe
     # .sy -> .o
     add_custom_command(OUTPUT "${case_name}_gcc.o"
-	    COMMAND arm-linux-gnueabihf-g++ -x c++ -c -O2 -g -marm -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
+	    COMMAND arm-linux-gnueabihf-g++ -x c++ -c -O2 -g -marm -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
 	    DEPENDS "${case_file}")
     # .o -> exe
     add_custom_target("${case_name}_gcc"
