@@ -30,7 +30,7 @@ file(GLOB func_test_cases "sysyruntimelibrary/functional_test/*.sy")
 file(GLOB perf_test_cases "sysyruntimelibrary/performance_test/*.sy")
 file(GLOB custom_test_cases "custom_test/*.sy")
 set(all_test_cases ${func_test_cases} ${perf_test_cases} ${custom_test_cases})
-
+set(run_command_prefix /usr/bin/time -v timeout -v 30)
 
 # create test cases
 foreach(case_file ${all_test_cases})
@@ -42,12 +42,12 @@ foreach(case_file ${all_test_cases})
     # check our compiler
     # .sy -> .bc
     add_custom_command(OUTPUT "${case_name}.bc"
-            COMMAND timeout -v 15 ./${project_name} -l "${case_name}.bc" "${case_file}"
+            COMMAND ${run_command_prefix} ./${project_name} -l "${case_name}.bc" "${case_file}"
             DEPENDS ./${project_name})
     add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.bc")
     # .sy -> .S
     add_custom_command(OUTPUT "${case_name}.S"
-            COMMAND timeout -v 15 ./${project_name} -o "${case_name}.S" "${case_file}"
+            COMMAND ${run_command_prefix} ./${project_name} -o "${case_name}.S" "${case_file}"
             DEPENDS ./${project_name})
     add_custom_target("asm_${case_name}" DEPENDS "${case_name}.S")
 
