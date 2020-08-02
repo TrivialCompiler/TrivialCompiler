@@ -73,6 +73,24 @@ foreach(case_file ${all_test_cases})
             COMMAND make "test_${case_name}_llvm")
     endif()
 
+    # use GCC to generate exe
+    # .sy -> .o
+    add_custom_command(OUTPUT "${case_name}_gcc.o"
+	    COMMAND arm-linux-gnueabihf-g++ -x c++ -c -O2 -g -marm -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
+	    DEPENDS "${case_file}")
+    # .o -> exe
+    add_custom_target("${case_name}_gcc"
+	    COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_gcc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_gcc"
+	    DEPENDS "${case_name}_gcc.o")
+    # run exe with qemu to test
+    add_custom_target("test_${case_name}_gcc"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_gcc" "${case_input}" "${case_name}_gcc.out" "${case_output}"
+        DEPENDS "${case_name}_gcc")
+    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        add_test(NAME check_run_gcc_${case_name}
+            COMMAND make "test_${case_name}_gcc")
+    endif()
+
     # use our compiler to generate exe
     # .S -> .o
     add_custom_command(OUTPUT "${case_name}_tc.o"

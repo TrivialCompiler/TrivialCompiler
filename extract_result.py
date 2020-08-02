@@ -8,7 +8,7 @@ if __name__ == '__main__':
     with open(sys.argv[1]) as f:
         content = f.read()
 
-    pattern = re.compile(r'Test: check_run_(llvm|tc)_(.*)[\s\S]*?TOTAL: (\d+)H-(\d+)M-(\d+)S-(\d+)us')
+    pattern = re.compile(r'Test: check_run_(llvm|tc|gcc)_(.*)[\s\S]*?TOTAL: (\d+)H-(\d+)M-(\d+)S-(\d+)us')
 
     results = {}
 
@@ -28,8 +28,10 @@ if __name__ == '__main__':
     for case, time in results.items():
         nan = float('nan')
         time_llvm = time['llvm'] if 'llvm' in time else nan
+        time_gcc = time['gcc'] if 'gcc' in time else nan
         time_tc = time['tc'] if 'tc' in time else nan
-        ratio = f'{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'N/A'
-        data.append([case, time_llvm / 1e6, time_tc / 1e6, ratio])
+        ratio_llvm = f'{time_tc * 100 / time_llvm:0.2f}%' if time_llvm != 0 else 'N/A'
+        ratio_gcc = f'{time_tc * 100 / time_gcc:0.2f}%' if time_gcc != 0 else 'N/A'
+        data.append([case, time_llvm / 1e6, time_gcc / 1e6, time_tc / 1e6, ratio_llvm, ratio_gcc])
 
-    print(tabulate(data, headers=["Case", "LLVM", "TC", "Ratio"]))
+    print(tabulate(data, headers=["Case", "LLVM", "GCC", "TC", "Ratio(LLVM)", "Ratio(GCC)"]))
