@@ -199,7 +199,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           if (f->stack_size) {
             move_stack(false, f->stack_size, output_instruction, "\t");
           }
-          os << "ldmfd\tsp!, {";
+          os << "pop" << "\t" << "{";
           print_reg_list(os, f);
           os << "pc}" << endl;
           insert_pool();
@@ -226,7 +226,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << f->func->func->name << ":" << endl;
 
     // function prologue
-    os << "\tstmfd\tsp!, {";
+    os << "\t" << "push" << "\t" << "{";
     print_reg_list(os, f);
     os << "lr}" << endl;
     // move sp down
