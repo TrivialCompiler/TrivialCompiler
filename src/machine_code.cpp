@@ -67,7 +67,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   };
 
   auto print_reg_list = [](std::ostream& os, MachineFunc *f) {
-    for (auto r : f->used_caller_saved_regs) {
+    for (auto r : f->used_callee_saved_regs) {
       os << "r" << int(r) << ", ";
     }
   };

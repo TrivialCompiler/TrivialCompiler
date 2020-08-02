@@ -30,8 +30,8 @@ enum class ArmReg {
   r8,
   r9,
   r10,
-  // special purposes
   r11,
+  // special purposes
   r12,
   r13,
   r14,
@@ -133,7 +133,8 @@ struct MachineFunc {
   i32 virtual_max = 0;
   // size of stack allocated for local alloca and spilled registers
   i32 sp_offset = 0;
-  std::set<ArmReg> used_caller_saved_regs;
+  // set of callee saved registers used
+  std::set<ArmReg> used_callee_saved_regs;
   // offset += sp_offset
   std::vector<MachineInst *> sp_fixup;
   // offset += sp_offset + saved_regs * 4;
