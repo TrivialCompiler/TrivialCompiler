@@ -132,12 +132,12 @@ struct MachineFunc {
   // number of virtual registers allocated
   i32 virtual_max = 0;
   // size of stack allocated for local alloca and spilled registers
-  i32 sp_offset = 0;
+  i32 stack_size = 0;
   // set of callee saved registers used
   std::set<ArmReg> used_callee_saved_regs;
-  // offset += sp_offset
+  // offset += stack_size
   std::vector<MachineInst *> sp_fixup;
-  // offset += sp_offset + saved_regs * 4;
+  // offset += stack_size + saved_regs * 4;
   std::vector<MachineInst *> sp_arg_fixup;
 };
 

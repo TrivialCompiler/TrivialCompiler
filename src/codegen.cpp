@@ -78,9 +78,9 @@ MachineProgram *machine_code_selection(IrProgram *p) {
 
     // resolve imm as instruction operand
     // ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
-    auto get_imm_operand = [&](i32 imm, MachineBB *mbb) {
+    auto get_imm_operand = [&](i32 imm, MachineBB *mbb, bool force_reg = false) {
       auto operand = MachineOperand::I(imm);
-      if (can_encode_imm(imm)) {
+      if (!force_reg && can_encode_imm(imm)) {
         // directly encoded in instruction as imm
         return operand;
       } else {
@@ -132,7 +132,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
                 auto mv_inst = new MIMove(mf->bb.head, 0);
                 mv_inst->dst = vreg;
                 mv_inst->rhs = MachineOperand::I((i - 4) * 4);
-                mf->sp_arg_fixup.push_back(new_inst);
+                mf->sp_arg_fixup.push_back(mv_inst);
               }
               break;
             }
@@ -614,15 +614,16 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             size = x->sym->dims[0]->result;
           }
           size *= 4;
-          mf->sp_offset += size;
-          i32 offset = -mf->sp_offset;
+          mf->stack_size += size;
+          i32 offset = -mf->stack_size;
           auto dst = resolve(inst, mbb);
-          auto rhs = get_imm_operand(offset, mbb);
+          auto rhs = get_imm_operand(offset, mbb, true);
           auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
           add_inst->dst = dst;
           add_inst->lhs = MachineOperand::R(ArmReg::sp);
           add_inst->rhs = rhs;
-          mf->sp_fixup.push_back(add_inst);
+          // always fixup move
+          mf->sp_fixup.push_back(add_inst->prev);
         }
       }
     }
@@ -1216,8 +1217,8 @@ void register_allocate(MachineProgram *p) {
       } else {
         for (auto &n : spilled_nodes) {
           // allocate on stack
-          f->sp_offset += 4;
-          i32 offset = f->sp_offset;
+          f->stack_size += 4;
+          i32 offset = f->stack_size;
           for (auto bb = f->bb.head; bb; bb = bb->next) {
             for (auto inst = bb->insts.head; inst; inst = inst->next) {
               auto [def, use] = get_def_use_ptr(inst);

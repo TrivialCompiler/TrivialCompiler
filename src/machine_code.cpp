@@ -195,8 +195,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // function epilogue
           // restore registers and pc from stack
           // increase sp
-          if (f->sp_offset) {
-            move_stack(false, f->sp_offset, output_instruction, "\t");
+          if (f->stack_size) {
+            move_stack(false, f->stack_size, output_instruction, "\t");
           }
           os << "ldmfd\tsp!, {";
           print_reg_list(os, f);
@@ -229,8 +229,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     print_reg_list(os, f);
     os << "lr}" << endl;
     // move sp down
-    if (f->sp_offset) {
-      move_stack(true, f->sp_offset, output_instruction, "\t");
+    if (f->stack_size) {
+      move_stack(true, f->stack_size, output_instruction, "\t");
     }
     increase_count(3);
 
