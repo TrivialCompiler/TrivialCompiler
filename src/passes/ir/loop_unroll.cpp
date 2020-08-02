@@ -1,7 +1,6 @@
 #include "loop_unroll.hpp"
 #include "cfg.hpp"
-#include "../ast.hpp"
-#include "../op.hpp"
+#include "../../op.hpp"
 #include <cassert>
 
 static void get_deepest(std::vector<Loop *> &deepest, Loop *l) {

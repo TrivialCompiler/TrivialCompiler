@@ -30,18 +30,18 @@ enum class ArmReg {
   r8,
   r9,
   r10,
-  // special purposes
   r11,
+  // special purposes
   r12,
   r13,
   r14,
   r15,
   // some aliases
-  fp = 11,  // frame pointer
-  ip = r12, // ipc scratch register, used in some instructions (caller saved)
-  sp = r13, // stack pointer
-  lr = r14, // link register (caller saved)
-  pc = r15, // program counter
+  fp = r11,  // frame pointer (omitted), allocatable
+  ip = r12,  // ipc scratch register, used in some instructions (caller saved)
+  sp = r13,  // stack pointer
+  lr = r14,  // link register (caller saved)
+  pc = r15,  // program counter
 };
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
@@ -67,8 +67,8 @@ struct ArmShift {
     type = None;
   }
 
-  explicit operator std::string() const{
-    const char* name;
+  explicit operator std::string() const {
+    const char *name;
     switch (type) {
       case ArmShift::Asr:
         name = "asr";
@@ -96,7 +96,6 @@ static std::ostream &operator<<(std::ostream &os, const ArmShift &shift) {
   os << std::string(shift);
   return os;
 }
-
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
   if (cond == ArmCond::Eq) {
@@ -134,7 +133,11 @@ struct MachineFunc {
   // number of virtual registers allocated
   i32 virtual_max = 0;
   // size of stack allocated for local alloca and spilled registers
-  i32 sp_offset = 0;
+  i32 stack_size = 0;
+  // set of callee saved registers used
+  std::set<ArmReg> used_callee_saved_regs;
+  // offset += stack_size + saved_regs * 4;
+  std::vector<MachineInst *> sp_arg_fixup;
 };
 
 struct MachineBB {
@@ -155,7 +158,7 @@ struct MachineBB {
 };
 
 struct MachineOperand {
-  enum {
+  enum class State {
     PreColored,
     Allocated,
     Virtual,
@@ -165,18 +168,18 @@ struct MachineOperand {
 
   inline static MachineOperand R(ArmReg r) {
     auto n = (int)r;
-    assert(n >= 0 && n <= 16);
-    return MachineOperand{PreColored, n};
+    assert(n >= int(ArmReg::r0) && n <= int(ArmReg::pc));
+    return MachineOperand{State::PreColored, n};
   }
 
-  inline static MachineOperand V(int n) { return MachineOperand{Virtual, n}; }
+  inline static MachineOperand V(int n) { return MachineOperand{State::Virtual, n}; }
 
-  inline static MachineOperand I(int imm) { return MachineOperand{Immediate, imm}; }
+  inline static MachineOperand I(int imm) { return MachineOperand{State::Immediate, imm}; }
 
   // both are PreColored or Allocated, and has the same value
   bool is_equiv(const MachineOperand &other) const {
-    return (state == PreColored || state == Allocated) && (other.state == PreColored || other.state == Allocated) &&
-           value == other.value;
+    return (state == State::PreColored || state == State::Allocated) &&
+           (other.state == State::PreColored || other.state == State::Allocated) && value == other.value;
   }
 
   bool operator<(const MachineOperand &other) const {
@@ -191,22 +194,22 @@ struct MachineOperand {
 
   bool operator!=(const MachineOperand &other) const { return state != other.state || value != other.value; }
 
-  bool is_virtual() const { return state == Virtual; }
-  bool is_imm() const { return state == Immediate; }
-  bool is_precolored() const { return state == PreColored; }
-  bool needs_color() const { return state == Virtual || state == PreColored; }
+  bool is_virtual() const { return state == State::Virtual; }
+  bool is_imm() const { return state == State::Immediate; }
+  bool is_precolored() const { return state == State::PreColored; }
+  bool needs_color() const { return state == State::Virtual || state == State::PreColored; }
 
   explicit operator std::string() const {
     char prefix = '?';
     switch (this->state) {
-      case PreColored:
-      case Allocated:
+      case State::PreColored:
+      case State::Allocated:
         prefix = 'r';
         break;
-      case Virtual:
+      case State::Virtual:
         prefix = 'v';
         break;
-      case Immediate:
+      case State::Immediate:
         prefix = '#';
         break;
       default:
@@ -220,6 +223,23 @@ struct MachineOperand {
     return os;
   }
 };
+
+namespace std {
+template<> struct hash<MachineOperand> {
+  std::size_t operator()(MachineOperand const& m) const noexcept {
+    // state (2), value (14)
+    return ((((size_t) m.state) << 14u) | (u32) m.value) & 0xFFFFu;
+  }
+};
+
+template<> struct hash<std::pair<MachineOperand, MachineOperand>> {
+  std::size_t operator()(std::pair<MachineOperand, MachineOperand> const& m) const noexcept {
+    // hash(second), hash(first)
+    hash<MachineOperand> hash_func;
+    return (hash_func(m.second) << 16u) | hash_func(m.first);
+  }
+};
+}
 
 struct MachineInst {
   DEFINE_ILIST(MachineInst)
@@ -279,8 +299,6 @@ struct MIBinary : MachineInst {
 struct MITernary : MachineInst {
   // LongMul, FMA
   DEFINE_CLASSOF(MachineInst, Tag::LongMul <= p->tag && p->tag <= Tag::FMA);
-  MachineOperand dst_lo;
-  MachineOperand dst_hi;
   MachineOperand lhs;
   MachineOperand rhs;
 
@@ -289,19 +307,21 @@ struct MITernary : MachineInst {
 
 struct MILongMul : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
+  MachineOperand dst_lo;
+  MachineOperand dst_hi;
 
   explicit MILongMul(MachineBB *insertAtEnd) : MITernary(Tag::LongMul, insertAtEnd) {
     dst_lo = MachineOperand::R(ArmReg::ip);
   }
 };
 
-// FIXME: not correct if final result is negative
+// FIXME: may not be correct if final result is negative
 struct MIFma : MITernary {
   DEFINE_CLASSOF(MachineInst, Tag::FMA == p->tag);
+  MachineOperand acc;
+  MachineOperand dst;
 
-  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {
-    dst_hi = MachineOperand::R(ArmReg::ip);
-  }
+  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {}
 };
 
 struct MIMove : MachineInst {
@@ -373,7 +393,7 @@ struct MIStore : MIAccess {
   DEFINE_CLASSOF(MachineInst, p->tag == Tag::Store);
   MachineOperand data;
 
-  MIStore(MachineBB *insertAtEnd) : MIAccess(Tag::Store, insertAtEnd) {}
+  explicit MIStore(MachineBB *insertAtEnd) : MIAccess(Tag::Store, insertAtEnd) {}
   MIStore() : MIAccess(Tag::Store) {}
 };
 
@@ -382,14 +402,14 @@ struct MICompare : MachineInst {
   MachineOperand lhs;
   MachineOperand rhs;
 
-  MICompare(MachineBB *insertAtEnd) : MachineInst(Tag::Compare, insertAtEnd) {}
+  explicit MICompare(MachineBB *insertAtEnd) : MachineInst(Tag::Compare, insertAtEnd) {}
 };
 
 struct MICall : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Tag::Call);
   Func *func;
 
-  MICall(MachineBB *insertAtEnd) : MachineInst(Tag::Call, insertAtEnd) {}
+  explicit MICall(MachineBB *insertAtEnd) : MachineInst(Tag::Call, insertAtEnd) {}
 };
 
 struct MIGlobal : MachineInst {
@@ -407,4 +427,5 @@ struct MIComment : MachineInst {
   std::string content;
 
   MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Tag::Comment, insertAtEnd), content(content) {}
+  MIComment(std::string &&content, MachineInst *insertBefore) : MachineInst(Tag::Comment, insertBefore), content(content) {}
 };

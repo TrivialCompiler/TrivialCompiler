@@ -4,7 +4,7 @@ ARCH=`arch`
 if [ "$ARCH" = "x86_64" ]; then
     RUN="timeout -v 60 qemu-arm"
 else
-    RUN="timeout -v 60 sh -c"
+    RUN="/usr/bin/time -v timeout -v 60 sh -c"
 fi
 
 set -v
