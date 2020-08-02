@@ -1223,7 +1223,7 @@ void register_allocate(MachineProgram *p) {
         for (auto &n : spilled_nodes) {
           // allocate on stack
           for (auto bb = f->bb.head; bb; bb = bb->next) {
-            auto offset = f->virtual_max;
+            auto offset = f->stack_size;
             auto offset_imm = MachineOperand::I(offset);
 
             auto generate_access_offset = [&](MIAccess *access_inst){
