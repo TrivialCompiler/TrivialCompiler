@@ -33,6 +33,33 @@ std::pair<u64, u32> choose_multiplier(u32 d, u32 p) {
   return {hi, l};
 }
 
+// resolve imm as instruction operand
+// ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
+MachineOperand generate_imm_operand(i32 imm, MachineBB *mbb, bool force_reg, int &current_virtual_max) {
+  auto operand = MachineOperand::I(imm);
+  if (!force_reg && can_encode_imm(imm)) {
+    // directly encoded in instruction as imm
+    return operand;
+  } else {
+    auto imm_split = "Immediate number " + std::to_string(imm) + " cannot be encoded, converting to MIMove";
+    dbg(imm_split);
+    // use MIMove, which automatically splits if necessary
+    auto vreg = MachineOperand::V(current_virtual_max++);
+    if (mbb->control_transfer_inst) {
+      // insert before control transfer when there is control transfer instruction
+      auto mv_inst = new MIMove(mbb->control_transfer_inst);
+      mv_inst->dst = vreg;
+      mv_inst->rhs = operand;
+    } else {
+      // otherwise, insert at end
+      auto mv_inst = new MIMove(mbb);
+      mv_inst->dst = vreg;
+      mv_inst->rhs = operand;
+    }
+    return vreg;
+  }
+};
+
 MachineProgram *machine_code_selection(IrProgram *p) {
   auto ret = new MachineProgram;
   ret->glob_decl = p->glob_decl;
@@ -77,31 +104,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     i32 virtual_max = 0;
     auto new_virtual_reg = [&]() { return MachineOperand::V(virtual_max++); };
 
-    // resolve imm as instruction operand
-    // ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
-    auto get_imm_operand = [&](i32 imm, MachineBB *mbb, bool force_reg = false) {
-      auto operand = MachineOperand::I(imm);
-      if (!force_reg && can_encode_imm(imm)) {
-        // directly encoded in instruction as imm
-        return operand;
-      } else {
-        auto imm_split = "Immediate number " + std::to_string(imm) + " cannot be encoded, converting to MIMove";
-        dbg(imm_split);
-        // use MIMove, which automatically splits if necessary
-        auto vreg = new_virtual_reg();
-        if (mbb->control_transfer_inst) {
-          // insert before control transfer when there is control transfer instruction
-          auto mv_inst = new MIMove(mbb->control_transfer_inst);
-          mv_inst->dst = vreg;
-          mv_inst->rhs = operand;
-        } else {
-          // otherwise, insert at end
-          auto mv_inst = new MIMove(mbb);
-          mv_inst->dst = vreg;
-          mv_inst->rhs = operand;
-        }
-        return vreg;
-      }
+    auto get_imm_operand = [&](i32 imm, MachineBB *mbb) {
+      return generate_imm_operand(imm, mbb, false, virtual_max);
     };
 
     // resolve value reference
@@ -615,16 +619,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             size = x->sym->dims[0]->result;
           }
           size *= 4;
-          mf->stack_size += size;
-          i32 offset = -mf->stack_size;
           auto dst = resolve(inst, mbb);
-          auto rhs = get_imm_operand(offset, mbb, true);
+          auto offset = get_imm_operand(mf->stack_size, mbb);
           auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
           add_inst->dst = dst;
           add_inst->lhs = MachineOperand::R(ArmReg::sp);
-          add_inst->rhs = rhs;
-          // add_inst->prev must be a MOV now (before spilling)
-          mf->sp_fixup.push_back(add_inst->prev);
+          add_inst->rhs = offset;
+          // allocate size on sp
+          mf->stack_size += size;
         }
       }
     }
@@ -1220,24 +1222,35 @@ void register_allocate(MachineProgram *p) {
       } else {
         for (auto &n : spilled_nodes) {
           // allocate on stack
-          f->stack_size += 4;
-          i32 offset = f->stack_size;
           for (auto bb = f->bb.head; bb; bb = bb->next) {
-            for (auto inst = bb->insts.head; inst; inst = inst->next) {
-              auto [def, use] = get_def_use_ptr(inst);
+            auto offset = f->virtual_max;
+            auto offset_imm = MachineOperand::I(offset);
+
+            auto generate_access_offset = [&](MIAccess *access_inst){
+              if (offset < (1 << 12u)) { // ldr / str has only imm12
+                access_inst->offset = offset_imm;
+              } else {
+                auto mv_inst = new MIMove(access_inst); // insert before access
+                mv_inst->rhs = offset_imm;
+                mv_inst->dst = MachineOperand::V(f->virtual_max++);
+                access_inst->offset = mv_inst->dst;
+              }
+            };
+
+            for (auto orig_inst = bb->insts.head; orig_inst; orig_inst = orig_inst->next) {
+              auto [def, use] = get_def_use_ptr(orig_inst);
               if (def && *def == n) {
                 // store
                 // allocate new vreg
                 i32 vreg = f->virtual_max++;
                 def->value = vreg;
-                auto new_inst = new MIStore();
-                new_inst->bb = bb;
-                new_inst->addr = MachineOperand::R(ArmReg::sp);
-                new_inst->shift = 0;
-                new_inst->offset = MachineOperand::I(-offset);
-                new_inst->data = MachineOperand::V(vreg);
-                f->sp_fixup.push_back(new_inst);
-                bb->insts.insertAfter(new_inst, inst);
+                auto store_inst = new MIStore();
+                store_inst->bb = bb;
+                store_inst->addr = MachineOperand::R(ArmReg::sp);
+                store_inst->shift = 0;
+                bb->insts.insertAfter(store_inst, orig_inst);
+                generate_access_offset(store_inst);
+                store_inst->data = MachineOperand::V(vreg);
               }
 
               for (auto &u : use) {
@@ -1246,17 +1259,17 @@ void register_allocate(MachineProgram *p) {
                   // allocate new vreg
                   i32 vreg = f->virtual_max++;
                   u->value = vreg;
-                  auto new_inst = new MILoad(inst);
-                  new_inst->bb = bb;
-                  new_inst->addr = MachineOperand::R(ArmReg::sp);
-                  new_inst->shift = 0;
-                  new_inst->offset = MachineOperand::I(-offset);
-                  new_inst->dst = MachineOperand::V(vreg);
-                  f->sp_fixup.push_back(new_inst);
+                  auto load_inst = new MILoad(orig_inst);
+                  load_inst->bb = bb;
+                  load_inst->addr = MachineOperand::R(ArmReg::sp);
+                  load_inst->shift = 0;
+                  generate_access_offset(load_inst);
+                  load_inst->dst = MachineOperand::V(vreg);
                 }
               }
             }
           }
+          f->stack_size += 4; // increase stack size
         }
         done = false;
       }

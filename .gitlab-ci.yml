@@ -5,7 +5,7 @@
     - git submodule sync
     - git submodule update --init
     - mkdir -p build && cd build
-    - cmake ..
+    - cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
     - make -j4
     - env CTEST_OUTPUT_ON_FAILURE=1 make test
   after_script:

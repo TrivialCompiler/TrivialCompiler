@@ -135,8 +135,6 @@ struct MachineFunc {
   i32 stack_size = 0;
   // set of callee saved registers used
   std::set<ArmReg> used_callee_saved_regs;
-  // offset += stack_size
-  std::vector<MachineInst *> sp_fixup;
   // offset += stack_size + saved_regs * 4;
   std::vector<MachineInst *> sp_arg_fixup;
 };

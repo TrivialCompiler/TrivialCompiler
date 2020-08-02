@@ -15,20 +15,6 @@ void compute_stack_info(MachineFunc *f) {
   }
   dbg(f->func->func->name, f->used_callee_saved_regs);
 
-  // fixup stack access
-  for (auto &sp_inst : f->sp_fixup) {
-    if (auto x = dyn_cast<MIAccess>(sp_inst)) {
-      x->offset.value += f->stack_size;
-    } else if (auto x = dyn_cast_nullable<MIMove>(sp_inst)) {
-      // mv r0, imm
-      // add r2, r1, r0
-      assert(x->rhs.is_imm());
-      x->rhs.value += f->stack_size;
-    } else {
-      UNREACHABLE();
-    }
-  }
-
   // fixup arg access
   // r4-r11, lr
   int saved_regs = f->used_callee_saved_regs.size() + 1;
