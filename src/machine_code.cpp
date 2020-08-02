@@ -5,7 +5,7 @@
 
 std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   using std::endl;
-  static const std::string BB_PREFIX = "_BB_";
+  static const std::string BB_PREFIX = ".L_BB_";
   IndexMapper<MachineBB> bb_index;
 
   // count instructions to solve constant pool problem
