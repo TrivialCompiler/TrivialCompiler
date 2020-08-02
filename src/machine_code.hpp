@@ -37,6 +37,7 @@ enum class ArmReg {
   r14,
   r15,
   // some aliases
+  fp = r11,  // frame pointer (omitted), allocatable
   ip = r12,  // ipc scratch register, used in some instructions (caller saved)
   sp = r13,  // stack pointer
   lr = r14,  // link register (caller saved)
@@ -167,7 +168,7 @@ struct MachineOperand {
 
   inline static MachineOperand R(ArmReg r) {
     auto n = (int)r;
-    assert(n >= 0 && n <= 16);
+    assert(n >= int(ArmReg::r0) && n <= int(ArmReg::pc));
     return MachineOperand{State::PreColored, n};
   }
 
@@ -426,4 +427,5 @@ struct MIComment : MachineInst {
   std::string content;
 
   MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Tag::Comment, insertAtEnd), content(content) {}
+  MIComment(std::string &&content, MachineInst *insertBefore) : MachineInst(Tag::Comment, insertBefore), content(content) {}
 };

@@ -698,7 +698,8 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + x->func->params.size(); ++i) {
+    dbg(x->func->params.size());
+    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + std::min(x->func->params.size(), (size_t) 4); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
     for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
@@ -833,8 +834,8 @@ void register_allocate(MachineProgram *p) {
       std::unordered_set<MIMove *> worklist_moves;
       std::unordered_set<MIMove *> active_moves;
 
-      // allocatable registers: r0 to r11, lr, ip
-      i32 k = (int)ArmReg::r11 - (int)ArmReg::r0 + 1 + 2;
+      // allocatable registers: r0 to r11, r12(ip), lr
+      i32 k = (int)ArmReg::r12 - (int)ArmReg::r0 + 1 + 1;
       // init degree for pre colored nodes
       for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
         auto op = MachineOperand::R((ArmReg)i);
@@ -1141,11 +1142,10 @@ void register_allocate(MachineProgram *p) {
           auto n = select_stack.back();
           select_stack.pop_back();
           std::set<i32> ok_colors;
-          for (int i = 0; i < k - 2; i++) {
+          for (int i = 0; i < k - 1; i++) {
             ok_colors.insert(i);
           }
           ok_colors.insert((i32)ArmReg::lr);
-          ok_colors.insert((i32)ArmReg::ip);
 
           for (auto w : adj_list[n]) {
             auto a = get_alias(w);
@@ -1233,7 +1233,7 @@ void register_allocate(MachineProgram *p) {
             auto offset_imm = MachineOperand::I(offset);
 
             auto generate_access_offset = [&](MIAccess *access_inst){
-              if (offset < (1 << 12u)) { // ldr / str has only imm12
+              if (offset < (1u << 12u)) { // ldr / str has only imm12
                 access_inst->offset = offset_imm;
               } else {
                 auto mv_inst = new MIMove(access_inst); // insert before access
@@ -1257,12 +1257,13 @@ void register_allocate(MachineProgram *p) {
                 bb->insts.insertAfter(store_inst, orig_inst);
                 generate_access_offset(store_inst);
                 store_inst->data = MachineOperand::V(vreg);
+                new MIComment("spill store", store_inst);
               }
 
               for (auto &u : use) {
                 if (*u == n) {
-                  // load
-                  // allocate new vreg
+                  // ldr ip, [sp, #imm / ip]
+                  // use ip as source for use
                   i32 vreg = f->virtual_max++;
                   u->value = vreg;
                   auto load_inst = new MILoad(orig_inst);
@@ -1271,6 +1272,7 @@ void register_allocate(MachineProgram *p) {
                   load_inst->shift = 0;
                   generate_access_offset(load_inst);
                   load_inst->dst = MachineOperand::V(vreg);
+                  new MIComment("spill load", load_inst);
                 }
               }
             }
