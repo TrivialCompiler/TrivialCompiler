@@ -8,6 +8,7 @@
 #include "dce.hpp"
 #include "fill_pred.hpp"
 #include "gvn_gcm.hpp"
+#include "loop_unroll.hpp"
 #include "mem2reg.hpp"
 #include "memdep.hpp"
 
@@ -20,8 +21,8 @@ using PassDesc = std::pair<IrPass, const std::string>;
   { p, #p }
 
 static PassDesc mandatory_passes[] = {
-    DEFINE_PASS(fill_pred),      DEFINE_PASS(compute_dom_info), DEFINE_PASS(mem2reg),
-    DEFINE_PASS(compute_memdep), DEFINE_PASS(gvn_gcm),          DEFINE_PASS(dce),
+    DEFINE_PASS(fill_pred), DEFINE_PASS(compute_dom_info), DEFINE_PASS(mem2reg), DEFINE_PASS(compute_memdep),
+    DEFINE_PASS(gvn_gcm),   DEFINE_PASS(loop_unroll),      DEFINE_PASS(dce),
 };
 static PassDesc opt_passes[] = {
 
@@ -32,7 +33,7 @@ struct overloaded : Ts... {
   using Ts::operator()...;
 };
 template <class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
+overloaded(Ts...)->overloaded<Ts...>;
 
 static inline void run_pass(IrProgram *p, const PassDesc &desc) {
   auto &[pass, name] = desc;

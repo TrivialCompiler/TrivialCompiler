@@ -20,7 +20,7 @@ static Value *find_eq(VN &vn, BinaryInst *x) {
       bool same = (t1 == t2 &&
                    ((l1 == l2 && r1 == r2) ||
                     (l1 == r2 && r1 == l2 && (t1 == Add || t1 == Mul || t1 == Eq || t1 == Ne || t1 == And || t1 == Or)))) ||
-                  (l1 == r2 && r1 == l2 && ((t1 == Lt && t2 == Gt) || (t1 == Gt && t2 == Lt) || (t1 == Le && t2 == Ge) || (t1 == Ge && t2 == Le)));
+                  (l1 == r2 && r1 == l2 && isrev(t1, t2));
       if (same) return v;
     }
   }

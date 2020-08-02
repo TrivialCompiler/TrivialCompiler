@@ -42,4 +42,9 @@ inline i32 eval(Op op, i32 l, i32 r) {
       UNREACHABLE();
   }
 }
+
+// 是否是两个相反的比较运算符，即 l <a> r 是否等于 r <b> l
+inline bool isrev(Op a, Op b) {
+  return (a == Lt && b == Gt) || (a == Gt && b == Lt) || (a == Le && b == Ge) || (a == Ge && b == Le);
+}
 }  // namespace op

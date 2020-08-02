@@ -74,6 +74,7 @@ struct Use {
   // Use& operator=(const Use &) = delete;
   // Use& operator=(Use &&) = delete;
 
+  // 注意不要写.value = xxx, 而是用.set(xxx), 因为需要记录被use的关系
   void set(Value *v) {
     if (value) value->killUse(this);
     value = v;
@@ -176,11 +177,15 @@ struct Inst : Value {
 struct BinaryInst : Inst {
   DEFINE_CLASSOF(Value, Tag::Add <= p->tag && p->tag <= Tag::Or);
   // operands
+  // loop unroll pass里用到了lhs和rhs的摆放顺序，不要随便修改
   Use lhs;
   Use rhs;
 
   BinaryInst(Tag tag, Value *lhs, Value *rhs, BasicBlock *insertAtEnd)
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
+
+  BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
+    : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
 
   bool rhsCanBeImm() {
     // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or
