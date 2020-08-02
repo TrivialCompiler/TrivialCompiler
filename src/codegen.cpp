@@ -622,7 +622,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           add_inst->dst = dst;
           add_inst->lhs = MachineOperand::R(ArmReg::sp);
           add_inst->rhs = rhs;
-          // always fixup move
+          // add_inst->prev must be a MOV now (before spilling)
           mf->sp_fixup.push_back(add_inst->prev);
         }
       }

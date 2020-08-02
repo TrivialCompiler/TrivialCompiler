@@ -19,11 +19,11 @@ void compute_stack_info(MachineFunc *f) {
   for (auto &sp_inst : f->sp_fixup) {
     if (auto x = dyn_cast<MIAccess>(sp_inst)) {
       x->offset.value += f->stack_size;
-    } else if (auto y = dyn_cast_nullable<MIMove>(sp_inst->prev)) {
+    } else if (auto x = dyn_cast_nullable<MIMove>(sp_inst)) {
       // mv r0, imm
       // add r2, r1, r0
-      assert(y->rhs.is_imm());
-      y->rhs.value += f->stack_size;
+      assert(x->rhs.is_imm());
+      x->rhs.value += f->stack_size;
     } else {
       UNREACHABLE();
     }
