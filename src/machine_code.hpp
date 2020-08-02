@@ -37,11 +37,10 @@ enum class ArmReg {
   r14,
   r15,
   // some aliases
-  fp = 11,  // frame pointer
-  ip = r12, // ipc scratch register, used in some instructions (caller saved)
-  sp = r13, // stack pointer
-  lr = r14, // link register (caller saved)
-  pc = r15, // program counter
+  ip = r12,  // ipc scratch register, used in some instructions (caller saved)
+  sp = r13,  // stack pointer
+  lr = r14,  // link register (caller saved)
+  pc = r15,  // program counter
 };
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
@@ -67,8 +66,8 @@ struct ArmShift {
     type = None;
   }
 
-  explicit operator std::string() const{
-    const char* name;
+  explicit operator std::string() const {
+    const char *name;
     switch (type) {
       case ArmShift::Asr:
         name = "asr";
@@ -96,7 +95,6 @@ static std::ostream &operator<<(std::ostream &os, const ArmShift &shift) {
   os << std::string(shift);
   return os;
 }
-
 
 static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
   if (cond == ArmCond::Eq) {
@@ -136,6 +134,10 @@ struct MachineFunc {
   // size of stack allocated for local alloca and spilled registers
   i32 sp_offset = 0;
   std::set<ArmReg> used_caller_saved_regs;
+  // offset += sp_offset
+  std::vector<MachineInst *> sp_fixup;
+  // offset += sp_offset + saved_regs * 4;
+  std::vector<MachineInst *> sp_arg_fixup;
 };
 
 struct MachineBB {
@@ -176,8 +178,8 @@ struct MachineOperand {
 
   // both are PreColored or Allocated, and has the same value
   bool is_equiv(const MachineOperand &other) const {
-    return (state == State::PreColored || state == State::Allocated) && (other.state == State::PreColored || other.state == State::Allocated) &&
-           value == other.value;
+    return (state == State::PreColored || state == State::Allocated) &&
+           (other.state == State::PreColored || other.state == State::Allocated) && value == other.value;
   }
 
   bool operator<(const MachineOperand &other) const {

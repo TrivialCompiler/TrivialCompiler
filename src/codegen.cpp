@@ -121,14 +121,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
                 new_inst->rhs = MachineOperand::R((ArmReg)i);
                 new_inst->dst = res;
               } else {
-                // read from fp + (i-4+saved_regs)*4 in entry bb
+                // read from sp + (i-4)*4 in entry bb
+                // will be fixed up in later pass
                 auto new_inst = new MILoad(mf->bb.head, 0);
-                new_inst->addr = MachineOperand::R(ArmReg::fp);
-                new_inst->shift = 2;
-                // skip saved registers: r4-r11, lr
-                i32 saved_regs = 11 - 4 + 1 + 1;
-                new_inst->offset = MachineOperand::I(i - 4 + saved_regs);
+                new_inst->addr = MachineOperand::R(ArmReg::sp);
+                new_inst->offset = MachineOperand::I((i - 4) * 4);
                 new_inst->dst = res;
+                new_inst->shift = 0;
+                mf->sp_arg_fixup.push_back(new_inst);
               }
               break;
             }
@@ -611,13 +611,14 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           size *= 4;
           mf->sp_offset += size;
-          i32 offset = mf->sp_offset;
+          i32 offset = -mf->sp_offset;
           auto dst = resolve(inst, mbb);
           auto rhs = get_imm_operand(offset, mbb);
-          auto add_inst = new MIBinary(MachineInst::Tag::Sub, mbb);  // sub is more friendly
+          auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
           add_inst->dst = dst;
-          add_inst->lhs = MachineOperand::R(ArmReg::fp);
+          add_inst->lhs = MachineOperand::R(ArmReg::sp);
           add_inst->rhs = rhs;
+          mf->sp_fixup.push_back(add_inst);
         }
       }
     }
@@ -1223,10 +1224,11 @@ void register_allocate(MachineProgram *p) {
                 def->value = vreg;
                 auto new_inst = new MIStore();
                 new_inst->bb = bb;
-                new_inst->addr = MachineOperand::R(ArmReg::fp);
+                new_inst->addr = MachineOperand::R(ArmReg::sp);
                 new_inst->shift = 0;
                 new_inst->offset = MachineOperand::I(-offset);
                 new_inst->data = MachineOperand::V(vreg);
+                f->sp_fixup.push_back(new_inst);
                 bb->insts.insertAfter(new_inst, inst);
               }
 
@@ -1238,10 +1240,11 @@ void register_allocate(MachineProgram *p) {
                   u->value = vreg;
                   auto new_inst = new MILoad(inst);
                   new_inst->bb = bb;
-                  new_inst->addr = MachineOperand::R(ArmReg::fp);
+                  new_inst->addr = MachineOperand::R(ArmReg::sp);
                   new_inst->shift = 0;
                   new_inst->offset = MachineOperand::I(-offset);
                   new_inst->dst = MachineOperand::V(vreg);
+                  f->sp_fixup.push_back(new_inst);
                 }
               }
             }

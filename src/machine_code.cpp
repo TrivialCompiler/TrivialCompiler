@@ -228,8 +228,6 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << "\tstmfd\tsp!, {";
     print_reg_list(os, f);
     os << "lr}" << endl;
-    // fp = sp
-    os << "\tmov\tr11, sp" << endl;
     // move sp down
     if (f->sp_offset) {
       move_stack(true, f->sp_offset, output_instruction, "\t");
