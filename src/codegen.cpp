@@ -123,11 +123,15 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               } else {
                 // read from sp + (i-4)*4 in entry bb
                 // will be fixed up in later pass
+                auto vreg = new_virtual_reg();
                 auto new_inst = new MILoad(mf->bb.head, 0);
                 new_inst->addr = MachineOperand::R(ArmReg::sp);
-                new_inst->offset = MachineOperand::I((i - 4) * 4);
+                new_inst->offset = vreg;
                 new_inst->dst = res;
                 new_inst->shift = 0;
+                auto mv_inst = new MIMove(mf->bb.head, 0);
+                mv_inst->dst = vreg;
+                mv_inst->rhs = MachineOperand::I((i - 4) * 4);
                 mf->sp_arg_fixup.push_back(new_inst);
               }
               break;

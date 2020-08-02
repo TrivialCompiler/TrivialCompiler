@@ -42,7 +42,12 @@ void compute_stack_info(MachineFunc *f) {
   int saved_regs = f->used_callee_saved_regs.size() + 1;
   for (auto &sp_arg_inst : f->sp_arg_fixup) {
     if (auto x = dyn_cast<MIAccess>(sp_arg_inst)) {
-      x->offset.value += f->sp_offset + 4 * saved_regs;
+      if (auto y = dyn_cast_nullable<MIMove>(x->prev)) {
+        assert(y->rhs.is_imm());
+        y->rhs.value += f->sp_offset + 4 * saved_regs;
+      } else {
+        UNREACHABLE();
+      }
     } else {
       UNREACHABLE();
     }
