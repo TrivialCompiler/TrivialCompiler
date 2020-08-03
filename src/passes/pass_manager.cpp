@@ -33,6 +33,7 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
     DEFINE_PASS(bbopt),
+    DEFINE_PASS(compute_dom_info),
 };
 static PassDesc opt_passes[] = {
 

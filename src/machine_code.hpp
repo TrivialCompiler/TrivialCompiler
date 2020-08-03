@@ -142,6 +142,7 @@ struct MachineFunc {
 
 struct MachineBB {
   DEFINE_ILIST(MachineBB)
+  BasicBlock *bb;
   ilist<MachineInst> insts;
   // predecessor and successor
   std::vector<MachineBB *> pred;

@@ -1,12 +1,14 @@
 #include "codegen.hpp"
 
+#include <algorithm>
 #include <cassert>
+#include <cmath>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
-#include <optional>
-#include <algorithm>
 
 #include "machine_code.hpp"
+#include "passes/ir/cfg.hpp"
 
 // list of assignments (lhs, rhs)
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
@@ -73,6 +75,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     std::map<BasicBlock *, MachineBB *> bb_map;
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = new MachineBB;
+      mbb->bb = bb;
       mf->bb.insertAtEnd(mbb);
       bb_map[bb] = mbb;
     }
@@ -105,9 +108,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
     i32 virtual_max = 0;
     auto new_virtual_reg = [&]() { return MachineOperand::V(virtual_max++); };
 
-    auto get_imm_operand = [&](i32 imm, MachineBB *mbb) {
-      return generate_imm_operand(imm, mbb, false, virtual_max);
-    };
+    auto get_imm_operand = [&](i32 imm, MachineBB *mbb) { return generate_imm_operand(imm, mbb, false, virtual_max); };
 
     // resolve value reference
     auto resolve = [&](Value *value, MachineBB *mbb) {
@@ -696,7 +697,7 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + std::min(x->func->params.size(), (size_t) 4); ++i) {
+    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + std::min(x->func->params.size(), (size_t)4); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
     for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
@@ -803,6 +804,7 @@ void liveness_analysis(MachineFunc *f) {
 void register_allocate(MachineProgram *p) {
   dbg("Allocating registers");
   for (auto f = p->func.head; f; f = f->next) {
+    auto loop_info = compute_loop_info(f->func);
     dbg(f->func->func->name);
     bool done = false;
     while (!done) {
@@ -830,6 +832,8 @@ void register_allocate(MachineProgram *p) {
       std::unordered_set<MIMove *> frozen_moves;
       std::unordered_set<MIMove *> worklist_moves;
       std::unordered_set<MIMove *> active_moves;
+      // for heuristic
+      std::unordered_map<MachineOperand, u32> loop_cnt;
 
       // allocatable registers: r0 to r11, r12(ip), lr
       i32 k = (int)ArmReg::r12 - (int)ArmReg::r0 + 1 + 1;
@@ -894,12 +898,14 @@ void register_allocate(MachineProgram *p) {
             for (auto &d : def) {
               if (d.needs_color()) {
                 live.erase(d);
+                loop_cnt[d] += loop_info.depth_of(bb->bb);
               }
             }
 
             for (auto &u : use) {
               if (u.needs_color()) {
                 live.insert(u);
+                loop_cnt[u] += loop_info.depth_of(bb->bb);
               }
             }
           }
@@ -1119,13 +1125,9 @@ void register_allocate(MachineProgram *p) {
       auto select_spill = [&]() {
         MachineOperand m{};
         // select node with max degree (heuristic)
-        if (spill_worklist.size() > 10) {
-          m = *spill_worklist.begin();
-        } else {
-          m = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b){
-            return degree[a] < degree[b];
-          });
-        }
+        m = *std::max_element(spill_worklist.begin(), spill_worklist.end(), [&](auto a, auto b) {
+          return float(degree[a]) / pow(2, loop_cnt[a]) < float(degree[b]) / pow(2, loop_cnt[b]);
+        });
         simplify_worklist.insert(m);
         freeze_moves(m);
         spill_worklist.erase(m);
@@ -1229,11 +1231,11 @@ void register_allocate(MachineProgram *p) {
             auto offset = f->stack_size;
             auto offset_imm = MachineOperand::I(offset);
 
-            auto generate_access_offset = [&](MIAccess *access_inst){
-              if (offset < (1u << 12u)) { // ldr / str has only imm12
+            auto generate_access_offset = [&](MIAccess *access_inst) {
+              if (offset < (1u << 12u)) {  // ldr / str has only imm12
                 access_inst->offset = offset_imm;
               } else {
-                auto mv_inst = new MIMove(access_inst); // insert before access
+                auto mv_inst = new MIMove(access_inst);  // insert before access
                 mv_inst->rhs = offset_imm;
                 mv_inst->dst = MachineOperand::V(f->virtual_max++);
                 access_inst->offset = mv_inst->dst;
@@ -1274,7 +1276,7 @@ void register_allocate(MachineProgram *p) {
               }
             }
           }
-          f->stack_size += 4; // increase stack size
+          f->stack_size += 4;  // increase stack size
         }
         done = false;
       }
