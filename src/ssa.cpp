@@ -313,6 +313,12 @@ IrProgram *convert_ssa(Program &p) {
           auto inst = new ReturnInst(nullptr, ctx.bb);
         }
       }
+
+      for (BasicBlock *bb = func->bb.head; bb; bb = bb->next) {
+        for (BasicBlock *x : bb->succ()) {
+          if (x) x->pred.push_back(bb);
+        }
+      }
     } else {
       Decl *d = std::get_if<1>(&g);
       ret->glob_decl.push_back(d);

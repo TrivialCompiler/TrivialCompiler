@@ -5,9 +5,9 @@
 
 #include "asm/asm_simplify.hpp"
 #include "asm/compute_stack_info.hpp"
+#include "ir/bbopt.hpp"
 #include "ir/cfg.hpp"
 #include "ir/dce.hpp"
-#include "ir/fill_pred.hpp"
 #include "ir/gvn_gcm.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mem2reg.hpp"
@@ -22,7 +22,7 @@ using PassDesc = std::pair<IrPass, const std::string>;
   { p, #p }
 
 static PassDesc mandatory_passes[] = {
-    DEFINE_PASS(fill_pred),
+    DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(mem2reg),
     DEFINE_PASS(compute_memdep),
@@ -33,6 +33,7 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(compute_memdep),
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
+    DEFINE_PASS(bbopt),
 };
 static PassDesc opt_passes[] = {
 

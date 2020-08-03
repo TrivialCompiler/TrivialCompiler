@@ -175,11 +175,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         if (i != 0) os << ", ";
         os << "%_" << bb_index.find(bb->pred[i])->second;
       }
-      os << ", dom_by = ";
-      for (auto begin = bb->dom_by.begin(), it = begin, end = bb->dom_by.end(); it != end; ++it) {
-        if (it != begin) os << ", ";
-        os << "%_" << bb_index.find(*it)->second;
-      }
+      // 这里原来会输出dom info的，现在不输出了，因为现在所有pass结束后dom info不是有效的
       os << endl;
       for (Inst *i = bb->mem_phis.head; i; i = i->next) {
         auto x = static_cast<MemPhiInst *>(i);

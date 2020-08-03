@@ -1,6 +1,7 @@
 #pragma once
 
 #include <array>
+#include <cassert>
 #include <cstdint>
 #include <map>
 #include <string_view>
@@ -67,12 +68,18 @@ struct Use {
     if (v) v->addUse(this);
   }
 
-  // 逻辑上这几个函数都是删除的，实际上为了用vector不能这么写，但要注意vector必须有且仅有一次reserve大小
-  // 后续添加元素用emplace_back，且不能超过reserve的大小
-  // Use(const Use &) = delete;
-  // Use(Use &&) = delete;
-  // Use& operator=(const Use &) = delete;
-  // Use& operator=(Use &&) = delete;
+  // 没有必要定义移动构造函数/拷贝运算符，语义没有区别
+  // 一般不会用到它们，只在类似vector内部构造临时变量又析构的场景中用到
+  Use(const Use &rhs) : value(rhs.value), user(rhs.user) {
+    if (value) value->addUse(this);
+  }
+  Use& operator=(const Use &rhs) {
+    if (this != &rhs) {
+      assert(user == rhs.user);
+      set(rhs.value);
+    }
+    return *this;
+  }
 
   // 注意不要写.value = xxx, 而是用.set(xxx), 因为需要记录被use的关系
   void set(Value *v) {
@@ -114,7 +121,6 @@ struct BasicBlock {
   inline std::array<BasicBlock *, 2> succ();
   inline std::array<BasicBlock **, 2> succ_ref();  // 想修改succ时使用
   inline bool valid();
-  inline ~BasicBlock();
 };
 
 struct IrFunc {
@@ -420,12 +426,4 @@ std::array<BasicBlock **, 2> BasicBlock::succ_ref() {
 bool BasicBlock::valid() {
   Inst *end = insts.tail;
   return end && (isa<BranchInst>(end) || isa<JumpInst>(end) || isa<ReturnInst>(end));
-}
-
-BasicBlock::~BasicBlock() {
-  for (Inst *i = insts.head; i;) {
-    Inst *next = i->next;
-    i->deleteValue();
-    i = next;
-  }
 }
