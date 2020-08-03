@@ -43,12 +43,12 @@ foreach(case_file ${all_test_cases})
     # .sy -> .bc
     add_custom_command(OUTPUT "${case_name}.bc"
             COMMAND ${run_command_prefix} ./${project_name} -l "${case_name}.bc" "${case_file}"
-            DEPENDS ./${project_name})
+            DEPENDS ./${project_name} "${case_file}")
     add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.bc")
     # .sy -> .S
     add_custom_command(OUTPUT "${case_name}.S"
             COMMAND ${run_command_prefix} ./${project_name} -o "${case_name}.S" "${case_file}"
-            DEPENDS ./${project_name})
+            DEPENDS ./${project_name} "${case_file}")
     add_custom_target("asm_${case_name}" DEPENDS "${case_name}.S")
 
     # use LLVM to generate exe
@@ -73,7 +73,7 @@ foreach(case_file ${all_test_cases})
     # .sy -> .o
     add_custom_command(OUTPUT "${case_name}_gcc.o"
 	    COMMAND arm-linux-gnueabihf-g++ -x c++ -c -O2 -g -marm -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
-	    DEPENDS "${case_file}")
+	    DEPENDS "${case_file}" "${case_file}")
     # .o -> exe
     add_custom_target("${case_name}_gcc"
 	    COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_gcc.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_gcc"
