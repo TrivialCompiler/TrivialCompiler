@@ -94,8 +94,8 @@ static void try_fold_lhs(BinaryInst *x) {
   if (auto r = dyn_cast<ConstValue>(x->rhs.value)) {
     if (auto l = dyn_cast<BinaryInst>(x->lhs.value)) {
       if (auto lr = dyn_cast<ConstValue>(l->rhs.value)) {
-        if (x->tag == Value::Tag::Sub) r->imm = -r->imm, x->tag = Value::Tag::Add;
-        if (l->tag == Value::Tag::Sub) lr->imm = -lr->imm, l->tag = Value::Tag::Add;
+        if (x->tag == Value::Tag::Sub) x->rhs.set(r = new ConstValue(-r->imm)), x->tag = Value::Tag::Add;
+        if (l->tag == Value::Tag::Sub) l->rhs.set(lr = new ConstValue(-lr->imm)), l->tag = Value::Tag::Add;
         if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
           x->lhs.set(l->lhs.value);
           x->rhs.set(new ConstValue(r->imm + (x->tag == Value::Tag::Add ? lr->imm : -lr->imm)));

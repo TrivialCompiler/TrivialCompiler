@@ -24,15 +24,10 @@ static void clone_inst(Inst *x, BasicBlock *bb, std::unordered_map<Value *, Valu
     res = new LoadInst(y->lhs_sym, get(y->arr), get(y->index), bb);
   } else if (auto y = dyn_cast<StoreInst>(x)) {
     res = new StoreInst(y->lhs_sym, get(y->arr), get(y->data), get(y->index), bb);
-  } else if (auto y = dyn_cast<CallInst>(x)) {
-    auto call = new CallInst(y->func, bb);
-    call->args.reserve(y->args.size());
-    for (const Use &u : y->args) call->args.emplace_back(get(u), call);
-    res = call;
   } else if (auto y = dyn_cast<MemOpInst>(x)) {
     return; // 同LoadInst之理
   } else {
-    // 不可能是Branch, Jump, resurn, Alloca, Phi, MemPhi
+    // 不可能是Branch, Jump, resurn, CallInst, Alloca, Phi, MemPhi
     UNREACHABLE();
   }
   map.insert_or_assign(x, res);
@@ -131,22 +126,17 @@ void loop_unroll(IrFunc *f) {
 
     bool inst_ok = true;
     int inst_cnt = 0;
-    for (Inst *i = bb_header->insts.head; inst_ok && i; i = i->next) {
+    for (Inst *i = bb_body->insts.head; inst_ok && i; i = i->next) {
       if (isa<BranchInst>(i) || isa<MemOpInst>(i)) continue;
-        // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
-      else if (isa<AllocaInst>(i) || ++inst_cnt >= 16) inst_ok = false;
+      // 包含call的循环没有什么展开的必要
+      // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
+      else if (isa<CallInst>(i) || isa<AllocaInst>(i) || ++inst_cnt >= 16) inst_ok = false;
     }
     if (!inst_ok) continue;
 
     dbg("Performing loop unroll");
     // 验证结束，循环展开，目前为了实现简单仅展开2次，如果实现正确的话运行n次就可以展开2^n次
-    Value *old_n = cond0_n->value, *new_n;
-    if (auto n1 = dyn_cast<ConstValue>(old_n)) {
-      // 理论上这里不需要负责这种工作的，但是目前这个pass之后紧接着就是codegen，它假定没有操作数是两个常数的BinaryInst
-      new_n = new ConstValue(n1->imm - step);
-    } else {
-      new_n = new BinaryInst(Value::Tag::Add, cond0_n->value, new ConstValue(-step), cond0);
-    }
+    Value *old_n = cond0_n->value, *new_n = new BinaryInst(Value::Tag::Add, cond0_n->value, new ConstValue(-step), cond0);
     cond0_n->set(new_n);
     cond_n->set(new_n);
 
@@ -183,6 +173,7 @@ void loop_unroll(IrFunc *f) {
       // PhiInst的构造函数要求insts非空，所以先插入最后的指令
       auto if_cond = new BinaryInst(cond->tag, nullptr, nullptr, bb_if);
       new BranchInst(if_cond, bb_last, bb_end, bb_if);
+      // fixme: 这里生成的phi序列可能出现定义在使用后面，llvm不接受这样的程序，我们的后端能够处理吗？
       for (Inst *i = bb_header->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
           Value *from_header = x->incoming_values[!idx_in_header].value, *from_body = get(x->incoming_values[idx_in_header].value);

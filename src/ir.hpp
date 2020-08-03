@@ -136,7 +136,7 @@ struct IrFunc {
 
 struct ConstValue : Value {
   DEFINE_CLASSOF(Value, p->tag == Tag::Const);
-  i32 imm;
+  const i32 imm;
 
   ConstValue(i32 imm) : Value(Tag::Const), imm(imm) {}
 };
@@ -336,7 +336,6 @@ struct StoreInst : AccessInst {
 
 struct CallInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Call);
-  // FIXME: IrFunc and Func 是什么关系？
   Func *func;
   std::vector<Use> args;
   CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Tag::Call, insertAtEnd), func(func) {}

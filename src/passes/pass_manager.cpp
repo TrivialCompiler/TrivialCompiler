@@ -29,7 +29,6 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(loop_unroll),
     DEFINE_PASS(compute_dom_info),
-    DEFINE_PASS(mem2reg),
     DEFINE_PASS(compute_memdep),
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
