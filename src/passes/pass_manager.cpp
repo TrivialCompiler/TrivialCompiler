@@ -22,8 +22,17 @@ using PassDesc = std::pair<IrPass, const std::string>;
   { p, #p }
 
 static PassDesc mandatory_passes[] = {
-    DEFINE_PASS(fill_pred), DEFINE_PASS(compute_dom_info), DEFINE_PASS(mem2reg), DEFINE_PASS(compute_memdep),
-    DEFINE_PASS(gvn_gcm),   DEFINE_PASS(loop_unroll),      DEFINE_PASS(dce),
+    DEFINE_PASS(fill_pred),
+    DEFINE_PASS(compute_dom_info),
+    DEFINE_PASS(mem2reg),
+    DEFINE_PASS(compute_memdep),
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(loop_unroll),
+    DEFINE_PASS(compute_dom_info),
+    DEFINE_PASS(mem2reg),
+    DEFINE_PASS(compute_memdep),
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(dce),
 };
 static PassDesc opt_passes[] = {
 
