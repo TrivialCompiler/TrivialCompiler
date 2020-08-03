@@ -696,7 +696,6 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    dbg(x->func->params.size());
     for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + std::min(x->func->params.size(), (size_t) 4); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
