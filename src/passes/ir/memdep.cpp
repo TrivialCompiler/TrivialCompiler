@@ -60,10 +60,24 @@ struct LoadInfo {
 // 构造load对store，store对load的依赖关系，分成两趟分别计算
 void compute_memdep(IrFunc *f) {
   // 清空原来的结果
-  // todo: 我现在的清空方式是正确的吗？真的能够运行第二次吗？
+  // 如果在同一趟循环中把操作数.set(nullptr)，同时delete，会出现先被delete后维护它的uses链表的情况，所以分两趟循环
+  // 这里也不能用.value = nullptr，因为不能保证用到的指令最终都被删掉了，例如MemOpInst的mem_token可以是LoadInst
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
-    for (Inst *i = bb->mem_phis.head; i; i = i->next)
+    for (Inst *i = bb->mem_phis.head; i; i = i->next) {
+      auto i1 = static_cast<MemPhiInst *>(i);
+      for (Use &u : i1->incoming_values) u.set(nullptr);
+    }
+    for (Inst *i = bb->insts.head; i; i = i->next) {
+      if (auto x = dyn_cast<MemOpInst>(i)) x->mem_token.set(nullptr);
+      else if (auto x = dyn_cast<LoadInst>(i)) x->mem_token.set(nullptr);
+    }
+  }
+  for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
+    for (Inst *i = bb->mem_phis.head; i;) {
+      Inst *next = i->next;
       delete static_cast<MemPhiInst *>(i);
+      i = next;
+    }
     bb->mem_phis.head = bb->mem_phis.tail = nullptr;
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
@@ -79,7 +93,6 @@ void compute_memdep(IrFunc *f) {
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
       if (auto x = dyn_cast<LoadInst>(i)) {
-        x->mem_token.set(nullptr);
         Decl *arr = x->lhs_sym;
         auto[it, inserted] = loads.insert({arr, {(u32) loads.size()}});
         LoadInfo &info = it->second;
