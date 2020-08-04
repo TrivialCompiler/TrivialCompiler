@@ -87,6 +87,24 @@ foreach(case_file ${all_test_cases})
             COMMAND make "test_${case_name}_gcc")
     endif()
 
+    # use Clang to generate exe
+    # .sy -> .o
+    add_custom_command(OUTPUT "${case_name}_clang.o"
+	    COMMAND clang++ -x c++ -c -O2 -g --sysroot /usr/arm-linux-gnueabihf --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
+	    DEPENDS "${case_file}" "${case_file}")
+    # .o -> exe
+    add_custom_target("${case_name}_clang"
+	    COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_clang.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_clang"
+	    DEPENDS "${case_name}_clang.o")
+    # run exe with qemu to test
+    add_custom_target("test_${case_name}_clang"
+        COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_clang" "${case_input}" "${case_name}_clang.out" "${case_output}"
+        DEPENDS "${case_name}_clang")
+    if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        add_test(NAME check_run_clang_${case_name}
+            COMMAND make "test_${case_name}_clang")
+    endif()
+
     # use our compiler to generate exe
     # .S -> .o
     add_custom_command(OUTPUT "${case_name}_tc.o"
