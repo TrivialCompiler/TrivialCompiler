@@ -26,7 +26,7 @@ test_on_x86:
     - echo "deb http://mirrors.bfsu.edu.cn/debian bullseye main" > /etc/apt/sources.list &&
       echo "deb http://mirrors.bfsu.edu.cn/debian bullseye-updates main" >> /etc/apt/sources.list
     - apt-get update
-    - env DEBIAN_FRONTEND=noninteractive apt-get install -y make cmake g++ git llvm qemu-user g++-arm-linux-gnueabihf time python3-tabulate
+    - env DEBIAN_FRONTEND=noninteractive apt-get install -y make cmake g++ git llvm qemu-user g++-arm-linux-gnueabihf time python3-tabulate clang
 
 
 test_on_arm:

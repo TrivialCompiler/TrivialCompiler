@@ -89,9 +89,15 @@ foreach(case_file ${all_test_cases})
 
     # use Clang to generate exe
     # .sy -> .o
-    add_custom_command(OUTPUT "${case_name}_clang.o"
-	    COMMAND clang++ -x c++ -c -O2 -g --sysroot /usr/arm-linux-gnueabihf --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
-	    DEPENDS "${case_file}" "${case_file}")
+    if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "armv7l")
+        add_custom_command(OUTPUT "${case_name}_clang.o"
+            COMMAND clang++ -x c++ -c -O2 -g --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
+            DEPENDS "${case_file}" "${case_file}")
+    else ()
+        add_custom_command(OUTPUT "${case_name}_clang.o"
+            COMMAND clang++ -x c++ -c -O2 -g --sysroot /usr/arm-linux-gnueabihf --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
+            DEPENDS "${case_file}" "${case_file}")
+    endif ()
     # .o -> exe
     add_custom_target("${case_name}_clang"
 	    COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_clang.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_clang"
