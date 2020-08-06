@@ -132,6 +132,8 @@ struct IrFunc {
   std::set<IrFunc *> callee_func;
   // functions calling this function
   std::set<IrFunc *> caller_func;
+  // this function is impure
+  bool impure;
 
   // 将所有bb的vis置false
   void clear_all_vis() {
