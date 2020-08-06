@@ -5,16 +5,21 @@
     - git submodule sync
     - git submodule update --init
     - mkdir -p build && cd build
-    - cmake .. -DCMAKE_BUILD_TYPE=RelWithDebInfo
+    - bash ../initialize_cmake.sh
     - make -j4
     - env CTEST_OUTPUT_ON_FAILURE=1 make test
   after_script:
-    - python3 extract_result.py build/Testing/Temporary/LastTest.log
+    - python3 extract_result.py build/Testing/Temporary/LastTest.log build/Testing/Temporary/LastTest.json
   artifacts:
     paths:
       - build/Testing/Temporary/*.log
+      - build/Testing/Temporary/*.json
     expire_in: 1 year
     when: always
+  cache:
+    key: one-key-to-rule-them-all
+    paths:
+      - build/Testing/Temporary/LastTest.json
 
 
 test_on_x86:
