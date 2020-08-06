@@ -29,6 +29,10 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->val);
   } else if (auto x = dyn_cast<Index>(expr)) {
+    // referencing a global constant
+    if (x->lhs_sym->is_const && x->lhs_sym->is_glob && x->lhs_sym->dims.empty()) {
+      return new ConstValue(x->lhs_sym->flatten_init[0]->result);
+    }
     // evalulate dims first
     std::vector<Value *> dims;
     dims.reserve(x->dims.size());
