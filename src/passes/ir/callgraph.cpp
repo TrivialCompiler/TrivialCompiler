@@ -6,7 +6,8 @@ void compute_callgraph(IrProgram *p) {
   for (auto f = p->func.head; f; f = f->next) {
     func_map[f->func] = f;
     // init
-    f->called_func.clear();
+    f->callee_func.clear();
+    f->caller_func.clear();
   }
 
   for (auto f = p->func.head; f; f = f->next) {
@@ -16,7 +17,8 @@ void compute_callgraph(IrProgram *p) {
           auto it = func_map.find(x->func);
           if (it != func_map.end()) {
             // not builtin
-            f->called_func.insert(it->second);
+            f->callee_func.insert(it->second);
+            it->second->caller_func.insert(f);
           }
         }
       }
