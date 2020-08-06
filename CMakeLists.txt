@@ -31,7 +31,7 @@ file(GLOB preliminary_perf_test_cases "sysyruntimelibrary/section1/performance_t
 file(GLOB custom_test_cases "custom_test/*.sy")
 
 set(all_test_cases ${preliminary_func_test_cases} ${preliminary_perf_test_cases} ${custom_test_cases})
-set(run_command_prefix /usr/bin/time -v timeout -v 30)
+set(run_command_prefix /usr/bin/time -v timeout -v 60)
 
 # create test cases
 foreach(case_file ${all_test_cases})
