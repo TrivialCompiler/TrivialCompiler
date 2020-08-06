@@ -59,10 +59,7 @@ void compute_callgraph(IrProgram *p) {
   }
 
   for (auto f = p->func.head; f; f = f->next) {
-    if (f->impure) {
-      dbg("function " + std::string(f->func->name) + " is impure");
-    } else {
-      dbg("function " + std::string(f->func->name) + " is pure");
-    }
+    auto func_purity = "function " + std::string(f->func->name) + " is " + (f->impure ? "impure" : "pure");
+    dbg(func_purity);
   }
 }
