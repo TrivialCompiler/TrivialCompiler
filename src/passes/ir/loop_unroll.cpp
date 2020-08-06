@@ -82,11 +82,11 @@ void loop_unroll(IrFunc *f) {
     if (bb_end->pred.size() != 2 || br->right != bb_end) continue;
 
     int step = 0;
-    Use *cond0_i0 = nullptr, *cond0_n = nullptr, *cond_ix = nullptr, *cond_n = nullptr;
+    int cond0_i0 = -1, cond_ix = -1; // 结果为0/1时继续处理，表示i0/ix在cond0/cond的lhs还是rhs
     PhiInst *phi_ix = nullptr;
-    for (int pos = 0; !cond0_i0 && pos < 2; ++pos) { // 考虑i < n和n > i两种写法
-      step = 0, cond_ix = &cond->lhs + pos, cond_n = &cond->lhs + !pos;
-      Value *ix = cond_ix->value, *n = cond_n->value, *i = ix;
+    for (int pos = 0; cond0_i0 == -1 && pos < 2; ++pos) { // 考虑i < n和n > i两种写法
+      step = 0, cond_ix = pos;
+      Value *ix = (&cond->lhs)[cond_ix].value, *n = (&cond->lhs)[!cond_ix].value, *i = ix;
       while (true) {
         if (auto x = dyn_cast<BinaryInst>(i)) {
           // 这里只考虑Add，因为gvn_gcm pass会把减常数变成加相反数
@@ -102,16 +102,16 @@ void loop_unroll(IrFunc *f) {
           if (x->incoming_values[idx_in_header].value != ix) break;
           // 两个cond的n必须是同一个，这保证了bb_body中的cond的n不是循环中定义的
           if (cond->tag == cond0->tag && equiv(i0, cond0->lhs.value) && equiv(n, cond0->rhs.value)) {
-            cond0_i0 = &cond0->lhs, cond0_n = &cond0->rhs;
+            cond0_i0 = 0;
             break;
           } else if (op::isrev((op::Op) cond->tag, (op::Op) cond0->tag) && equiv(i0, cond0->rhs.value) && equiv(n, cond0->lhs.value)) {
-            cond0_i0 = &cond0->rhs, cond0_n = &cond0->lhs;
+            cond0_i0 = 1;
             break;
           } else break;
         } else break;
       }
     }
-    if (!cond0_i0) continue;
+    if (cond0_i0 == -1) continue;
 
     assert(!isa<PhiInst>(bb_body->insts.head));
     // 把bb_header中的非phi/跳转指令移动到bb_body，此时还不确定是否应该展开，但是这个转移是可以做的，方便后面算指令条数
@@ -128,17 +128,17 @@ void loop_unroll(IrFunc *f) {
     int inst_cnt = 0;
     for (Inst *i = bb_body->insts.head; inst_ok && i; i = i->next) {
       if (isa<BranchInst>(i) || isa<MemOpInst>(i)) continue;
-      // 包含call的循环没有什么展开的必要
-      // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
+        // 包含call的循环没有什么展开的必要
+        // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
       else if (isa<CallInst>(i) || isa<AllocaInst>(i) || ++inst_cnt >= 16) inst_ok = false;
     }
     if (!inst_ok) continue;
 
     dbg("Performing loop unroll");
     // 验证结束，循环展开，目前为了实现简单仅展开2次，如果实现正确的话运行n次就可以展开2^n次
-    Value *old_n = cond0_n->value, *new_n = new BinaryInst(Value::Tag::Add, cond0_n->value, new ConstValue(-step), cond0);
-    cond0_n->set(new_n);
-    cond_n->set(new_n);
+    Value *old_n = (&cond0->lhs)[!cond0_i0].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, new ConstValue(-step), cond0);
+    Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
+    br0->cond.set(new_cond0);
 
     std::unordered_map<Value *, Value *> map;
     for (Inst *i = bb_header->insts.head;; i = i->next) {
@@ -159,7 +159,9 @@ void loop_unroll(IrFunc *f) {
       auto it = map.find(v);
       return it != map.end() ? it->second : v;
     };
-    br->cond.set(get(cond));
+    Value *new_ix = get((&cond->lhs)[cond_ix].value);
+    Value *new_cond = new BinaryInst(cond->tag, cond_ix == 0 ? new_ix : new_n, cond_ix == 0 ? new_n : new_ix, br);
+    br->cond.set(new_cond);
 
     u32 idx_in_end = bb_body == bb_end->pred[1];
     auto bb_if = new BasicBlock;
@@ -207,10 +209,8 @@ void loop_unroll(IrFunc *f) {
           }
         } else break;
       }
-      Value *phi_ix1 = get(phi_ix), *n = old_n;
-      if (cond_ix == &cond->rhs) std::swap(phi_ix1, n);
-      if_cond->lhs.set(phi_ix1);
-      if_cond->rhs.set(n);
+      (&if_cond->lhs)[cond_ix].set(get(phi_ix));
+      (&if_cond->lhs)[!cond_ix].set(old_n);
     }
     bb_end->pred[!idx_in_end] = bb_if;
     bb_end->pred[idx_in_end] = bb_last;

@@ -93,10 +93,10 @@ static Value *vn_of(VN &vn, Value *x) {
 // 故两个操作符相同时结果为Add，否则为Rsb; c为Add是C2前是正号，否则是负号
 static void try_fold_lhs(BinaryInst *x) {
   if (auto r = dyn_cast<ConstValue>(x->rhs.value)) {
+    if (x->tag == Value::Tag::Sub) x->rhs.set(r = new ConstValue(-r->imm)), x->tag = Value::Tag::Add;
     // 只有当l仅被x使用时才做这个优化，不然也没什么意义，总是要做两次计算的
     if (auto l = dyn_cast<BinaryInst>(x->lhs.value); l && l->uses.head == l->uses.tail) {
       if (auto lr = dyn_cast<ConstValue>(l->rhs.value)) {
-        if (x->tag == Value::Tag::Sub) x->rhs.set(r = new ConstValue(-r->imm)), x->tag = Value::Tag::Add;
         if (l->tag == Value::Tag::Sub) l->rhs.set(lr = new ConstValue(-lr->imm)), l->tag = Value::Tag::Add;
         if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
           x->lhs.set(l->lhs.value);
