@@ -57,9 +57,7 @@ struct LoadInfo {
   std::unordered_set<Inst *> stores;
 };
 
-// 构造load对store，store对load的依赖关系，分成两趟分别计算
-void compute_memdep(IrFunc *f) {
-  // 清空原来的结果
+void clear_memdep(IrFunc *f) {
   // 如果在同一趟循环中把操作数.set(nullptr)，同时delete，会出现先被delete后维护它的uses链表的情况，所以分两趟循环
   // 这里也不能用.value = nullptr，因为不能保证用到的指令最终都被删掉了，例如MemOpInst的mem_token可以是LoadInst
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
@@ -88,6 +86,12 @@ void compute_memdep(IrFunc *f) {
       i = next;
     }
   }
+}
+
+// 构造load对store，store对load的依赖关系，分成两趟分别计算
+void compute_memdep(IrFunc *f) {
+  // 清空原来的结果
+  clear_memdep(f);
   // 把所有数组地址相同的load一起考虑，因为相关的store集合计算出来必定是一样的
   std::unordered_map<Decl *, LoadInfo> loads;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {

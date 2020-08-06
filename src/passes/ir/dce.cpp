@@ -1,4 +1,5 @@
 #include "dce.hpp"
+#include "memdep.hpp"
 
 static void dfs(std::unordered_set<Inst *> &vis, Inst *i) {
   if (!vis.insert(i).second) return;
@@ -8,6 +9,8 @@ static void dfs(std::unordered_set<Inst *> &vis, Inst *i) {
 }
 
 void dce(IrFunc *f) {
+  // 这个pass可能删掉Load，但不会删掉MemPhi，MemPhi可能会使用Load, 所以必须清空memdep的结果，否则会存在MemPhi的operand是delete掉的Load
+  clear_memdep(f);
   std::unordered_set<Inst *> vis;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
