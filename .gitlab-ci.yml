@@ -11,7 +11,7 @@ variables:
     - make -j4
     - env CTEST_OUTPUT_ON_FAILURE=1 make test
   after_script:
-    - 'curl --header "PRIVATE-TOKEN: $CI_ARTIFACT_TOKEN" https://git.tsinghua.edu.cn/api/v4/projects/$CI_PROJECT_ID/jobs/artifacts/master/raw/${RESULT_JSON_PATH}?job=${CI_JOB_NAME} -o ${RESULT_JSON_PATH} || true'
+    - 'curl --header "JOB-TOKEN: $CI_JOB_TOKEN" https://git.tsinghua.edu.cn/api/v4/projects/$CI_PROJECT_ID/jobs/artifacts/master/raw/${RESULT_JSON_PATH}?job=${CI_JOB_NAME} -o ${RESULT_JSON_PATH} || true'
     - python3 extract_result.py build/Testing/Temporary/LastTest.log ${RESULT_JSON_PATH}
   artifacts:
     paths:
