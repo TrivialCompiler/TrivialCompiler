@@ -29,8 +29,15 @@ option(FUNC_TEST "Run functional test cases" ON)
 option(PERF_TEST "Run performance test cases" ON)
 option(CUSTOM_TEST "Run custom test cases" ON)
 
+message("Functional test: ${FUNC_TEST}")
+message("Performance test: ${PERF_TEST}")
+message("Custom test: ${CUSTOM_TEST}")
+
 option(RUN_GCC "Run gcc for testing" OFF)
 option(RUN_CLANG "Run clang for testing" OFF)
+
+message("Run GCC: ${RUN_GCC}")
+message("Run Clang: ${RUN_CLANG}")
 
 file(GLOB preliminary_func_test_cases "sysyruntimelibrary/section1/functional_test/*.sy")
 file(GLOB preliminary_perf_test_cases "sysyruntimelibrary/section1/performance_test/*.sy")

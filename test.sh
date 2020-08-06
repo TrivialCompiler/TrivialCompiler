@@ -2,7 +2,7 @@
 
 ARCH=`arch`
 if [ "$ARCH" = "x86_64" ]; then
-    RUN="timeout -v 60 qemu-arm"
+    RUN="timeout -v 120 qemu-arm"
 else
     RUN="/usr/bin/time -v timeout -v 60 sh -c"
 fi
@@ -29,4 +29,3 @@ else
 fi
 
 diff -w -B -u "$3" "$4"
-
