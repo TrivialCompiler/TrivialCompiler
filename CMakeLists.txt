@@ -26,10 +26,11 @@ if(COMMAND target_precompile_headers)
 endif()
 
 
-file(GLOB func_test_cases "sysyruntimelibrary/section1/functional_test/*.sy")
-file(GLOB perf_test_cases "sysyruntimelibrary/section1/performance_test/*.sy")
+file(GLOB preliminary_func_test_cases "sysyruntimelibrary/section1/functional_test/*.sy")
+file(GLOB preliminary_perf_test_cases "sysyruntimelibrary/section1/performance_test/*.sy")
 file(GLOB custom_test_cases "custom_test/*.sy")
-set(all_test_cases ${func_test_cases} ${perf_test_cases} ${custom_test_cases})
+
+set(all_test_cases ${preliminary_func_test_cases} ${preliminary_perf_test_cases} ${custom_test_cases})
 set(run_command_prefix /usr/bin/time -v timeout -v 30)
 
 # create test cases
