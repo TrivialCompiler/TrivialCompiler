@@ -178,6 +178,9 @@ struct Inst : Value {
 
   // 只初始化tag，没有加入到链表中，调用者手动加入
   Inst(Tag tag) : Value(tag) {}
+
+  // 返回的指针对是一个左闭右开区间，表示这条指令的所有操作数，.value可能为空
+  std::pair<Use *, Use *> operands();
 };
 
 struct BinaryInst : Inst {
@@ -353,7 +356,7 @@ struct PhiInst : Inst {
 
   // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
-  std::vector<BasicBlock *> *incoming_bbs;  // todo: 指向拥有它的bb的pred，这是正确的吗？
+  std::vector<BasicBlock *> *incoming_bbs;
 
   explicit PhiInst(BasicBlock *insertAtFront)
       : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {

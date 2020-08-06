@@ -41,6 +41,32 @@ void Value::deleteValue() {
 
 UndefValue UndefValue::INSTANCE;
 
+std::pair<Use *, Use *> Inst::operands() {
+  constexpr std::pair<Use *, Use *> empty{};
+  if (auto x = dyn_cast<BinaryInst>(this))
+    return {&x->lhs, &x->rhs + 1};
+  else if (auto x = dyn_cast<BranchInst>(this))
+    return {&x->cond, &x->cond + 1};
+  else if (auto x = dyn_cast<ReturnInst>(this))
+    return {&x->ret, &x->ret + 1};
+  else if (auto x = dyn_cast<GetElementPtrInst>(this))
+    return {&x->arr, &x->index + 1};
+  else if (auto x = dyn_cast<LoadInst>(this))
+    return {&x->arr, &x->mem_token + 1};
+  else if (auto x = dyn_cast<StoreInst>(this))
+    return {&x->arr, &x->data + 1};
+  else if (auto x = dyn_cast<CallInst>(this))
+    return {x->args.data(), x->args.data() + x->args.size()};
+  else if (auto x = dyn_cast<PhiInst>(this))
+    return {x->incoming_values.data(), x->incoming_values.data() + x->incoming_values.size()};
+  else if (auto x = dyn_cast<MemOpInst>(this))
+    return {&x->mem_token, &x->mem_token + 1};
+  else if (auto x = dyn_cast<MemPhiInst>(this))
+    return {x->incoming_values.data(), x->incoming_values.data() + x->incoming_values.size()};
+  else
+    return empty;
+}
+
 void print_dims(std::ostream &os, Expr **dims, Expr **dims_end) {
   if (dims == dims_end) {
     os << "i32 ";
