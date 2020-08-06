@@ -263,7 +263,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             move_mult->dst = new_virtual_reg();
             move_mult->rhs = MachineOperand::I(mult);
             // dst <- index * mult + dst
-            auto fma_inst = new MIFma(mbb);
+            auto fma_inst = new MIFma(true, mbb);
             fma_inst->dst = dst;
             fma_inst->lhs = index;
             fma_inst->rhs = move_mult->dst;
@@ -416,18 +416,18 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             rhs = resolve_no_imm(x->rhs.value, mbb);
           }
           // Optimization 3:
-          // Fused Multiply-Add
+          // Fused Multiply-Add / Sub
           if (x->tag == Value::Tag::Mul && x->uses.head == x->uses.tail) {
             // only one user, lhs and rhs are not consts
             // match pattern:
             // %x2 = mul %x1, %x0
-            // %x4 = add %x3, %x2
+            // %x4 = add / sub %x3, %x2
             // becomes
             // v4 = v3
-            // fma v4, v1, v0
+            // mla / mls v4, v1, v0
             auto y = dyn_cast<BinaryInst>(x->next);
-            if (y && y->tag == Value::Tag::Add && y->rhs.value == x) {
-              dbg("Found FMA location");
+            if (y && (y->tag == Value::Tag::Add || y->tag == Value::Tag::Sub) && y->rhs.value == x) {
+              dbg("Multiply-Add/Sub fused to MLA/MLS");
               auto x0 = resolve(x->lhs.value, mbb);
               auto x1 = resolve(x->rhs.value, mbb);
               auto x3 = resolve(y->lhs.value, mbb);
@@ -436,8 +436,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               auto move_inst = new MIMove(mbb);
               move_inst->dst = x4;
               move_inst->rhs = x3;
-              // x4 <- x4 + x1 * x0
-              auto fma_inst = new MIFma(mbb);
+              // x4 <- x4 +/- x1 * x0
+              auto fma_inst = new MIFma(y->tag == Value::Tag::Add, mbb);
               fma_inst->dst = x4;
               fma_inst->acc = x4;
               fma_inst->lhs = x1;

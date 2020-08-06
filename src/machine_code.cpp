@@ -141,7 +141,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           os << "umull"
              << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIFma>(inst)) {
-          os << "mla"
+          os << (x->add ? "mla" : "mls")
              << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp"
