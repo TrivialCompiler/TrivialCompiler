@@ -20,7 +20,7 @@ static bool dim_alias(const std::vector<Expr *> &dim1, const std::vector<Expr *>
 static bool alias(Decl *arr1, Decl *arr2) {
   if (arr1->is_param_array()) { // 参数
     if (arr2->is_param_array())
-      return dim_alias(arr1->dims, arr2->dims);
+      return arr1->name == arr2->name;
     else if (arr2->is_glob)
       return dim_alias(arr1->dims, arr2->dims);
     else
