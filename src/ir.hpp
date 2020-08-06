@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstdint>
 #include <map>
+#include <set>
 #include <string_view>
 #include <unordered_set>
 #include <vector>
@@ -127,6 +128,8 @@ struct IrFunc {
   DEFINE_ILIST(IrFunc)
   Func *func;
   ilist<BasicBlock> bb;
+  // function called
+  std::set<IrFunc *> called_func;
 
   // 将所有bb的vis置false
   void clear_all_vis() {
