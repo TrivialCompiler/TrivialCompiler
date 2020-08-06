@@ -12,12 +12,15 @@ if __name__ == '__main__':
 
     old_results = {}
     if os.path.isfile(sys.argv[2]):
-        with open(sys.argv[2], 'r') as f:
-            data = json.load(f)
-            if 'results' in data:
-                old_results = data['results']
-            else:
-                print('Garbage data in old results: ', data)
+        try:
+            with open(sys.argv[2], 'r') as f:
+                data = json.load(f)
+                if 'results' in data:
+                    old_results = data['results']
+                else:
+                    print('Garbage data in old results: ', data)
+        except:
+            pass
 
     pattern = re.compile(r'Test: check_run_(llvm|tc|gcc|clang)_(.*)[\s\S]*?TOTAL: (\d+)H-(\d+)M-(\d+)S-(\d+)us')
 
