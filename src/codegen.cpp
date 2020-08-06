@@ -458,31 +458,26 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             ArmCond cond, opposite;
             if (x->tag == Value::Tag::Gt) {
               cond = ArmCond::Gt;
-              opposite = ArmCond::Le;
             } else if (x->tag == Value::Tag::Ge) {
               cond = ArmCond::Ge;
-              opposite = ArmCond::Lt;
             } else if (x->tag == Value::Tag::Le) {
               cond = ArmCond::Le;
-              opposite = ArmCond::Gt;
             } else if (x->tag == Value::Tag::Lt) {
               cond = ArmCond::Lt;
-              opposite = ArmCond::Ge;
             } else if (x->tag == Value::Tag::Eq) {
               cond = ArmCond::Eq;
-              opposite = ArmCond::Ne;
             } else if (x->tag == Value::Tag::Ne) {
               cond = ArmCond::Ne;
-              opposite = ArmCond::Eq;
             } else {
               UNREACHABLE();
             }
+            opposite = opposite_cond(cond);
 
             // 一条BinaryInst后紧接着BranchInst，而且前者的结果仅被后者使用，那么就可以不用计算结果，而是直接用bxx的指令
             if (x->uses.head == x->uses.tail && x->uses.head && isa<BranchInst>(x->uses.head->user) &&
                 x->next == x->uses.head->user) {
               dbg("Binary comparison inst not computing result");
-              cond_map.insert({x, {new_inst, opposite}});
+              cond_map.insert({x, {new_inst, cond}});
             } else {
               auto mv1_inst = new MIMove(mbb);
               mv1_inst->dst = dst;
@@ -543,24 +538,28 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             new_inst->rhs = rhs;
           }
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          ArmCond c;
           if (auto it = cond_map.find(x->cond.value); it != cond_map.end()) {
             dbg("Branch uses flags registers instead of using comparison");
             mbb->control_transfer_inst = it->second.first;
-            auto new_inst = new MIBranch(mbb);
-            new_inst->cond = it->second.second;
-            new_inst->target = bb_map[x->right];
-            new MIJump(bb_map[x->left], mbb);
+            c = it->second.second;
           } else {
             auto cond = resolve_no_imm(x->cond.value, mbb);
-            // if cond == 0
             auto cmp_inst = new MICompare(mbb);
             cmp_inst->lhs = cond;
             cmp_inst->rhs = get_imm_operand(0, mbb);
             mbb->control_transfer_inst = cmp_inst;
-            auto new_inst = new MIBranch(mbb);
-            new_inst->cond = ArmCond::Eq;
+            c = ArmCond::Ne;
+          }
+          auto new_inst = new MIBranch(mbb);
+          if (x->left == bb->next) {
+            new_inst->cond = opposite_cond(c);
             new_inst->target = bb_map[x->right];
             new MIJump(bb_map[x->left], mbb);
+          } else {
+            new_inst->cond = c;
+            new_inst->target = bb_map[x->left];
+            new MIJump(bb_map[x->right], mbb);
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           std::vector<MachineOperand> params;

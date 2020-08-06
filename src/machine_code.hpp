@@ -45,6 +45,13 @@ enum class ArmReg {
 };
 
 enum class ArmCond { Any, Eq, Ne, Ge, Gt, Le, Lt };
+
+inline ArmCond opposite_cond(ArmCond c) {
+  constexpr static ArmCond OPPOSITE[] = {ArmCond::Any, ArmCond::Ne, ArmCond::Eq, ArmCond::Lt,
+                                         ArmCond::Le,  ArmCond::Gt, ArmCond::Ge};
+  return OPPOSITE[(int)c];
+}
+
 struct ArmShift {
   enum {
     // no shifting
@@ -226,21 +233,23 @@ struct MachineOperand {
 };
 
 namespace std {
-template<> struct hash<MachineOperand> {
-  std::size_t operator()(MachineOperand const& m) const noexcept {
+template <>
+struct hash<MachineOperand> {
+  std::size_t operator()(MachineOperand const &m) const noexcept {
     // state (2), value (14)
-    return ((((size_t) m.state) << 14u) | (u32) m.value) & 0xFFFFu;
+    return ((((size_t)m.state) << 14u) | (u32)m.value) & 0xFFFFu;
   }
 };
 
-template<> struct hash<std::pair<MachineOperand, MachineOperand>> {
-  std::size_t operator()(std::pair<MachineOperand, MachineOperand> const& m) const noexcept {
+template <>
+struct hash<std::pair<MachineOperand, MachineOperand>> {
+  std::size_t operator()(std::pair<MachineOperand, MachineOperand> const &m) const noexcept {
     // hash(second), hash(first)
     hash<MachineOperand> hash_func;
     return (hash_func(m.second) << 16u) | hash_func(m.first);
   }
 };
-}
+}  // namespace std
 
 struct MachineInst {
   DEFINE_ILIST(MachineInst)
@@ -428,5 +437,6 @@ struct MIComment : MachineInst {
   std::string content;
 
   MIComment(std::string &&content, MachineBB *insertAtEnd) : MachineInst(Tag::Comment, insertAtEnd), content(content) {}
-  MIComment(std::string &&content, MachineInst *insertBefore) : MachineInst(Tag::Comment, insertBefore), content(content) {}
+  MIComment(std::string &&content, MachineInst *insertBefore)
+      : MachineInst(Tag::Comment, insertBefore), content(content) {}
 };

@@ -215,7 +215,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
 void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
-  compute_memdep(f);
+  dce(f), compute_memdep(f);
   std::vector<BasicBlock *> rpo = compute_rpo(f);
   VN vn;
   auto replace = [&vn](Inst *o, Value *n) {
@@ -269,8 +269,7 @@ void gvn_gcm(IrFunc *f) {
       i = next;
     }
   }
-  dce(f);
-  compute_memdep(f);
+  dce(f), compute_memdep(f);
   // 阶段2，gcm
   LoopInfo info = compute_loop_info(f);
   std::vector<Inst *> insts;
