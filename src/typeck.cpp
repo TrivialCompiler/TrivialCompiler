@@ -87,6 +87,11 @@ struct Env {
         if (e->result < 0) {
           ERR("array dim < 0");
         }
+        if (e->result >= 256 && (e->result & (e->result - 1)) == 0) {
+          auto extend_dim = "Extending dim from " + std::to_string(e->result) + " to " + std::to_string(e->result + 10);
+          dbg(extend_dim);
+          e->result += 10; // avoid cache missing
+        }
         if (it != begin) {
           e->result *= it[-1]->result;
         }
@@ -244,7 +249,7 @@ struct Env {
           }
         }
         if (!ok) {
-          ERR("function call arg mismatch", i + 1);
+          ERR("function call arg mismatch", f->name, i + 1, f->params[i].name);
         }
       }
       return f->is_int ? empty : none;

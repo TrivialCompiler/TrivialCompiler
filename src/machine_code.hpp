@@ -297,32 +297,32 @@ struct MIBinary : MachineInst {
   }
 };
 
-struct MITernary : MachineInst {
+struct MIQuaternary : MachineInst {
   // LongMul, FMA
   DEFINE_CLASSOF(MachineInst, Tag::LongMul <= p->tag && p->tag <= Tag::FMA);
   MachineOperand lhs;
   MachineOperand rhs;
 
-  MITernary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
+  MIQuaternary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
 };
 
-struct MILongMul : MITernary {
+struct MILongMul : MIQuaternary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
   MachineOperand dst_lo;
   MachineOperand dst_hi;
 
-  explicit MILongMul(MachineBB *insertAtEnd) : MITernary(Tag::LongMul, insertAtEnd) {
+  explicit MILongMul(MachineBB *insertAtEnd) : MIQuaternary(Tag::LongMul, insertAtEnd) {
     dst_lo = MachineOperand::R(ArmReg::ip);
   }
 };
 
-// FIXME: may not be correct if final result is negative
-struct MIFma : MITernary {
+struct MIFma : MIQuaternary {
   DEFINE_CLASSOF(MachineInst, Tag::FMA == p->tag);
   MachineOperand acc;
   MachineOperand dst;
+  bool add;
 
-  explicit MIFma(MachineBB *insertAtEnd) : MITernary(Tag::FMA, insertAtEnd) {}
+  explicit MIFma(bool add, MachineBB *insertAtEnd) : MIQuaternary(Tag::FMA, insertAtEnd), add(add) {}
 };
 
 struct MIMove : MachineInst {
