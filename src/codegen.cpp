@@ -428,8 +428,6 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto y = dyn_cast<BinaryInst>(x->next);
             if (y && (y->tag == Value::Tag::Add || y->tag == Value::Tag::Sub) && y->rhs.value == x) {
               dbg("Multiply-Add/Sub fused to MLA/MLS");
-              auto x0 = resolve(x->lhs.value, mbb);
-              auto x1 = resolve(x->rhs.value, mbb);
               auto x3 = resolve(y->lhs.value, mbb);
               auto x4 = resolve(y, mbb);
               // x4 <- x3
@@ -440,8 +438,8 @@ MachineProgram *machine_code_selection(IrProgram *p) {
               auto fma_inst = new MIFma(y->tag == Value::Tag::Add, mbb);
               fma_inst->dst = x4;
               fma_inst->acc = x4;
-              fma_inst->lhs = x1;
-              fma_inst->rhs = x0;
+              fma_inst->lhs = lhs;
+              fma_inst->rhs = rhs;
               // skip y
               inst = inst->next;
               continue;

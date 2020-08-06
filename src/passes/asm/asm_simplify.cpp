@@ -7,6 +7,11 @@ void asm_simplify(MachineFunc* f) {
         if (x->dst.is_equiv(x->rhs) && x->is_simple()) {
           dbg("Removed identity move");
           bb->insts.remove(inst);
+        } else if (auto y = dyn_cast<MIMove>(inst->next)) {
+          if (y->dst.is_equiv(x->dst) && !y->rhs.is_equiv(x->dst)) {
+            dbg("Removed useless move");
+            bb->insts.remove(inst);
+          }
         }
       } else if (auto x = dyn_cast<MIBinary>(inst)) {
         if (x->isIdentity()) {
