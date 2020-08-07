@@ -37,3 +37,4 @@ test_on_arm:
   <<: *common_config
   tags:
     - armv7-a
+  image: "comp_judge:20.04"
