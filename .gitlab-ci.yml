@@ -25,6 +25,7 @@ test_on_x86:
   <<: *common_config
   tags:
     - x86_64
+    - docker
   image: "ubuntu:20.04"
   before_script:
     - echo "deb http://mirrors.bfsu.edu.cn/ubuntu/ focal main restricted universe multiverse" > /etc/apt/sources.list &&
@@ -37,4 +38,5 @@ test_on_arm:
   <<: *common_config
   tags:
     - armv7-a
+    - docker
   image: "comp_judge:20.04"
