@@ -835,7 +835,7 @@ void register_allocate(MachineProgram *p) {
       // allocatable registers: r0 to r11, r12(ip), lr
       i32 k = (int)ArmReg::r12 - (int)ArmReg::r0 + 1 + 1;
       // init degree for pre colored nodes
-      for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
+      for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::lr; i++) {
         auto op = MachineOperand::R((ArmReg)i);
         // very large
         degree[op] = 0x40000000;
