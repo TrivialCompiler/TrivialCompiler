@@ -21,4 +21,6 @@ else
   FUNC="OFF"
 fi
 
+export CC=clang
+export CXX=clang++
 cmake ${OPT} -DRUN_GCC=${GCC} -DRUN_CLANG=${CLANG} -DFUNC_TEST=${FUNC} ..
