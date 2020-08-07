@@ -1,17 +1,20 @@
 cmake_minimum_required(VERSION 3.13)
 set(project_name TrivialCompiler)
 project(${project_name})
+set(CMAKE_CXX_STANDARD 17)
 
 option(ENABLE_COVERAGE "Enable code coverage" OFF)
 
-enable_testing()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -fsanitize=address")
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address -static-libasan")
-else()
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address")
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -static-libasan")
+    elseif(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -static-libsan")
+    endif()
 endif()
+
 if (ENABLE_COVERAGE)
         set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} --coverage")
 endif()
@@ -38,6 +41,8 @@ option(RUN_CLANG "Run clang for testing" OFF)
 
 message("Run GCC: ${RUN_GCC}")
 message("Run Clang: ${RUN_CLANG}")
+
+enable_testing()
 
 file(GLOB preliminary_func_test_cases "sysyruntimelibrary/section1/functional_test/*.sy")
 file(GLOB preliminary_perf_test_cases "sysyruntimelibrary/section1/performance_test/*.sy")
