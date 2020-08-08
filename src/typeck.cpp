@@ -87,6 +87,7 @@ struct Env {
         if (e->result < 0) {
           ERR("array dim < 0");
         }
+        // NOTE_OPT: this optimization will introduce MUL instructions
         if (e->result >= 256 && (e->result & (e->result - 1)) == 0) {
           auto extend_dim = "Extending dim from " + std::to_string(e->result) + " to " + std::to_string(e->result + 10);
           dbg(extend_dim);

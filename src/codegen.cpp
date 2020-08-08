@@ -297,7 +297,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
           if (rhs_const) {
             if (x->tag == Value::Tag::Div && imm > 0) {
-              // fixme: this is an unsafe optimization, because it assumes lhs > 0 for correctness
+              // NOTE_OPT: this is an unsafe optimization, because it assumes lhs > 0 for correctness
               const u32 N = 32;
               auto dst = resolve(inst, mbb);
               u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
@@ -418,6 +418,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
           // Optimization 3:
           // Fused Multiply-Add / Sub
+          // NOTE_OPT: this is not correct if the final result is negative and wider than 32 bits (64 -> 32 truncation)
           if (x->tag == Value::Tag::Mul && x->uses.head == x->uses.tail) {
             // only one user, lhs and rhs are not consts
             // match pattern:
@@ -1224,6 +1225,8 @@ void register_allocate(MachineProgram *p) {
         done = true;
       } else {
         for (auto &n : spilled_nodes) {
+          auto spill = "Spilling v" + std::to_string(n.value) + " with loop count of " + std::to_string(loop_cnt[n]);
+          dbg(spill);
           // allocate on stack
           for (auto bb = f->bb.head; bb; bb = bb->next) {
             auto offset = f->stack_size;
