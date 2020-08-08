@@ -1,7 +1,9 @@
 #include "loop_unroll.hpp"
-#include "cfg.hpp"
-#include "../../op.hpp"
+
 #include <cassert>
+
+#include "../../structure/op.hpp"
+#include "cfg.hpp"
 
 static void get_deepest(std::vector<Loop *> &deepest, Loop *l) {
   if (l->sub_loops.empty()) deepest.push_back(l);

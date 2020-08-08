@@ -1,6 +1,6 @@
 #pragma once
 
-#include "common.hpp"
+#include "../common.hpp"
 
 namespace op {
 // 我希望Op和整数能够互相转化，所以不用enum class

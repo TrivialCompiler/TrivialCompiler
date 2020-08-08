@@ -7,12 +7,12 @@
 #include <cstring>
 #include <fstream>
 
-#include "ast.hpp"
-#include "codegen.hpp"
-#include "generated/parser.hpp"
+#include "conv/codegen.hpp"
+#include "conv/parser.hpp"
+#include "conv/ssa.hpp"
+#include "conv/typeck.hpp"
 #include "passes/pass_manager.hpp"
-#include "ssa.hpp"
-#include "typeck.hpp"
+#include "structure/ast.hpp"
 
 int main(int argc, char *argv[]) {
   bool opt = false, print_usage = false;

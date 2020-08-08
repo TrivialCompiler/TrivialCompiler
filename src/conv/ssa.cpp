@@ -1,7 +1,7 @@
 #include "ssa.hpp"
 
-#include "ast.hpp"
-#include "casting.hpp"
+#include "../casting.hpp"
+#include "../structure/ast.hpp"
 
 struct SsaContext {
   IrProgram *program;

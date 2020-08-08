@@ -7,6 +7,6 @@ build
 parser.cpp
 .vscode
 Testing/
-src/generated/Testing/
+src/conv/Testing/
 coverage
 lcov.info

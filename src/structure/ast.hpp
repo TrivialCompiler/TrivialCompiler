@@ -5,7 +5,7 @@
 #include <variant>
 #include <vector>
 
-#include "common.hpp"
+#include "../common.hpp"
 
 struct Decl;
 struct Func;

@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include "../../ir.hpp"
+#include "../../structure/ir.hpp"
 
 struct Loop {
   Loop *parent;

@@ -5,9 +5,8 @@
 #include <iostream>
 #include <set>
 
+#include "../common.hpp"
 #include "ast.hpp"
-#include "common.hpp"
-#include "ilist.hpp"
 #include "ir.hpp"
 
 struct MachineFunc;

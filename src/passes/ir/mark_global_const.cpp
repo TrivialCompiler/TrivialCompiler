@@ -1,5 +1,6 @@
 #include "mark_global_const.hpp"
-#include "../../ast.hpp"
+
+#include "../../structure/ast.hpp"
 
 static bool has_store(Value *v) {
   for (Use *u = v->uses.head; u; u = u->next) {

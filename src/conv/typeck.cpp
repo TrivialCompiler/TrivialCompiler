@@ -1,12 +1,13 @@
-#include "casting.hpp"
-#include "common.hpp"
-#include "op.hpp"
 #include "typeck.hpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <string>
 #include <unordered_map>
+
+#include "../casting.hpp"
+#include "../common.hpp"
+#include "../structure/op.hpp"
 
 #define ERR(...) ERR_EXIT(TYPE_CHECK_ERROR, __VA_ARGS__)
 

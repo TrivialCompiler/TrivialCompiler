@@ -1,6 +1,6 @@
 #include "callgraph.hpp"
 
-#include "../../ast.hpp"
+#include "../../structure/ast.hpp"
 
 void compute_callgraph(IrProgram *p) {
   for (auto f = p->func.head; f; f = f->next) {

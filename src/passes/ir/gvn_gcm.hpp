@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../ir.hpp"
+#include "../../structure/ir.hpp"
 
 // 这里假定dom树已经造好了
 void gvn_gcm(IrFunc *f);

@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-#include "../../ast.hpp"
+#include "../../structure/ast.hpp"
 #include "cfg.hpp"
 
 // 这里假定dom树已经造好了

@@ -1,9 +1,10 @@
 #include "gvn_gcm.hpp"
+
+#include "../../structure/ast.hpp"
+#include "../../structure/op.hpp"
+#include "cfg.hpp"
 #include "dce.hpp"
 #include "memdep.hpp"
-#include "../../op.hpp"
-#include "../../ast.hpp"
-#include "cfg.hpp"
 
 using VN = std::vector<std::pair<Value *, Value *>>;
 

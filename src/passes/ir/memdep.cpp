@@ -2,7 +2,7 @@
 
 #include <unordered_map>
 
-#include "../../ast.hpp"
+#include "../../structure/ast.hpp"
 #include "cfg.hpp"
 
 // 如果一个是另一个的postfix，则可能alias；nullptr相当于通配符
