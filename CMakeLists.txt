@@ -88,7 +88,7 @@ foreach(case_file ${all_test_cases})
         # use GCC to generate exe
         # .sy -> .o
         add_custom_command(OUTPUT "${case_name}_gcc.o"
-            COMMAND arm-linux-gnueabihf-g++ -x c++ -c -O2 -g -marm -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
+            COMMAND arm-linux-gnueabihf-g++ -x c++ -c -Ofast -g -marm -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_gcc.o"
             DEPENDS "${case_file}" "${case_file}")
         # .o -> exe
         add_custom_target("${case_name}_gcc"
@@ -109,11 +109,11 @@ foreach(case_file ${all_test_cases})
         # .sy -> .o
         if (CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "armv7l")
             add_custom_command(OUTPUT "${case_name}_clang.o"
-                COMMAND clang++ -x c++ -c -O2 -g -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
+                COMMAND clang++ -x c++ -c -Ofast -g -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
                 DEPENDS "${case_file}" "${case_file}")
         else ()
             add_custom_command(OUTPUT "${case_name}_clang.o"
-                COMMAND clang++ -x c++ -c -O2 -g --sysroot /usr/arm-linux-gnueabihf --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
+                COMMAND clang++ -x c++ -c -Ofast -g --sysroot /usr/arm-linux-gnueabihf --target=armv7-unknown-linux-eabi -mcpu=cortex-a72 -mfpu=neon -mfloat-abi=hard -static -include "${CMAKE_CURRENT_SOURCE_DIR}/custom_test/sylib.h" "${case_file}" -o "${case_name}_clang.o"
                 DEPENDS "${case_file}" "${case_file}")
         endif ()
         # .o -> exe
@@ -133,7 +133,7 @@ foreach(case_file ${all_test_cases})
     # use LLVM to generate exe from IR
     # .bc -> .o
     add_custom_command(OUTPUT "${case_name}_llvm.o"
-            COMMAND llc -O2 -march=arm -mcpu=cortex-a72 -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
+            COMMAND llc -O3 -march=arm -mcpu=cortex-a72 -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
             DEPENDS "${case_name}.bc")
     # .o -> exe
     add_custom_target("${case_name}_llvm"
