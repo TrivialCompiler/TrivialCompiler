@@ -132,15 +132,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
           if (x->shift.type != ArmShift::None) {
-            assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
+            //assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
             os << ", " << x->shift;
           }
           os << endl;
           increase_count();
         } else if (auto x = dyn_cast<MILongMul>(inst)) {
-          os << "umull"
-             << "\t" << x->dst_lo << ", " << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
+          os << "smmul"
+             << "\t" << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIFma>(inst)) {
+          if (x->sign) {
+            os << "sm";
+          }
           os << (x->add ? "mla" : "mls")
              << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
         } else if (auto x = dyn_cast<MICompare>(inst)) {
@@ -184,6 +187,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
                 op = "lsl";
               } else if (x->shift.type == ArmShift::Lsr) {
                 op = "lsr";
+              } else if (x->shift.type == ArmShift::Asr) {
+                op = "asr";
               } else {
                 UNREACHABLE();
               }

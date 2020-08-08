@@ -259,7 +259,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             move_mult->dst = new_virtual_reg();
             move_mult->rhs = MachineOperand::I(mult);
             // dst <- index * mult + dst
-            auto fma_inst = new MIFma(true, mbb);
+            auto fma_inst = new MIFma(true, false, mbb);
             fma_inst->dst = dst;
             fma_inst->lhs = index;
             fma_inst->rhs = move_mult->dst;
@@ -293,89 +293,44 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           if (rhs_const) {
             if (x->tag == Value::Tag::Div && imm > 0) {
               // NOTE_OPT: this is an unsafe optimization, because it assumes lhs > 0 for correctness
-              const u32 N = 32;
+              const u32 W = 32;
               auto dst = resolve(inst, mbb);
               u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
-              if (d >= (u32(1) << (N - 1))) {  // >= 2^31，转化成l >= d
-                auto new_inst = new MICompare(mbb);
-                new_inst->lhs = lhs;
-                new_inst->rhs = rhs;
-                auto mv1_inst = new MIMove(mbb);
-                mv1_inst->dst = dst;
-                mv1_inst->cond = ArmCond::Ge;
-                mv1_inst->rhs = get_imm_operand(1, mbb);
-                auto mv0_inst = new MIMove(mbb);
-                mv0_inst->dst = dst;
-                mv0_inst->cond = ArmCond::Lt;
-                mv0_inst->rhs = get_imm_operand(0, mbb);
-              } else {
-                u32 s = __builtin_ctz(d);
-                if (d == (u32(1) << s)) {  // d是2的幂次，转化成移位
-                  auto new_inst = new MIMove(mbb);
-                  new_inst->dst = dst;
-                  new_inst->rhs = lhs;
-                  if (s > 0) {
-                    new_inst->shift.shift = s;
-                    new_inst->shift.type = ArmShift::Lsr;
-                  }
-                } else {
-                  auto mul_shift = choose_multiplier(d, N);
-                  if (mul_shift.first < (u64(1) << N))
-                    s = 0;
-                  else
-                    mul_shift = choose_multiplier(d >> s, N - s);
-                  if (mul_shift.first < (u64(1) << N)) {
-                    MachineOperand mul_lhs = lhs;
-                    if (s > 0) {
-                      auto i = new MIMove(mbb);
-                      mul_lhs = i->dst = new_virtual_reg();
-                      i->rhs = lhs;
-                      i->shift.shift = s;
-                      i->shift.type = ArmShift::Lsr;
-                    }
-                    auto i0 = new MIMove(mbb);
-                    i0->dst = new_virtual_reg();
-                    i0->rhs = MachineOperand::I(mul_shift.first);
-                    auto i1 = new MILongMul(mbb);
-                    i1->dst_hi = mul_shift.second > 0 ? new_virtual_reg() : dst;
-                    i1->lhs = mul_lhs;
-                    i1->rhs = i0->dst;
-                    if (mul_shift.second > 0) {
-                      auto i = new MIMove(mbb);
-                      i->dst = dst;
-                      i->rhs = i1->dst_hi;
-                      i->shift.shift = mul_shift.second;
-                      i->shift.type = ArmShift::Lsr;
-                    }
-                  } else {
-                    auto i0 = new MIMove(mbb);
-                    i0->dst = new_virtual_reg();
-                    i0->rhs = MachineOperand::I(mul_shift.first - (u64(1) << N));
-                    auto i1 = new MILongMul(mbb);
-                    i1->dst_hi = new_virtual_reg();
-                    i1->lhs = lhs;
-                    i1->rhs = i0->dst;
-                    auto i2 = new MIBinary(MachineInst::Tag::Sub, mbb);
-                    i2->dst = new_virtual_reg();
-                    i2->lhs = lhs;
-                    i2->rhs = i1->dst_hi;
-                    auto i3 = new MIMove(mbb);
-                    i3->dst = new_virtual_reg();
-                    i3->rhs = i2->dst;
-                    i3->shift.shift = 1;
-                    i3->shift.type = ArmShift::Lsr;
-                    auto i4 = new MIBinary(MachineInst::Tag::Add, mbb);
-                    i4->dst = new_virtual_reg();
-                    i4->lhs = i3->dst;
-                    i4->rhs = i1->dst_hi;
-                    auto i5 = new MIMove(mbb);
-                    i5->dst = dst;
-                    i5->rhs = i4->dst;
-                    i5->shift.shift = mul_shift.second - 1;
-                    i5->shift.type = ArmShift::Lsr;
-                  }
-                }
+              u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;
+              u64 p = W;
+              while (((u64)1 << p) <= n_c * (d - ((u64)1 << p) % d)) {
+                p++;
               }
+              u32 m = (((u64)1 << p) + (u64)d - ((u64)1 << p) % d) / (u64)d;
+              u32 shift = p - W;
+              auto i0 = new MIMove(mbb);
+              i0->dst = new_virtual_reg();
+              i0->rhs = MachineOperand::I(m);
+              auto temp_dst = new_virtual_reg();
+              if (m >= 0x80000000) {
+                auto i1 = new MIFma(true, true, mbb);
+                i1->dst = temp_dst;
+                i1->lhs = lhs;
+                i1->rhs = i0->dst;
+                i1->acc = lhs;
+              } else {
+                auto i1 = new MILongMul(mbb);
+                i1->dst_hi = temp_dst;
+                i1->lhs = lhs;
+                i1->rhs = i0->dst;
+              }
+              auto i2 = new MIMove(mbb);
+              i2->dst = new_virtual_reg();
+              i2->rhs = temp_dst;
+              i2->shift.shift = shift;
+              i2->shift.type = ArmShift::Asr;
+              auto i3 = new MIBinary(MachineInst::Tag::Add, mbb);
+              i3->dst = dst;
+              i3->lhs = i2->dst;
+              i3->rhs = lhs;
+              i3->shift.shift = 31;
+              i3->shift.type = ArmShift::Lsr;
+
               continue;
             }
             if (x->tag == Value::Tag::Mul) {
@@ -432,7 +387,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
               move_inst->dst = x4;
               move_inst->rhs = x3;
               // x4 <- x4 +/- x1 * x0
-              auto fma_inst = new MIFma(y->tag == Value::Tag::Add, mbb);
+              auto fma_inst = new MIFma(y->tag == Value::Tag::Add, false, mbb);
               fma_inst->dst = x4;
               fma_inst->acc = x4;
               fma_inst->lhs = lhs;

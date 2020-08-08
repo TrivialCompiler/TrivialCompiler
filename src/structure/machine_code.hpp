@@ -329,8 +329,9 @@ struct MIFma : MIQuaternary {
   MachineOperand acc;
   MachineOperand dst;
   bool add;
+  bool sign;
 
-  explicit MIFma(bool add, MachineBB *insertAtEnd) : MIQuaternary(Tag::FMA, insertAtEnd), add(add) {}
+  explicit MIFma(bool add, bool sign, MachineBB *insertAtEnd) : MIQuaternary(Tag::FMA, insertAtEnd), add(add), sign(sign) {}
 };
 
 struct MIMove : MachineInst {
