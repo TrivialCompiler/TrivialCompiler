@@ -1225,6 +1225,8 @@ void register_allocate(MachineProgram *p) {
         done = true;
       } else {
         for (auto &n : spilled_nodes) {
+          auto spill = "Spilling v" + std::to_string(n.value) + " with loop count of " + std::to_string(loop_cnt[n]);
+          dbg(spill);
           // allocate on stack
           for (auto bb = f->bb.head; bb; bb = bb->next) {
             auto offset = f->stack_size;
