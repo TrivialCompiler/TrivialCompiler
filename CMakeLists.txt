@@ -63,6 +63,7 @@ if (CUSTOM_TEST)
 endif()
 
 set(run_command_prefix /usr/bin/time -v timeout -v 120)
+set(test_command "${CMAKE_CURRENT_SOURCE_DIR}/utils/test.sh")
 
 # create test cases
 foreach(case_file ${all_test_cases})
@@ -95,7 +96,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_gcc.o")
         # run exe with qemu to test
         add_custom_target("test_${case_name}_gcc"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_gcc" "${case_input}" "${case_name}_gcc.out" "${case_output}"
+            COMMAND "${test_command}" "./${case_name}_gcc" "${case_input}" "${case_name}_gcc.out" "${case_output}"
             DEPENDS "${case_name}_gcc")
         if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             add_test(NAME check_run_gcc_${case_name}
@@ -121,7 +122,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_clang.o")
         # run exe with qemu to test
         add_custom_target("test_${case_name}_clang"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_clang" "${case_input}" "${case_name}_clang.out" "${case_output}"
+            COMMAND "${test_command}" "./${case_name}_clang" "${case_input}" "${case_name}_clang.out" "${case_output}"
             DEPENDS "${case_name}_clang")
         if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             add_test(NAME check_run_clang_${case_name}
@@ -140,7 +141,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_llvm.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_llvm"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_llvm" "${case_input}" "${case_name}_llvm.out" "${case_output}"
+            COMMAND "${test_command}" "./${case_name}_llvm" "${case_input}" "${case_name}_llvm.out" "${case_output}"
             DEPENDS "${case_name}_llvm")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_llvm_${case_name}
@@ -158,7 +159,7 @@ foreach(case_file ${all_test_cases})
             DEPENDS "${case_name}_tc.o")
     # run exe with qemu to test
     add_custom_target("test_${case_name}_tc"
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/test.sh" "./${case_name}_tc" "${case_input}" "${case_name}_tc.out" "${case_output}"
+            COMMAND "${test_command}" "./${case_name}_tc" "${case_input}" "${case_name}_tc.out" "${case_output}"
             DEPENDS "${case_name}_tc")
     if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_test(NAME check_run_tc_${case_name}

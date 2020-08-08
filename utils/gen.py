@@ -1,8 +1,8 @@
 import os
 
 os.system('parser_gen parser.toml --lang cpp -o parser.cpp')
-parser = open('./parser.cpp').read()
-os.remove('./parser.cpp')
+parser = open('src/conv/parser.cpp').read()
+os.remove('src/conv/parser.cpp')
 
 # 目前一个适合.hpp和.cpp分割的特征是连续三个换行符，如果修改了include，比如在最后加了一个换行，可能就变了
 sep = parser.find('\n\n\n')
