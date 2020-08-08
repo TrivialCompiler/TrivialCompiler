@@ -2,6 +2,7 @@
 #include "dce.hpp"
 #include "memdep.hpp"
 #include "../../op.hpp"
+#include "../../ast.hpp"
 #include "cfg.hpp"
 
 using VN = std::vector<std::pair<Value *, Value *>>;
@@ -283,7 +284,26 @@ void gvn_gcm(IrFunc *f) {
           all_same = fst == vn_of(vn, x->incoming_values[i].value);
         }
         if (all_same) replace(x, fst);
-      } else if (isa<GetElementPtrInst>(i) || isa<LoadInst>(i) || is_pure_call(i)) {
+      } else if (auto x = dyn_cast<LoadInst>(i)) {
+        bool replaced = false;
+        if (x->lhs_sym->is_glob && x->lhs_sym->is_const) {
+          replaced = true;
+          u32 offset = 0;
+          AccessInst *a = x;
+          for (u32 dim_pos = x->lhs_sym->dims.size(); dim_pos >= 1; --dim_pos) {
+            if (auto idx = dyn_cast<ConstValue>(a->index.value)) {
+              assert(a != nullptr);
+              offset += idx->imm * (dim_pos == x->lhs_sym->dims.size() ? 1 : x->lhs_sym->dims[dim_pos]->result);
+              a = dyn_cast<GetElementPtrInst>(a->arr.value);
+            } else {
+              replaced = false;
+              break;
+            }
+          }
+          if (replaced) replace(x, new ConstValue(x->lhs_sym->flatten_init[offset]->result));
+        }
+        if (!replaced)replace(i, vn_of(vn, i));
+      } else if (isa<GetElementPtrInst>(i) || is_pure_call(i)) {
         replace(i, vn_of(vn, i));
       } else if (isa<StoreInst>(i)) {
         // 这里没有必要做替换，把StoreInst放进vn的目的是让LoadInst可以用store的右手项

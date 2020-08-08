@@ -29,10 +29,6 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
   } else if (auto x = dyn_cast<IntConst>(expr)) {
     return new ConstValue(x->val);
   } else if (auto x = dyn_cast<Index>(expr)) {
-    // referencing a global constant
-    if (x->lhs_sym->is_const && x->lhs_sym->is_glob && x->lhs_sym->dims.empty()) {
-      return new ConstValue(x->lhs_sym->flatten_init[0]->result);
-    }
     // evalulate dims first
     std::vector<Value *> dims;
     dims.reserve(x->dims.size());
@@ -51,7 +47,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
         // all levels except last level, emit GetElementPtr
         Value *val = x->lhs_sym->value;
         Inst *res = nullptr;
-        for (int i = 0; i < x->dims.size(); i++) {
+        for (u32 i = 0; i < x->dims.size(); i++) {
           int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
           if (i + 1 < x->dims.size()) {
             auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
@@ -70,7 +66,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       // emit GetElementPtr for each level
       Value *val = x->lhs_sym->value;
       Inst *res = nullptr;
-      for (int i = 0; i < x->dims.size(); i++) {
+      for (u32 i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         auto inst = new GetElementPtrInst(x->lhs_sym, val, dims[i], size, ctx->bb);
         res = inst;
@@ -122,7 +118,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
           int num_zeros = 0;
           std::vector<Value *> values;
           values.reserve(decl.flatten_init.size());
-          for (int i = 0; i < decl.flatten_init.size(); i++) {
+          for (u32 i = 0; i < decl.flatten_init.size(); i++) {
             auto init = convert_expr(ctx, decl.flatten_init[i]);
             values.push_back(init);
             if (auto x = dyn_cast<ConstValue>(init)) {
@@ -145,7 +141,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
             call_inst->args.emplace_back(new ConstValue(decl.dims[0]->result * 4), call_inst);
           }
 
-          for (int i = 0; i < decl.flatten_init.size(); i++) {
+          for (u32 i = 0; i < decl.flatten_init.size(); i++) {
             // skip safely
             if (auto x = dyn_cast<ConstValue>(values[i])) {
               if (emit_memset && x->imm == 0) {
@@ -175,7 +171,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     } else {
       // all levels except last level, emit GetElementPtr
       auto last = x->lhs_sym->value;
-      for (int i = 0; i < x->dims.size(); i++) {
+      for (u32 i = 0; i < x->dims.size(); i++) {
         int size = i + 1 < x->lhs_sym->dims.size() ? x->lhs_sym->dims[i + 1]->result : 1;
         if (i + 1 < x->dims.size()) {
           auto inst = new GetElementPtrInst(x->lhs_sym, last, dims[i], size, ctx->bb);
@@ -272,9 +268,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     if (x->val) {
       convert_expr(ctx, x->val);
     }
-  } else if (auto x = dyn_cast<Continue>(stmt)) {
+  } else if (isa<Continue>(stmt)) {
     new JumpInst(ctx->loop_stk.back().first, ctx->bb);
-  } else if (auto x = dyn_cast<Break>(stmt)) {
+  } else if (isa<Break>(stmt)) {
     new JumpInst(ctx->loop_stk.back().second, ctx->bb);
   }
 }

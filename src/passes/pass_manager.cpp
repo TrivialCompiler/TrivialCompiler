@@ -11,6 +11,7 @@
 #include "ir/dce.hpp"
 #include "ir/gvn_gcm.hpp"
 #include "ir/loop_unroll.hpp"
+#include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
@@ -26,6 +27,7 @@ using PassDesc = std::pair<CompilePass, const std::string>;
 
 static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_callgraph),
+    DEFINE_PASS(mark_global_const),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(mem2reg),

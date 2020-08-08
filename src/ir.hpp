@@ -445,7 +445,7 @@ std::array<BasicBlock **, 2> BasicBlock::succ_ref() {
     return {&x->left, &x->right};
   else if (auto x = dyn_cast<JumpInst>(end))
     return {&x->next, nullptr};
-  else if (auto x = dyn_cast<ReturnInst>(end))
+  else if (isa<ReturnInst>(end))
     return {nullptr, nullptr};
   else
     UNREACHABLE();
