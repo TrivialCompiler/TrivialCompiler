@@ -1,12 +1,7 @@
 cmake-build-debug
 .idea
-functional_test
-performance_test
 tmp
 build
-parser.cpp
-.vscode
-Testing/
-src/conv/Testing/
+.vscode/
 coverage
 lcov.info
