@@ -68,6 +68,21 @@ static Value *find_eq(VN &vn, LoadInst *x) {
   return x;
 }
 
+static Value *find_eq(VN &vn, CallInst *x) {
+  if (!x->func->pure()) return x;
+  for (u32 i = 0; i < vn.size(); ++i) {
+    auto[k, v] = vn[i];
+    if (auto y = dyn_cast<CallInst>(k); y && y->func == x->func) {
+      assert(x->args.size() == y->args.size());
+      for (u32 j = 0; j < x->args.size(); ++j) {
+        if (vn_of(vn, x->args[j].value) != vn_of(vn, y->args[j].value)) goto fail;
+      }
+      return v;
+      fail:;
+    }
+  }
+  return x;
+}
 
 static Value *vn_of(VN &vn, Value *x) {
   auto it = std::find_if(vn.begin(), vn.end(), [x](std::pair<Value *, Value *> kv) { return kv.first == x; });
@@ -79,6 +94,7 @@ static Value *vn_of(VN &vn, Value *x) {
   else if (auto y = dyn_cast<ConstValue>(x)) vn[idx].second = find_eq(vn, y);
   else if (auto y = dyn_cast<GetElementPtrInst>(x)) vn[idx].second = find_eq(vn, y);
   else if (auto y = dyn_cast<LoadInst>(x)) vn[idx].second = find_eq(vn, y);
+  else if (auto y = dyn_cast<CallInst>(x)) vn[idx].second = find_eq(vn, y);
   // 其余情况一定要求指针相等
   return vn[idx].second;
 }
@@ -118,6 +134,11 @@ static void transfer_inst(Inst *i, BasicBlock *new_bb) {
   new_bb->insts.insertBefore(i, new_bb->insts.tail);
 }
 
+static bool is_pure_call(Inst *i) {
+  if (auto x = dyn_cast<CallInst>(i); x && x->func->pure()) return true;
+  return false;
+}
+
 // 目前只考虑移动BinaryInst的位置，其他都不允许移动
 static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, Inst *i) {
   auto schedule_op = [&vis, entry](Inst *x, Value *op) {
@@ -143,6 +164,11 @@ static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, I
       schedule_op(x, x->arr.value);
       schedule_op(x, x->index.value);
       schedule_op(x, x->mem_token.value);
+    } else if (auto x = dyn_cast<CallInst>(i); x && x->func->pure()) {
+      transfer_inst(x, entry);
+      for (Use &arg : x->args) {
+        schedule_op(x, arg.value);
+      }
     }
   }
 }
@@ -159,7 +185,7 @@ static BasicBlock *find_lca(BasicBlock *a, BasicBlock *b) {
 
 static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst *i) {
   if (vis.insert(i).second) {
-    if (isa<BinaryInst>(i) || isa<GetElementPtrInst>(i) || isa<LoadInst>(i)) {
+    if (isa<BinaryInst>(i) || isa<GetElementPtrInst>(i) || isa<LoadInst>(i) || is_pure_call(i)) {
       BasicBlock *lca = nullptr;
       for (Use *u = i->uses.head; u; u = u->next) {
         Inst *u1 = u->user;
@@ -258,7 +284,7 @@ void gvn_gcm(IrFunc *f) {
           all_same = fst == vn_of(vn, x->incoming_values[i].value);
         }
         if (all_same) replace(x, fst);
-      } else if (isa<GetElementPtrInst>(i) || isa<LoadInst>(i)) {
+      } else if (isa<GetElementPtrInst>(i) || isa<LoadInst>(i) || is_pure_call(i)) {
         replace(i, vn_of(vn, i));
       } else if (isa<StoreInst>(i)) {
         // 这里没有必要做替换，把StoreInst放进vn的目的是让LoadInst可以用store的右手项

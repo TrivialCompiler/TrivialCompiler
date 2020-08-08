@@ -104,10 +104,13 @@ void compute_memdep(IrFunc *f) {
         if (!inserted) continue; // stores已经计算过了
         for (BasicBlock *bb1 = f->bb.head; bb1; bb1 = bb1->next) {
           for (Inst *i1 = bb1->insts.head; i1; i1 = i1->next) {
-            if ((isa<StoreInst>(i1) && alias(arr, static_cast<StoreInst *>(i1)->lhs_sym)) ||
-                (isa<CallInst>(i1) && is_call_load_alias(arr, static_cast<CallInst *>(i1)))) {
-              info.stores.insert(i1);
-            }
+            bool is_alias = false;
+            if (auto x = dyn_cast<StoreInst>(i1); x && alias(arr, x->lhs_sym))
+              is_alias = true;
+              // todo: 这里可以更仔细地考虑到底是否修改了参数，现在是粗略的判断，如果没有side effect一定没有修改参数/全局变量
+            else if (auto x = dyn_cast<CallInst>(i1); x && x->func->has_side_effect && is_call_load_alias(arr, static_cast<CallInst *>(i1)))
+              is_alias = true;
+            if (is_alias) info.stores.insert(i1);
           }
         }
       }
