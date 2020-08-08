@@ -67,6 +67,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
   auto ret = new MachineProgram;
   ret->glob_decl = p->glob_decl;
   for (auto f = p->func.head; f; f = f->next) {
+    if (f->builtin) continue;
     auto mf = new MachineFunc;
     ret->func.insertAtEnd(mf);
     mf->func = f;
@@ -563,7 +564,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
           std::vector<MachineOperand> params;
-          int n = x->func->params.size();
+          int n = x->func->func->params.size();
           for (int i = 0; i < n; i++) {
             if (i < 4) {
               // move args to r0-r3
@@ -591,7 +592,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
 
           auto new_inst = new MICall(mbb);
-          new_inst->func = x->func;
+          new_inst->func = x->func->func;
 
           if (n > 4) {
             // add sp, sp, (n-4)*4
@@ -602,7 +603,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
           }
 
           // return
-          if (x->func->is_int) {
+          if (x->func->func->is_int) {
             // has return
             // move r0 to dst
             auto dst = resolve(inst, mbb);

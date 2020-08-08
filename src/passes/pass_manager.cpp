@@ -53,7 +53,7 @@ static inline void run_pass(IrProgram *p, const PassDesc &desc) {
 
   std::visit(overloaded{[&](IrFuncPass pass) {
                           for (auto *f = p->func.head; f != nullptr; f = f->next) {
-                            pass(f);
+                            if (!f->builtin) pass(f);
                           }
                         },
                         [&](IrProgramPass pass) { pass(p); }},

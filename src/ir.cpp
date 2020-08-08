@@ -123,17 +123,6 @@ struct pv {
 std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   using std::endl;
 
-  // builtin functions
-  os << "declare i32 @getint()" << endl;
-  os << "declare i32 @getch()" << endl;
-  os << "declare void @putint(i32)" << endl;
-  os << "declare void @putch(i32)" << endl;
-  os << "declare void @putarray(i32, i32*)" << endl;
-  os << "declare i32 @getarray(i32*)" << endl;
-  os << "declare void @_sysy_starttime(i32)" << endl;
-  os << "declare void @_sysy_stoptime(i32)" << endl;
-  os << "declare void @memset(i32*, i32, i32)" << endl;
-
   for (auto &d : p.glob_decl) {
     os << "@_" << d->name << " = global ";
     // type
@@ -149,11 +138,9 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
   }
 
   for (auto f = p.func.head; f != nullptr; f = f->next) {
-    if (f->func->is_int) {
-      os << "define i32 @";
-    } else {
-      os << "define void @";
-    }
+    const char *decl = f->builtin ? "declare" : "define";
+    const char *ret = f->func->is_int ? "i32" : "void";
+    os << decl << " " << ret << " @";
     os << f->func->name << "(";
     for (auto &p : f->func->params) {
       if (p.dims.size() == 0) {
@@ -170,7 +157,13 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         os << ", ";
       }
     }
-    os << ") {" << endl;
+    os << ")";
+    if (f->builtin) {
+      os << endl;
+      continue;
+    } else {
+      os << " {" << endl;
+    }
 
     os << "_entry:" << endl;
     for (auto &d : p.glob_decl) {
@@ -294,15 +287,16 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "ret void" << endl;
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
-          if (x->func->is_int) {
+          Func *callee = x->func->func;
+          if (callee->is_int) {
             os << pv(v_index, inst) << " = call i32";
           } else {
             os << "call void";
           }
-          os << " @" << x->func->name << "(";
+          os << " @" << callee->name << "(";
           for (int i = 0; i < x->args.size(); i++) {
             // type
-            if (x->func->params[i].dims.empty()) {
+            if (callee->params[i].dims.empty()) {
               // simple
               os << "i32 ";
             } else {

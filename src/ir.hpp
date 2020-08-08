@@ -132,6 +132,7 @@ struct IrFunc {
   std::set<IrFunc *> callee_func;
   // functions calling this function
   std::set<IrFunc *> caller_func;
+  bool builtin;
   bool load_global;
   // has_side_effect: 修改了全局变量/传入的数组参数，或者调用了has_side_effect的函数
   // no side effect函数的没有user的调用可以删除
@@ -193,6 +194,8 @@ struct Inst : Value {
 
   // 返回的指针对是一个左闭右开区间，表示这条指令的所有操作数，.value可能为空
   std::pair<Use *, Use *> operands();
+
+  inline bool has_side_effect();
 };
 
 struct BinaryInst : Inst {
@@ -290,7 +293,6 @@ struct BinaryInst : Inst {
     }
     return nullptr;
   }
-  
 };
 
 struct BranchInst : Inst {
@@ -351,9 +353,9 @@ struct StoreInst : AccessInst {
 
 struct CallInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Call);
-  Func *func;
+  IrFunc *func;
   std::vector<Use> args;
-  CallInst(Func *func, BasicBlock *insertAtEnd) : Inst(Tag::Call, insertAtEnd), func(func) {}
+  CallInst(IrFunc *func, BasicBlock *insertAtEnd) : Inst(Tag::Call, insertAtEnd), func(func) {}
 };
 
 struct AllocaInst : Inst {
@@ -391,7 +393,7 @@ struct MemOpInst : Inst {
   Use mem_token;
   LoadInst *load;
   MemOpInst(LoadInst *load, Inst *insertBefore)
-      : Inst(Tag::MemOp, insertBefore), load(load), mem_token(nullptr, this) {}
+      : Inst(Tag::MemOp, insertBefore), mem_token(nullptr, this), load(load) {}
 };
 
 // 它的前几个字段和PhiInst是兼容的，所以可以当成PhiInst用(也许理论上有隐患，但是实际上应该没有问题)
@@ -419,13 +421,19 @@ struct MemPhiInst : Inst {
   }
 };
 
+bool Inst::has_side_effect() {
+  if (isa<BranchInst>(this) || isa<JumpInst>(this) || isa<ReturnInst>(this) || isa<StoreInst>(this)) return true;
+  if (auto x = dyn_cast<CallInst>(this); x && x->func->has_side_effect) return true;
+  return false;
+}
+
 std::array<BasicBlock *, 2> BasicBlock::succ() {
   Inst *end = insts.tail;  // 必须非空
   if (auto x = dyn_cast<BranchInst>(end))
     return {x->left, x->right};
   else if (auto x = dyn_cast<JumpInst>(end))
     return {x->next, nullptr};
-  else if (auto x = dyn_cast<ReturnInst>(end))
+  else if (isa<ReturnInst>(end))
     return {nullptr, nullptr};
   else
     UNREACHABLE();

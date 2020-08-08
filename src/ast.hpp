@@ -161,6 +161,8 @@ struct Return : Stmt {
   Expr *val;  // nullable
 };
 
+struct IrFunc;
+
 struct Func {
   // 返回类型只能是int/void，因此只记录是否是int
   bool is_int;
@@ -169,8 +171,11 @@ struct Func {
   std::vector<Decl> params;
   Block body;
 
-  static Func BUILTIN[8];
-  static Func MEMSET;
+  // ast->ir阶段赋值
+  IrFunc *val;
+
+  // BUILTIN[8]是memset，这个下标在ssa.cpp会用到，修改时需要一并修改
+  static Func BUILTIN[9];
 };
 
 struct Program {

@@ -3,29 +3,18 @@
 #include "../../ast.hpp"
 
 void compute_callgraph(IrProgram *p) {
-  // collect mapping of Func* => IrFunc *
-  std::map<Func *, IrFunc *> func_map;
   for (auto f = p->func.head; f; f = f->next) {
-    func_map[f->func] = f;
-    // init
     f->callee_func.clear();
     f->caller_func.clear();
-    f->load_global = f->has_side_effect = false;
+    f->load_global = f->has_side_effect = f->builtin;
   }
 
   for (auto f = p->func.head; f; f = f->next) {
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         if (auto x = dyn_cast<CallInst>(inst)) {
-          auto it = func_map.find(x->func);
-          if (it != func_map.end()) {
-            // not builtin
-            f->callee_func.insert(it->second);
-            it->second->caller_func.insert(f);
-          } else {
-            // builtin functions has side effect
-            f->has_side_effect = true;
-          }
+          f->callee_func.insert(x->func);
+          x->func->caller_func.insert(f);
         } else if (auto x = dyn_cast<LoadInst>(inst); x && x->lhs_sym->is_glob) {
           f->load_global = true;
         } else if (auto x = dyn_cast<StoreInst>(inst); x && (x->lhs_sym->is_glob || x->lhs_sym->is_param_array())) {

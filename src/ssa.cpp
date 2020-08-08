@@ -91,7 +91,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       args.push_back(value);
     }
 
-    auto inst = new CallInst(x->f, ctx->bb);
+    auto inst = new CallInst(x->f->val, ctx->bb);
 
     // args
     inst->args.reserve(x->args.size());
@@ -135,7 +135,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
           bool emit_memset = false;
           if (num_zeros > 10) {
             emit_memset = true;
-            auto call_inst = new CallInst(&Func::MEMSET, ctx->bb);
+            auto call_inst = new CallInst(Func::BUILTIN[8].val, ctx->bb);
             call_inst->args.reserve(3);
             // arr
             call_inst->args.emplace_back(inst, call_inst);
@@ -281,11 +281,25 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
 IrProgram *convert_ssa(Program &p) {
   IrProgram *ret = new IrProgram;
+  for (Func &builtin : Func::BUILTIN) {
+    IrFunc *func = new IrFunc;
+    func->builtin = true;
+    func->func = &builtin;
+    builtin.val = func;
+    ret->func.insertAtEnd(func);
+  }
   for (auto &g : p.glob) {
     if (Func *f = std::get_if<0>(&g)) {
       IrFunc *func = new IrFunc;
+      func->builtin = false;
       func->func = f;
+      f->val = func;
       ret->func.insertAtEnd(func);
+    }
+  }
+  for (auto &g : p.glob) {
+    if (Func *f = std::get_if<0>(&g)) {
+      IrFunc *func = f->val;
       BasicBlock *entryBB = new BasicBlock;
       func->bb.insertAtEnd(entryBB);
 
