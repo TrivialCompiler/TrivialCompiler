@@ -175,20 +175,29 @@ void loop_unroll(IrFunc *f) {
       // PhiInst的构造函数要求insts非空，所以先插入最后的指令
       auto if_cond = new BinaryInst(cond->tag, nullptr, nullptr, bb_if);
       new BranchInst(if_cond, bb_last, bb_end, bb_if);
-      // fixme: 这里生成的phi序列可能出现定义在使用后面，llvm不接受这样的程序，我们的后端能够处理吗？
+      // 这一步是构造bb_if中的phi，它来自bb_header和bb_end的phi
+      // (bb_header和bb_end的phi并不一定完全一样，有可能一个值只在循环内用到，也有可能一个循环内定义的值循环中却没有用到)
+      // 循环1构造来自bb_header的phi，顺便将来自bb_header的phi的来自bb_body的值修改为新值
+      // 循环2修改map，将来自bb_header的phi映射到刚刚插入的phi
+      // 循环3构造来自bb_end的phi
+      // 循环1和2不能合并，否则违背了phi的parallel的特性，当bb_header中的一个phi作为另一个phi的操作数时，就可能出错
       for (Inst *i = bb_header->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
           Value *from_header = x->incoming_values[!idx_in_header].value, *from_body = get(x->incoming_values[idx_in_header].value);
           x->incoming_values[idx_in_header].set(from_body);
-          auto p = new PhiInst(bb_if);
+          auto p = new PhiInst(if_cond);
           p->incoming_values[0].set(from_header);
           p->incoming_values[1].set(from_body);
-          auto it = map.find(x);
-          assert(it != map.end());
-          it->second = p;
         } else break;
       }
-      // bb_header和bb_end中的phi并不一定完全一样，有可能一个值只在循环内用到，也有可能一个循环内定义的值循环中却没有用到
+      for (Inst *i = bb_header->insts.head, *i1 = bb_if->insts.head; i; i = i->next, i1 = i1->next) {
+        if (auto x = dyn_cast<PhiInst>(i)) {
+          assert(isa<PhiInst>(i1));
+          auto it = map.find(i);
+          assert(it != map.end());
+          it->second = i1;
+        }
+      }
       for (Inst *i = bb_end->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
           Value *from_header = x->incoming_values[!idx_in_end].value, *from_body = get(x->incoming_values[idx_in_end].value);
@@ -202,7 +211,7 @@ void loop_unroll(IrFunc *f) {
             } else break;
           }
           if (!found) {
-            auto p = new PhiInst(bb_if);
+            auto p = new PhiInst(if_cond);
             p->incoming_values[0].set(from_header);
             p->incoming_values[1].set(from_body);
             x->incoming_values[!idx_in_end].set(p);

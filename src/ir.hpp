@@ -365,11 +365,17 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;
 
-  explicit PhiInst(BasicBlock *insertAtFront)
-      : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
-    incoming_values.reserve(insertAtFront->pred.size());
-    for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
+  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+    incoming_values.reserve(incoming_bbs->size());
+    for (u32 i = 0; i < incoming_bbs->size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
+      incoming_values.emplace_back(nullptr, this);
+    }
+  }
+
+  explicit PhiInst(Inst *insertBefore) : Inst(Tag::Phi, insertBefore), incoming_bbs(&insertBefore->bb->pred) {
+    incoming_values.reserve(incoming_bbs->size());
+    for (u32 i = 0; i < incoming_bbs->size(); ++i) {
       incoming_values.emplace_back(nullptr, this);
     }
   }
