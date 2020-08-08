@@ -26,12 +26,12 @@ void compute_callgraph(IrProgram *p) {
             // builtin functions has side effect
             f->impure = true;
           }
-        } else if (auto x = dyn_cast<StoreInst>(inst)) {
-          // store to global is a side effect
+        } else if (auto x = dyn_cast<AccessInst>(inst)) {
+          // access to global is a side effect
           if (x->lhs_sym->is_glob) {
             f->impure = true;
           } else if (!x->lhs_sym->dims.empty() && x->lhs_sym->dims[0] == nullptr) {
-            // store to param array is a side effect
+            // access to param array is a side effect
             f->impure = true;
           }
         }
