@@ -334,7 +334,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
                   i1->acc = lhs;
                 } else {
                   auto i1 = new MILongMul(mbb);
-                  i1->dst_hi = temp_dst;
+                  i1->dst = temp_dst;
                   i1->lhs = lhs;
                   i1->rhs = i0->dst;
                 }

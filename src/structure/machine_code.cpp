@@ -139,7 +139,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           increase_count();
         } else if (auto x = dyn_cast<MILongMul>(inst)) {
           os << "smmul"
-             << "\t" << x->dst_hi << ", " << x->lhs << ", " << x->rhs << endl;
+             << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << endl;
         } else if (auto x = dyn_cast<MIFma>(inst)) {
           if (x->sign) {
             os << "sm";

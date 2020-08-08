@@ -316,11 +316,9 @@ struct MIQuaternary : MachineInst {
 
 struct MILongMul : MIQuaternary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
-  MachineOperand dst_lo;
-  MachineOperand dst_hi;
+  MachineOperand dst;
 
   explicit MILongMul(MachineBB *insertAtEnd) : MIQuaternary(Tag::LongMul, insertAtEnd) {
-    dst_lo = MachineOperand::R(ArmReg::ip);
   }
 };
 

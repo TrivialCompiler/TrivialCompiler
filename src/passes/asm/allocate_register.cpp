@@ -16,7 +16,7 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     def = {x->dst};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
-    def = {x->dst_hi, x->dst_lo};
+    def = {x->dst};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     def = {x->dst};
@@ -57,7 +57,7 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
     def = &x->dst;
     use = {&x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
-    def = &x->dst_hi;
+    def = &x->dst;
     use = {&x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     def = {&x->dst};
