@@ -296,23 +296,33 @@ MachineProgram *machine_code_generation(IrProgram *p) {
               u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
               u32 s = __builtin_ctz(d);
               if (d == (u32(1) << s)) {  // d是2的幂次，转化成移位
-                // handle negative dividend
-                auto i1 = new MIMove(mbb);
-                i1->dst = new_virtual_reg();
-                i1->rhs = lhs;
-                i1->shift.shift = 31;
-                i1->shift.type = ArmShift::Asr;
-                auto i2 = new MIBinary(MachineInst::Tag::Add, mbb);
-                i2->dst = new_virtual_reg();
-                i2->lhs = lhs;
-                i2->rhs = i1->dst;
-                i2->shift.shift = 32 - s;
-                i2->shift.type = ArmShift::Lsr;
-                auto i3 = new MIMove(mbb);
-                i3->dst = dst;
-                i3->rhs = i2->dst;
-                i3->shift.shift = s;
-                i3->shift.type = ArmShift::Asr;
+                if (false) {
+                  // handle negative dividend
+                  auto i1 = new MIMove(mbb);
+                  i1->dst = new_virtual_reg();
+                  i1->rhs = lhs;
+                  i1->shift.shift = 31;
+                  i1->shift.type = ArmShift::Asr;
+                  auto i2 = new MIBinary(MachineInst::Tag::Add, mbb);
+                  i2->dst = new_virtual_reg();
+                  i2->lhs = lhs;
+                  i2->rhs = i1->dst;
+                  i2->shift.shift = 32 - s;
+                  i2->shift.type = ArmShift::Lsr;
+                  auto i3 = new MIMove(mbb);
+                  i3->dst = dst;
+                  i3->rhs = i2->dst;
+                  i3->shift.shift = s;
+                  i3->shift.type = ArmShift::Asr;
+                } else {
+                  auto new_inst = new MIMove(mbb);
+                  new_inst->dst = dst;
+                  new_inst->rhs = lhs;
+                  if (s > 0) {
+                    new_inst->shift.shift = s;
+                    new_inst->shift.type = ArmShift::Lsr;
+                  }
+                }
               } else {
                 const u32 W = 32;
                 u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;
