@@ -154,31 +154,39 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // limit of ARM immediate number, see
           // https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
           if (x->rhs.is_imm() && !can_encode_imm(x->rhs.value)) {
-            using std::to_string;
-            // split into high & low 16 bits
-            u32 imm = x->rhs.value;
-            u32 low_bits = imm & 0xffffu;
-            u32 high_bits = imm >> 16u;
-            auto low_operand = MachineOperand::I((i32)low_bits);
-            auto high_operand = MachineOperand::I((i32)high_bits);
-            // debug output
-            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
-                              to_string(high_bits) + " and " + to_string(low_bits);
-            dbg(move_split);
-            // output asm
-            os << "@ original imm: " << (i32)imm << endl;
-            os << std::hex;
-            os << "\t"
-               << "movw"
-               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
-            increase_count();
-            if (high_bits != 0) {
-              os << "\t"
-                 << "movt"
-                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
-              increase_count();
+            auto imm = x->rhs.value;
+            if ((u32)imm >> 16u == 0) {
+              os << "movw" << x->cond << "\t" << x->dst << ", #" << imm << endl;
+            } else {
+              // wider than 16 bits
+              os << "ldr" << x->cond << "\t" << x->dst << ", =" << imm << endl;
             }
-            os << std::dec;
+            increase_count();
+//            using std::to_string;
+//            // split into high & low 16 bits
+//            u32 imm = x->rhs.value;
+//            u32 low_bits = imm & 0xffffu;
+//            u32 high_bits = imm >> 16u;
+//            auto low_operand = MachineOperand::I((i32)low_bits);
+//            auto high_operand = MachineOperand::I((i32)high_bits);
+//            // debug output
+//            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
+//                              to_string(high_bits) + " and " + to_string(low_bits);
+//            dbg(move_split);
+//            // output asm
+//            os << "@ original imm: " << (i32)imm << endl;
+//            os << std::hex;
+//            os << "\t"
+//               << "movw"
+//               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
+//            increase_count();
+//            if (high_bits != 0) {
+//              os << "\t"
+//                 << "movt"
+//                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
+//              increase_count();
+//            }
+//            os << std::dec;
           } else {
             os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs;
             if (x->shift.type != ArmShift::None) {
