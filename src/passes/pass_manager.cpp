@@ -3,8 +3,9 @@
 #include <utility>
 #include <variant>
 
-#include "asm/asm_simplify.hpp"
+#include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
+#include "asm/simplify_asm.hpp"
 #include "ir/bbopt.hpp"
 #include "ir/callgraph.hpp"
 #include "ir/cfg.hpp"
@@ -40,7 +41,11 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_dom_info),
 };
 
-static PassDesc asm_passes[] = {DEFINE_PASS(asm_simplify), DEFINE_PASS(compute_stack_info)};
+static PassDesc asm_passes[] = {
+    DEFINE_PASS(allocate_register),
+    DEFINE_PASS(simplify_asm),
+    DEFINE_PASS(compute_stack_info)
+};
 
 template <class... Ts>
 struct overloaded : Ts... {

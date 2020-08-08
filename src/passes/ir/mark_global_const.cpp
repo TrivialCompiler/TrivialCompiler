@@ -22,8 +22,8 @@ void mark_global_const(IrProgram *p) {
   for (Decl *d : p->glob_decl) {
     if (!d->is_const && !has_store(d->value)) {
       d->is_const = true;
-      auto msg = "Marking global variable `" + std::string(d->name) + "` as const";
-      dbg(msg);
+      auto global_const = "Marking global variable '" + std::string(d->name) + "' as const";
+      dbg(global_const);
     }
   }
 }

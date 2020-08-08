@@ -80,10 +80,9 @@ int main(int argc, char *argv[]) {
       std::ofstream(ir_file) << *ir;
     }
     if (output != nullptr) {
-      auto *gen = machine_code_selection(ir);
-      register_allocate(gen);
-      run_asm_passes(gen, opt);
-      std::ofstream(output) << *gen;
+      auto *code = machine_code_generation(ir);
+      run_asm_passes(code, opt);
+      std::ofstream(output) << *code;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
     ERR_EXIT(PARSING_ERROR, "parsing error", t->kind, t->line, t->col, t->piece);
