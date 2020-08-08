@@ -99,12 +99,12 @@ struct ArmShift {
   }
 };
 
-static std::ostream &operator<<(std::ostream &os, const ArmShift &shift) {
+inline std::ostream &operator<<(std::ostream &os, const ArmShift &shift) {
   os << std::string(shift);
   return os;
 }
 
-static std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
+inline std::ostream &operator<<(std::ostream &os, const ArmCond &cond) {
   if (cond == ArmCond::Eq) {
     os << "eq";
   } else if (cond == ArmCond::Ne) {
@@ -272,12 +272,12 @@ struct MachineInst {
     Comment,  // for printing comments
   } tag;
 
-  MachineInst(Tag tag, MachineBB *insertAtEnd) : tag(tag), bb(insertAtEnd) {
+  MachineInst(Tag tag, MachineBB *insertAtEnd) : bb(insertAtEnd), tag(tag) {
     if (insertAtEnd) {
       insertAtEnd->insts.insertAtEnd(this);
     }
   }
-  MachineInst(Tag tag, MachineInst *insertBefore) : tag(tag), bb(insertBefore->bb) {
+  MachineInst(Tag tag, MachineInst *insertBefore) : bb(insertBefore->bb), tag(tag) {
     if (bb) {
       bb->insts.insertBefore(this, insertBefore);
     }

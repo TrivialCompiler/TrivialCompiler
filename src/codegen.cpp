@@ -279,7 +279,7 @@ MachineProgram *machine_code_selection(IrProgram *p) {
             auto mv_inst = new MIMove(mbb);
             mv_inst->dst = MachineOperand::R(ArmReg::r0);
             mv_inst->rhs = val;
-            auto new_inst = new MIReturn(mbb);
+            new MIReturn(mbb);
             mbb->control_transfer_inst = mv_inst;
           } else {
             auto new_inst = new MIReturn(mbb);
@@ -1085,7 +1085,7 @@ void register_allocate(MachineProgram *p) {
           constrained_moves.insert(m);
           add_work_list(u);
           add_work_list(v);
-        } else if (u.is_precolored() && adj_ok(v, u) || !u.is_precolored() && conservative(adjacent(u), adjacent(v))) {
+        } else if ((u.is_precolored() && adj_ok(v, u)) || (!u.is_precolored() && conservative(adjacent(u), adjacent(v)))) {
           coalesced_moves.insert(m);
           combine(u, v);
           add_work_list(u);
@@ -1160,7 +1160,7 @@ void register_allocate(MachineProgram *p) {
             spilled_nodes.insert(n);
           } else {
             auto color = *ok_colors.begin();
-            colored[n] = MachineOperand{.state = MachineOperand::State::Allocated, .value = color};
+            colored[n] = MachineOperand{MachineOperand::State::Allocated, color};
           }
         }
 

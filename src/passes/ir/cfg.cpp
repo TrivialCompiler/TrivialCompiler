@@ -120,7 +120,7 @@ LoopInfo compute_loop_info(IrFunc *f) {
   collect_loops(info, worklist, f->bb.head);
   f->clear_all_vis();
   populate(info, f->bb.head);
-  return std::move(info);
+  return info;
 }
 
 static void dfs(std::vector<BasicBlock *> &po, BasicBlock *bb) {
@@ -138,7 +138,7 @@ std::vector<BasicBlock *> compute_rpo(IrFunc *f) {
   f->clear_all_vis();
   dfs(ret, f->bb.head);
   std::reverse(ret.begin(), ret.end());
-  return std::move(ret);
+  return ret;
 }
 
 std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> compute_df(IrFunc *f) {
@@ -154,5 +154,5 @@ std::unordered_map<BasicBlock *, std::unordered_set<BasicBlock *>> compute_df(Ir
       }
     }
   }
-  return std::move(df);
+  return df;
 }

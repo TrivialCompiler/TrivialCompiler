@@ -115,7 +115,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
         if (decl.init.val1) {
           // assign variable to expr
           auto init = convert_expr(ctx, decl.init.val1);
-          auto store_inst = new StoreInst(&decl, inst, init, new ConstValue(0), ctx->bb);
+          new StoreInst(&decl, inst, init, new ConstValue(0), ctx->bb);
         } else {
           // assign each element of flatten_init
           // heuristic: count how many elements are zero
@@ -153,7 +153,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
               }
             }
 
-            auto store_inst = new StoreInst(&decl, inst, values[i], new ConstValue(i), ctx->bb);
+            new StoreInst(&decl, inst, values[i], new ConstValue(i), ctx->bb);
           }
         }
       }
@@ -171,7 +171,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     auto rhs = convert_expr(ctx, x->rhs);
 
     if (x->dims.empty()) {
-      auto inst = new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, new ConstValue(0), ctx->bb);
+      new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, new ConstValue(0), ctx->bb);
     } else {
       // all levels except last level, emit GetElementPtr
       auto last = x->lhs_sym->value;
@@ -181,7 +181,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
           auto inst = new GetElementPtrInst(x->lhs_sym, last, dims[i], size, ctx->bb);
           last = inst;
         } else {
-          auto inst = new StoreInst(x->lhs_sym, last, rhs, dims[i], ctx->bb);
+          new StoreInst(x->lhs_sym, last, rhs, dims[i], ctx->bb);
         }
       }
     }
@@ -198,14 +198,14 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     ctx->func->bb.insertAtEnd(bb_else);
     ctx->func->bb.insertAtEnd(bb_end);
 
-    auto br_inst = new BranchInst(cond, bb_then, bb_else, ctx->bb);
+    new BranchInst(cond, bb_then, bb_else, ctx->bb);
 
     // then
     ctx->bb = bb_then;
     convert_stmt(ctx, x->on_true);
     // jump to end bb
     if (!ctx->bb->valid()) {
-      auto inst_then = new JumpInst(bb_end, ctx->bb);
+      new JumpInst(bb_end, ctx->bb);
     }
     // else
     ctx->bb = bb_else;
@@ -214,7 +214,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     }
     // jump to end bb
     if (!ctx->bb->valid()) {
-      auto inst_else = new JumpInst(bb_end, ctx->bb);
+      new JumpInst(bb_end, ctx->bb);
     }
 
     ctx->bb = bb_end;
@@ -234,12 +234,12 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     ctx->func->bb.insertAtEnd(bb_end);
 
     // jump to cond1 bb
-    auto inst_cond = new JumpInst(bb_cond1, ctx->bb);
+    new JumpInst(bb_cond1, ctx->bb);
 
     // cond1
     ctx->bb = bb_cond1;
     auto cond = convert_expr(ctx, x->cond);
-    auto br_inst = new BranchInst(cond, bb_loop, bb_end, ctx->bb);
+    new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     // loop
     ctx->bb = bb_loop;
@@ -248,13 +248,13 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     ctx->loop_stk.pop_back();
     // jump to cond2 bb
     if (!ctx->bb->valid()) {
-      auto inst_continue = new JumpInst(bb_cond2, ctx->bb);
+      new JumpInst(bb_cond2, ctx->bb);
     }
 
     // cond2
     ctx->bb = bb_cond2;
     cond = convert_expr(ctx, x->cond);
-    br_inst = new BranchInst(cond, bb_loop, bb_end, ctx->bb);
+    new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
@@ -264,18 +264,18 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   } else if (auto x = dyn_cast<Return>(stmt)) {
     if (x->val) {
       auto value = convert_expr(ctx, x->val);
-      auto inst = new ReturnInst(value, ctx->bb);
+      new ReturnInst(value, ctx->bb);
     } else {
-      auto inst = new ReturnInst(nullptr, ctx->bb);
+      new ReturnInst(nullptr, ctx->bb);
     }
   } else if (auto x = dyn_cast<ExprStmt>(stmt)) {
     if (x->val) {
       convert_expr(ctx, x->val);
     }
   } else if (auto x = dyn_cast<Continue>(stmt)) {
-    auto inst = new JumpInst(ctx->loop_stk.back().first, ctx->bb);
+    new JumpInst(ctx->loop_stk.back().first, ctx->bb);
   } else if (auto x = dyn_cast<Break>(stmt)) {
-    auto inst = new JumpInst(ctx->loop_stk.back().second, ctx->bb);
+    new JumpInst(ctx->loop_stk.back().second, ctx->bb);
   }
 }
 
@@ -310,14 +310,14 @@ IrProgram *convert_ssa(Program &p) {
           auto inst = new AllocaInst(&p, entryBB);
           p.value = inst;
           // then copy param into it
-          auto store_inst = new StoreInst(&p, inst, new ParamRef(&p), new ConstValue(0), entryBB);
+          new StoreInst(&p, inst, new ParamRef(&p), new ConstValue(0), entryBB);
         } else {
           // there is no need to alloca for array param
           p.value = new ParamRef(&p);
         }
       }
 
-      SsaContext ctx{.program = ret, .func = func, .bb = entryBB};
+      SsaContext ctx = {ret, func, entryBB};
       for (auto &stmt : f->body.stmts) {
         convert_stmt(&ctx, stmt);
       }
@@ -326,9 +326,9 @@ IrProgram *convert_ssa(Program &p) {
       if (!ctx.bb->valid()) {
         if (func->func->is_int) {
           auto value = new ConstValue(0);
-          auto inst = new ReturnInst(value, ctx.bb);
+          new ReturnInst(value, ctx.bb);
         } else {
-          auto inst = new ReturnInst(nullptr, ctx.bb);
+          new ReturnInst(nullptr, ctx.bb);
         }
       }
 
