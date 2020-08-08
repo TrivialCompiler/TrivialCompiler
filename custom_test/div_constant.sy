@@ -13,6 +13,8 @@ int main() {
     putint(a[i] / 641); putch(10);
     putint(a[i] / 0x7FFFFFFF); putch(10);
     putint(a[i] / -2147483648); putch(10);
+    // bitset1
+    putint(a[i] / 1000000007); putch(10);
     putch(10);
     i = i + 1;
   }
