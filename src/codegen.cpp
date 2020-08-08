@@ -816,7 +816,7 @@ void register_allocate(MachineProgram *p) {
       // other variables in the paper
       std::map<MachineOperand, u32> degree;
       std::map<MachineOperand, MachineOperand> alias;
-      std::map<MachineOperand, std::set<MIMove *>> move_list;
+      std::map<MachineOperand, std::set<MIMove *, MIMoveCompare>> move_list;
       std::set<MachineOperand> simplify_worklist;
       std::set<MachineOperand> freeze_worklist;
       std::set<MachineOperand> spill_worklist;
@@ -923,7 +923,7 @@ void register_allocate(MachineProgram *p) {
       };
 
       auto node_moves = [&](MachineOperand n) {
-        std::set<MIMove *> res = move_list[n];
+        std::set<MIMove *, MIMoveCompare> res = move_list[n];
         for (auto it = res.begin(); it != res.end();) {
           if (active_moves.find(*it) == active_moves.end() && worklist_moves.find(*it) == worklist_moves.end()) {
             it = res.erase(it);
