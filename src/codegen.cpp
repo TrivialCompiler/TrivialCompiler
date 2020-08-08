@@ -4,8 +4,8 @@
 #include <cassert>
 #include <cmath>
 #include <optional>
-#include <unordered_map>
-#include <unordered_set>
+#include <map>
+#include <set>
 
 #include "machine_code.hpp"
 #include "passes/ir/cfg.hpp"
@@ -810,27 +810,27 @@ void register_allocate(MachineProgram *p) {
       // each node is a MachineOperand
       // can only Precolored or Virtual
       // adjacent list
-      std::unordered_map<MachineOperand, std::unordered_set<MachineOperand>> adj_list;
+      std::map<MachineOperand, std::set<MachineOperand>> adj_list;
       // adjacent set
-      std::unordered_set<std::pair<MachineOperand, MachineOperand>> adj_set;
+      std::set<std::pair<MachineOperand, MachineOperand>> adj_set;
       // other variables in the paper
-      std::unordered_map<MachineOperand, u32> degree;
-      std::unordered_map<MachineOperand, MachineOperand> alias;
-      std::unordered_map<MachineOperand, std::set<MIMove *>> move_list;
-      std::unordered_set<MachineOperand> simplify_worklist;
-      std::unordered_set<MachineOperand> freeze_worklist;
-      std::unordered_set<MachineOperand> spill_worklist;
-      std::unordered_set<MachineOperand> spilled_nodes;
-      std::unordered_set<MachineOperand> coalesced_nodes;
+      std::map<MachineOperand, u32> degree;
+      std::map<MachineOperand, MachineOperand> alias;
+      std::map<MachineOperand, std::set<MIMove *, MIMoveCompare>> move_list;
+      std::set<MachineOperand> simplify_worklist;
+      std::set<MachineOperand> freeze_worklist;
+      std::set<MachineOperand> spill_worklist;
+      std::set<MachineOperand> spilled_nodes;
+      std::set<MachineOperand> coalesced_nodes;
       std::vector<MachineOperand> colored_nodes;
       std::vector<MachineOperand> select_stack;
-      std::unordered_set<MIMove *> coalesced_moves;
-      std::unordered_set<MIMove *> constrained_moves;
-      std::unordered_set<MIMove *> frozen_moves;
-      std::unordered_set<MIMove *> worklist_moves;
-      std::unordered_set<MIMove *> active_moves;
+      std::set<MIMove *, MIMoveCompare> coalesced_moves;
+      std::set<MIMove *, MIMoveCompare> constrained_moves;
+      std::set<MIMove *, MIMoveCompare> frozen_moves;
+      std::set<MIMove *, MIMoveCompare> worklist_moves;
+      std::set<MIMove *, MIMoveCompare> active_moves;
       // for heuristic
-      std::unordered_map<MachineOperand, u32> loop_cnt;
+      std::map<MachineOperand, u32> loop_cnt;
 
       // allocatable registers: r0 to r11, r12(ip), lr
       i32 k = (int)ArmReg::r12 - (int)ArmReg::r0 + 1 + 1;
@@ -910,7 +910,7 @@ void register_allocate(MachineProgram *p) {
       };
 
       auto adjacent = [&](MachineOperand n) {
-        std::unordered_set<MachineOperand> res = adj_list[n];
+        std::set<MachineOperand> res = adj_list[n];
         for (auto it = res.begin(); it != res.end();) {
           if (std::find(select_stack.begin(), select_stack.end(), *it) == select_stack.end() &&
               std::find(coalesced_nodes.begin(), coalesced_nodes.end(), *it) == coalesced_nodes.end()) {
@@ -923,7 +923,7 @@ void register_allocate(MachineProgram *p) {
       };
 
       auto node_moves = [&](MachineOperand n) {
-        std::set<MIMove *> res = move_list[n];
+        std::set<MIMove *, MIMoveCompare> res = move_list[n];
         for (auto it = res.begin(); it != res.end();) {
           if (active_moves.find(*it) == active_moves.end() && worklist_moves.find(*it) == worklist_moves.end()) {
             it = res.erase(it);
@@ -1049,7 +1049,7 @@ void register_allocate(MachineProgram *p) {
         }
       };
 
-      auto conservative = [&](std::unordered_set<MachineOperand> adj_u, std::unordered_set<MachineOperand> adj_v) {
+      auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
         int count = 0;
         // set union
         for (auto n : adj_v) {
@@ -1133,7 +1133,7 @@ void register_allocate(MachineProgram *p) {
       // procedure AssignColors()
       auto assign_colors = [&]() {
         // mapping from virtual register to its allocated register
-        std::unordered_map<MachineOperand, MachineOperand> colored;
+        std::map<MachineOperand, MachineOperand> colored;
         while (!select_stack.empty()) {
           auto n = select_stack.back();
           select_stack.pop_back();

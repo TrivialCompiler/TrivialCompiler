@@ -353,6 +353,15 @@ struct MIMove : MachineInst {
   MIMove(MachineInst *insertBefore) : MachineInst(Tag::Mv, insertBefore), cond(ArmCond::Any) {}
 };
 
+struct MIMoveCompare {
+  bool operator()(MIMove *const &lhs, const MIMove *const &rhs) const {
+    if (lhs->cond != rhs->cond) return lhs->cond < rhs->cond;
+    if (lhs->dst != rhs->dst) return lhs->dst < rhs->dst;
+    if (lhs->rhs != rhs->rhs) return lhs->rhs < rhs->rhs;
+    return false;
+  }
+};
+
 struct MIBranch : MachineInst {
   DEFINE_CLASSOF(MachineInst, p->tag == Tag::Branch);
   ArmCond cond;
