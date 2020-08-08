@@ -292,45 +292,64 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           // 提前检查两个特殊情况：除常数和乘2^n，里面用continue来跳过后续的操作
           if (rhs_const) {
             if (x->tag == Value::Tag::Div && imm > 0) {
-              // NOTE_OPT: this is an unsafe optimization, because it assumes lhs > 0 for correctness
-              const u32 W = 32;
               auto dst = resolve(inst, mbb);
               u32 d = static_cast<ConstValue *>(x->rhs.value)->imm;
-              u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;
-              u64 p = W;
-              while (((u64)1 << p) <= n_c * (d - ((u64)1 << p) % d)) {
-                p++;
-              }
-              u32 m = (((u64)1 << p) + (u64)d - ((u64)1 << p) % d) / (u64)d;
-              u32 shift = p - W;
-              auto i0 = new MIMove(mbb);
-              i0->dst = new_virtual_reg();
-              i0->rhs = MachineOperand::I(m);
-              auto temp_dst = new_virtual_reg();
-              if (m >= 0x80000000) {
-                auto i1 = new MIFma(true, true, mbb);
-                i1->dst = temp_dst;
-                i1->lhs = lhs;
-                i1->rhs = i0->dst;
-                i1->acc = lhs;
+              u32 s = __builtin_ctz(d);
+              if (d == (u32(1) << s)) {  // d是2的幂次，转化成移位
+                // handle negative dividend
+                auto i1 = new MIMove(mbb);
+                i1->dst = new_virtual_reg();
+                i1->rhs = lhs;
+                i1->shift.shift = 31;
+                i1->shift.type = ArmShift::Asr;
+                auto i2 = new MIBinary(MachineInst::Tag::Add, mbb);
+                i2->dst = new_virtual_reg();
+                i2->lhs = lhs;
+                i2->rhs = i1->dst;
+                i2->shift.shift = 32 - s;
+                i2->shift.type = ArmShift::Lsr;
+                auto i3 = new MIMove(mbb);
+                i3->dst = dst;
+                i3->rhs = i2->dst;
+                i3->shift.shift = s;
+                i3->shift.type = ArmShift::Asr;
               } else {
-                auto i1 = new MILongMul(mbb);
-                i1->dst_hi = temp_dst;
-                i1->lhs = lhs;
-                i1->rhs = i0->dst;
+                const u32 W = 32;
+                u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;
+                u64 p = W;
+                while (((u64)1 << p) <= n_c * (d - ((u64)1 << p) % d)) {
+                  p++;
+                }
+                u32 m = (((u64)1 << p) + (u64)d - ((u64)1 << p) % d) / (u64)d;
+                u32 shift = p - W;
+                auto i0 = new MIMove(mbb);
+                i0->dst = new_virtual_reg();
+                i0->rhs = MachineOperand::I(m);
+                auto temp_dst = new_virtual_reg();
+                if (m >= 0x80000000) {
+                  auto i1 = new MIFma(true, true, mbb);
+                  i1->dst = temp_dst;
+                  i1->lhs = lhs;
+                  i1->rhs = i0->dst;
+                  i1->acc = lhs;
+                } else {
+                  auto i1 = new MILongMul(mbb);
+                  i1->dst_hi = temp_dst;
+                  i1->lhs = lhs;
+                  i1->rhs = i0->dst;
+                }
+                auto i2 = new MIMove(mbb);
+                i2->dst = new_virtual_reg();
+                i2->rhs = temp_dst;
+                i2->shift.shift = shift;
+                i2->shift.type = ArmShift::Asr;
+                auto i3 = new MIBinary(MachineInst::Tag::Add, mbb);
+                i3->dst = dst;
+                i3->lhs = i2->dst;
+                i3->rhs = lhs;
+                i3->shift.shift = 31;
+                i3->shift.type = ArmShift::Lsr;
               }
-              auto i2 = new MIMove(mbb);
-              i2->dst = new_virtual_reg();
-              i2->rhs = temp_dst;
-              i2->shift.shift = shift;
-              i2->shift.type = ArmShift::Asr;
-              auto i3 = new MIBinary(MachineInst::Tag::Add, mbb);
-              i3->dst = dst;
-              i3->lhs = i2->dst;
-              i3->rhs = lhs;
-              i3->shift.shift = 31;
-              i3->shift.type = ArmShift::Lsr;
-
               continue;
             }
             if (x->tag == Value::Tag::Mul) {
