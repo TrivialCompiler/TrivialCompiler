@@ -38,12 +38,12 @@ if __name__ == '__main__':
         except:
             continue
 
-    # copy gcc & clang results from old data (if existed)
+    # copy gcc & clang results from old data (if existed and not run this time)
     for case, time in results.items():
         if case in old_results:
-            if 'gcc' in old_results[case]:
+            if 'gcc' in old_results[case] and 'gcc' not in time:
                 time['gcc'] = old_results[case]['gcc']
-            if 'clang' in old_results[case]:
+            if 'clang' in old_results[case] and 'clang' not in time:
                 time['clang'] = old_results[case]['clang']
 
     data = []
