@@ -12,17 +12,19 @@
 #include "ir/gvn_gcm.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mem2reg.hpp"
-#include "ir/memdep.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
-using IrProgramPass = void (*)(IrProgram *);  // for future use (such as inlining functions)
-using IrPass = std::variant<IrFuncPass, IrProgramPass>;
-using PassDesc = std::pair<IrPass, const std::string>;
+using MachineFuncPass = void (*)(MachineFunc *);
+// for future use (such as inlining functions)
+using IrProgramPass = void (*)(IrProgram *);
+using MachineProgramPass = void (*)(MachineProgram *);
+using CompilePass = std::variant<IrFuncPass, IrProgramPass, MachineFuncPass, MachineProgramPass>;
+using PassDesc = std::pair<CompilePass, const std::string>;
 
 #define DEFINE_PASS(p) \
   { p, #p }
 
-static PassDesc mandatory_passes[] = {
+static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
@@ -35,46 +37,57 @@ static PassDesc mandatory_passes[] = {
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
 };
-static PassDesc opt_passes[] = {
 
-};
+static PassDesc asm_passes[] = {DEFINE_PASS(asm_simplify), DEFINE_PASS(compute_stack_info)};
 
 template <class... Ts>
 struct overloaded : Ts... {
   using Ts::operator()...;
 };
 template <class... Ts>
-overloaded(Ts...)->overloaded<Ts...>;
+overloaded(Ts...) -> overloaded<Ts...>;
 
-static inline void run_pass(IrProgram *p, const PassDesc &desc) {
-  auto &[pass, name] = desc;
-  auto ir_pass = "Running IR pass " + name;
-  dbg(ir_pass);
+template <typename T>
+inline void apply_pass(T, const CompilePass &) {}
 
+template <>
+inline void apply_pass(MachineProgram *p, const CompilePass &pass) {
+  std::visit(overloaded{[&](MachineFuncPass pass) {
+                          for (auto *f = p->func.head; f != nullptr; f = f->next) {
+                            pass(f);
+                          }
+                        },
+                        [&](MachineProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
+             pass);
+}
+
+template <>
+inline void apply_pass(IrProgram *p, const CompilePass &pass) {
   std::visit(overloaded{[&](IrFuncPass pass) {
                           for (auto *f = p->func.head; f != nullptr; f = f->next) {
                             if (!f->builtin) pass(f);
                           }
                         },
-                        [&](IrProgramPass pass) { pass(p); }},
+                        [&](IrProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
              pass);
 }
 
-void run_ir_passes(IrProgram *p, bool opt) {
-  for (auto &desc : mandatory_passes) {
-    run_pass(p, desc);
-  }
+template <typename T>
+static inline void run_pass(T *p, const PassDesc &desc) {
+  auto &[pass, name] = desc;
+  auto run_pass = "Running pass " + name;
+  dbg(run_pass);
+  apply_pass(p, pass);
+}
 
-  if (opt) {
-    for (auto &desc : opt_passes) {
-      run_pass(p, desc);
-    }
+void run_ir_passes(IrProgram *p, bool opt) {
+  for (auto &desc : ir_passes) {
+    run_pass(p, desc);
   }
 }
 
 void run_asm_passes(MachineProgram *p, bool opt) {
-  for (auto *f = p->func.head; f != nullptr; f = f->next) {
-    asm_simplify(f);
-    compute_stack_info(f);
+  for (auto &desc : asm_passes) {
+    run_pass(p, desc);
   }
 }
