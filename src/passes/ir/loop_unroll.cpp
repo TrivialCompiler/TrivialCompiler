@@ -48,6 +48,7 @@ void loop_unroll(IrFunc *f) {
     // bb_cond:
     //   ...
     //   if (i(0) < n) br bb_header else br bb_end
+    //   或者 if (const 非0) br bb_header else br bb_end
     // bb_header: ; preds [bb_cond, bb_body]
     //   i = phi [i(0), bb_cond] [i(x), bb_body]
     //   ...
@@ -70,8 +71,13 @@ void loop_unroll(IrFunc *f) {
     u32 idx_in_header = bb_body == bb_header->pred[1];
     BasicBlock *bb_cond = bb_header->pred[!idx_in_header];
     auto br0 = dyn_cast<BranchInst>(bb_cond->insts.tail);
-    if (!br0 || br0->left != bb_header || br0->cond.value->tag < Value::Tag::Lt || br0->cond.value->tag > Value::Tag::Gt) continue;
-    auto cond0 = static_cast<BinaryInst *>(br0->cond.value);
+    if (!br0 || br0->left != bb_header) continue;
+    BinaryInst *cond0; // cond0可能是nullptr，此时bb_cond中以if (const 非0) br bb_header else br bb_end结尾
+    {
+      Value *v = br0->cond.value;
+      if ((v->tag < Value::Tag::Lt || v->tag > Value::Tag::Gt) && (v->tag != Value::Tag::Const || static_cast<ConstValue *>(v)->imm == 0)) continue;
+      cond0 = dyn_cast<BinaryInst>(v);
+    }
     // cond0的lhs和rhs不可能是循环中定义的，不然就不dominate它的use了
     auto jump = dyn_cast<JumpInst>(bb_header->insts.tail);
     if (!jump || jump->next != bb_body) continue;
@@ -100,14 +106,23 @@ void loop_unroll(IrFunc *f) {
           Value *i0 = x->incoming_values[!idx_in_header].value;
           phi_ix = x;
           if (x->incoming_values[idx_in_header].value != ix) break;
-          // 两个cond的n必须是同一个，这保证了bb_body中的cond的n不是循环中定义的
-          if (cond->tag == cond0->tag && equiv(i0, cond0->lhs.value) && equiv(n, cond0->rhs.value)) {
-            cond0_i0 = 0;
-            break;
-          } else if (op::isrev((op::Op) cond->tag, (op::Op) cond0->tag) && equiv(i0, cond0->rhs.value) && equiv(n, cond0->lhs.value)) {
-            cond0_i0 = 1;
-            break;
-          } else break;
+          if (cond0) {
+            // 两个cond的n必须是同一个，这可以保证bb_body中的cond的n不是循环中定义的
+            if (cond->tag == cond0->tag && equiv(i0, cond0->lhs.value) && equiv(n, cond0->rhs.value)) {
+              cond0_i0 = 0;
+              break;
+            } else if (op::isrev((op::Op) cond->tag, (op::Op) cond0->tag) && equiv(i0, cond0->rhs.value) && equiv(n, cond0->lhs.value)) {
+              cond0_i0 = 1;
+              break;
+            } else break;
+          } else {
+            // 如果cond0是ConstValue，则还是需要检查n的定义位置
+            auto n1 = dyn_cast<Inst>(n);
+            if (!n1 || (n1->bb != bb_header && n1->bb != bb_body)) {
+              cond0_i0 = 0; // 这个值没什么用了，只是和-1区分一下
+              break;
+            } else break;
+          }
         } else break;
       }
     }
@@ -136,9 +151,12 @@ void loop_unroll(IrFunc *f) {
 
     dbg("Performing loop unroll");
     // 验证结束，循环展开，目前为了实现简单仅展开2次，如果实现正确的话运行n次就可以展开2^n次
-    Value *old_n = (&cond0->lhs)[!cond0_i0].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, new ConstValue(-step), cond0);
-    Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
-    br0->cond.set(new_cond0);
+    Value *old_n = (&cond->lhs)[!cond_ix].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, new ConstValue(-step),
+      cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
+    if (cond0) {
+      Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
+      br0->cond.set(new_cond0);
+    }
 
     std::unordered_map<Value *, Value *> map;
     for (Inst *i = bb_header->insts.head;; i = i->next) {

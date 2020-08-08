@@ -110,8 +110,7 @@ static Value *vn_of(VN &vn, Value *x) {
 static void try_fold_lhs(BinaryInst *x) {
   if (auto r = dyn_cast<ConstValue>(x->rhs.value)) {
     if (x->tag == Value::Tag::Sub) x->rhs.set(r = new ConstValue(-r->imm)), x->tag = Value::Tag::Add;
-    // 只有当l仅被x使用时才做这个优化，不然也没什么意义，总是要做两次计算的
-    if (auto l = dyn_cast<BinaryInst>(x->lhs.value); l && l->uses.head == l->uses.tail) {
+    if (auto l = dyn_cast<BinaryInst>(x->lhs.value)) {
       if (auto lr = dyn_cast<ConstValue>(l->rhs.value)) {
         if (l->tag == Value::Tag::Sub) l->rhs.set(lr = new ConstValue(-lr->imm)), l->tag = Value::Tag::Add;
         if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
@@ -241,7 +240,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
 void gvn_gcm(IrFunc *f) {
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
-  dce(f), compute_memdep(f);
+  compute_memdep(f);
   std::vector<BasicBlock *> rpo = compute_rpo(f);
   VN vn;
   auto replace = [&vn](Inst *o, Value *n) {
