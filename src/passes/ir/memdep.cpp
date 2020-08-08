@@ -16,10 +16,10 @@ static bool dim_alias(const std::vector<Expr *> &dim1, const std::vector<Expr *>
 // 目前只考虑用数组的类型/维度来排除alias，不考虑用下标来排除
 // 分三种情况：!dims.empty() && dims[0] == nullptr => 参数数组; 否则is_glob == true => 全局变量; 否则是局部数组
 // 这个关系是对称的，但不是传递的，例如参数中的int []和int [][5]，int [][10]都alias，但int [][5]和int [][10]不alias
-// todo: 测试发现公开测例中可以直接假定不同的参数不alias，也许还可以进一步面向测例编程
 static bool alias(Decl *arr1, Decl *arr2) {
   if (arr1->is_param_array()) { // 参数
     if (arr2->is_param_array())
+      // NOTE_OPT: this assumes that any two arrays in parameters do not alias
       return arr1->name == arr2->name;
     else if (arr2->is_glob)
       return dim_alias(arr1->dims, arr2->dims);
