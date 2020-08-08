@@ -16,6 +16,8 @@ variables:
   artifacts:
     paths:
       - build/Testing/Temporary/*.log
+      - build/*.S
+      - build/*.bc
       - ${RESULT_JSON_PATH}
     expire_in: 1 year
     when: always
