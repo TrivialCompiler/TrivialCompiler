@@ -10,7 +10,7 @@ void compute_callgraph(IrProgram *p) {
     // init
     f->callee_func.clear();
     f->caller_func.clear();
-    f->impure = false;
+    f->load_global = f->has_side_effect = false;
   }
 
   for (auto f = p->func.head; f; f = f->next) {
@@ -24,16 +24,12 @@ void compute_callgraph(IrProgram *p) {
             it->second->caller_func.insert(f);
           } else {
             // builtin functions has side effect
-            f->impure = true;
+            f->has_side_effect = true;
           }
-        } else if (auto x = dyn_cast<AccessInst>(inst)) {
-          // access to global is a side effect
-          if (x->lhs_sym->is_glob) {
-            f->impure = true;
-          } else if (!x->lhs_sym->dims.empty() && x->lhs_sym->dims[0] == nullptr) {
-            // access to param array is a side effect
-            f->impure = true;
-          }
+        } else if (auto x = dyn_cast<LoadInst>(inst); x && x->lhs_sym->is_glob) {
+          f->load_global = true;
+        } else if (auto x = dyn_cast<StoreInst>(inst); x && (x->lhs_sym->is_glob || x->lhs_sym->is_param_array())) {
+          f->has_side_effect = true;
         }
       }
     }
@@ -42,7 +38,7 @@ void compute_callgraph(IrProgram *p) {
   // propagate impure from callees to callers
   std::vector<IrFunc *> work_list;
   for (auto f = p->func.head; f; f = f->next) {
-    if (f->impure) {
+    if (f->has_side_effect) {
       work_list.push_back(f);
     }
   }
@@ -51,15 +47,16 @@ void compute_callgraph(IrProgram *p) {
     auto *f = work_list.back();
     work_list.pop_back();
     for (auto caller : f->caller_func) {
-      if (!caller->impure) {
-        caller->impure = true;
+      if (!caller->has_side_effect) {
+        caller->has_side_effect = true;
         work_list.push_back(caller);
       }
     }
   }
 
   for (auto f = p->func.head; f; f = f->next) {
-    auto func_purity = "function " + std::string(f->func->name) + " is " + (f->impure ? "impure" : "pure");
+    auto func_purity = "function " + std::string(f->func->name) + "has " + (f->has_side_effect ? "" : "no ")
+                       + "side effect, is " + (f->pure() ? "pure" : "impure");
     dbg(func_purity);
   }
 }
