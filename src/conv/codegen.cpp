@@ -18,19 +18,6 @@ static inline void insert_parallel_mv(ParMv &movs, MachineInst *insertBefore) {
   }
 }
 
-static inline std::pair<u64, u32> choose_multiplier(u32 d, u32 p) {
-  const u32 N = 32;
-  u32 l = N - __builtin_clz(d - 1);
-  u64 lo = (u64(1) << (N + l)) / d;
-  u64 hi = ((u64(1) << (N + l)) + (u64(1) << (N + l - p))) / d;
-  while ((lo >> 1) < (hi >> 1) && l > 0) {
-    lo >>= 1;
-    hi >>= 1;
-    --l;
-  }
-  return {hi, l};
-}
-
 // resolve imm as instruction operand
 // ARM has limitations, see https://stackoverflow.com/questions/10261300/invalid-constant-after-fixup
 static MachineOperand generate_imm_operand(i32 imm, MachineBB *mbb, bool force_reg, int &current_virtual_max) {
