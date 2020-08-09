@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <variant>
+#include <type_traits>
 
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
@@ -22,7 +23,6 @@ using MachineProgramPass = void (*)(MachineProgram *);
 using CompilePass = std::variant<IrFuncPass, IrProgramPass, MachineFuncPass, MachineProgramPass>;
 using PassDesc = std::pair<CompilePass, const char*>;
 
-using IntermediateProgram = std::variant<IrProgram *, MachineProgram *>;
 
 #define DEFINE_PASS(p) \
   { p, #p }
@@ -82,14 +82,15 @@ static inline void run_pass(IntermediateProgram p, const PassDesc &desc) {
              p);
 }
 
-void run_ir_passes(IrProgram *p, bool opt) {
-  for (auto &desc : ir_passes) {
-    run_pass(p, desc);
-  }
-}
 
-void run_asm_passes(MachineProgram *p, bool opt) {
-  for (auto &desc : asm_passes) {
-    run_pass(p, desc);
+void run_passes(IntermediateProgram p, bool opt) {
+  if (std::get_if<MachineProgram *>(&p)) {
+    for (auto &desc : asm_passes) {
+      run_pass(p, desc);
+    }
+  } else if (std::get_if<IrProgram *>(&p)) {
+    for (auto &desc : ir_passes) {
+      run_pass(p, desc);
+    }
   }
 }

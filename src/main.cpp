@@ -75,13 +75,13 @@ int main(int argc, char *argv[]) {
     type_check(*p);  // 失败时直接就exit(1)了
     dbg("type_check success");
     auto *ir = convert_ssa(*p);
-    run_ir_passes(ir, opt);
+    run_passes(ir, opt);
     if (ir_file != nullptr) {
       std::ofstream(ir_file) << *ir;
     }
     if (output != nullptr) {
       auto *code = machine_code_generation(ir);
-      run_asm_passes(code, opt);
+      run_passes(code, opt);
       std::ofstream(output) << *code;
     }
   } else if (Token *t = std::get_if<1>(&result)) {
