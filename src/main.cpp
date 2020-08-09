@@ -12,7 +12,7 @@
 #include "conv/ssa.hpp"
 #include "conv/typeck.hpp"
 #include "passes/pass_manager.hpp"
-#include "structure/ast.hpp"
+
 
 int main(int argc, char *argv[]) {
   bool opt = false, print_usage = false;
@@ -97,4 +97,4 @@ int main(int argc, char *argv[]) {
 }
 
 // ASan config
-extern "C" const char *__asan_default_options() { return "detect_leaks=0"; }
+extern "C" [[maybe_unused]] const char *__asan_default_options() { return "detect_leaks=0"; }

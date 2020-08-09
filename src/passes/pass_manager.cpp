@@ -16,12 +16,13 @@
 #include "ir/mem2reg.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
-using MachineFuncPass = void (*)(MachineFunc *);
-// for future use (such as inlining functions)
 using IrProgramPass = void (*)(IrProgram *);
+using MachineFuncPass = void (*)(MachineFunc *);
 using MachineProgramPass = void (*)(MachineProgram *);
 using CompilePass = std::variant<IrFuncPass, IrProgramPass, MachineFuncPass, MachineProgramPass>;
-using PassDesc = std::pair<CompilePass, const std::string>;
+using PassDesc = std::pair<CompilePass, const char*>;
+
+using IntermediateProgram = std::variant<IrProgram *, MachineProgram *>;
 
 #define DEFINE_PASS(p) \
   { p, #p }
@@ -43,11 +44,10 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_dom_info),
 };
 
-static PassDesc asm_passes[] = {
-    DEFINE_PASS(allocate_register),
-    DEFINE_PASS(simplify_asm),
-    DEFINE_PASS(compute_stack_info)
-};
+static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),
+                                DEFINE_PASS(compute_stack_info)};
+
+#undef DEFINE_PASS
 
 template <class... Ts>
 struct overloaded : Ts... {
@@ -56,37 +56,30 @@ struct overloaded : Ts... {
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
-template <typename T>
-inline void apply_pass(T, const CompilePass &) {}
-
-template <>
-inline void apply_pass(MachineProgram *p, const CompilePass &pass) {
-  std::visit(overloaded{[&](MachineFuncPass pass) {
-                          for (auto *f = p->func.head; f != nullptr; f = f->next) {
-                            pass(f);
-                          }
-                        },
-                        [&](MachineProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
-             pass);
-}
-
-template <>
-inline void apply_pass(IrProgram *p, const CompilePass &pass) {
-  std::visit(overloaded{[&](IrFuncPass pass) {
-                          for (auto *f = p->func.head; f != nullptr; f = f->next) {
-                            if (!f->builtin) pass(f);
-                          }
-                        },
-                        [&](IrProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
-             pass);
-}
-
-template <typename T>
-static inline void run_pass(T *p, const PassDesc &desc) {
-  auto &[pass, name] = desc;
-  auto run_pass = "Running pass " + name;
+static inline void run_pass(IntermediateProgram p, const PassDesc &desc) {
+  auto &pass = std::get<0>(desc);
+  auto run_pass = std::string("Running pass ") + std::get<1>(desc);
   dbg(run_pass);
-  apply_pass(p, pass);
+  std::visit(overloaded{[&](IrProgram *p) {
+                          std::visit(overloaded{[&](IrFuncPass pass) {
+                                                  for (auto *f = p->func.head; f != nullptr; f = f->next) {
+                                                    if (!f->builtin) pass(f);
+                                                  }
+                                                },
+                                                [&](IrProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
+                                     pass);
+                        },
+                        [&](MachineProgram *p) {
+                          std::visit(
+                              overloaded{[&](MachineFuncPass pass) {
+                                           for (auto *f = p->func.head; f != nullptr; f = f->next) {
+                                             pass(f);
+                                           }
+                                         },
+                                         [&](MachineProgramPass pass) { pass(p); }, [](auto arg) { UNREACHABLE(); }},
+                              pass);
+                        }},
+             p);
 }
 
 void run_ir_passes(IrProgram *p, bool opt) {
