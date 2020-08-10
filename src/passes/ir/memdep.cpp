@@ -151,9 +151,9 @@ void compute_memdep(IrFunc *f) {
           if (auto x = dyn_cast<LoadInst>(i)) {
             x->mem_token.set(values[loads.find(x->lhs_sym)->second.id]);
           } else if (isa<StoreInst>(i) || isa<CallInst>(i)) {
-            for (auto &[load, info] : loads) {
-              if (info.stores.find(i) != info.stores.end()) {
-                values[info.id] = i;
+            for (auto &load_info : loads) {
+              if (load_info.second.stores.find(i) != load_info.second.stores.end()) {
+                values[load_info.second.id] = i;
               }
             }
           }
@@ -175,26 +175,26 @@ void compute_memdep(IrFunc *f) {
   // 第二趟，构造store对load的依赖关系，虽然store也依赖store，但是后面不会调整store的位置，所以没有必要考虑这个依赖关系
   // 与第一趟不同，这里不能把一个地址的load放在一起考虑，比如连续两个load，如果一起考虑的话就会认为前一个load不被任何store依赖
   std::unordered_map<LoadInst *, u32> loads2;
-  for (auto &[arr, info] : loads) {
-    for (LoadInst *load : info.loads) {
+  for (auto &arr_info : loads) {
+    for (LoadInst *load : arr_info.second.loads) {
       loads2.insert({load, (u32) loads2.size()});
-      for (Inst *store : info.stores) {
+      for (Inst *store : arr_info.second.stores) {
         new MemOpInst(load, store);
       }
     }
   }
   {
     std::vector<BasicBlock *> worklist;
-    for (auto &[load, id] : loads2) {
+    for (auto &load_id : loads2) {
       f->clear_all_vis();
-      worklist.push_back(load->bb);
+      worklist.push_back(load_id.first->bb);
       while (!worklist.empty()) {
         BasicBlock *x = worklist.back();
         worklist.pop_back();
         for (BasicBlock *y : df[x]) {
           if (!y->vis) {
             y->vis = true;
-            new MemPhiInst(load, y);
+            new MemPhiInst(load_id.first, y);
             worklist.push_back(y);
           }
         }

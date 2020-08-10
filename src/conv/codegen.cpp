@@ -102,7 +102,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           auto res = new_virtual_reg();
           val_map[value] = res;
           param_map[x->decl] = res;
-          for (int i = 0; i < f->func->params.size(); i++) {
+          for (u32 i = 0; i < f->func->params.size(); i++) {
             if (&f->func->params[i] == x->decl) {
               if (i < 4) {
                 // r0-r3
@@ -269,10 +269,9 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
           MachineOperand rhs{};
-          auto lhs_const = x->lhs.value->tag == Value::Tag::Const;
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
           auto imm = static_cast<ConstValue *>(x->rhs.value)->imm;
-          assert(!(lhs_const && rhs_const));  // should be optimized out
+          assert(!(x->lhs.value->tag == Value::Tag::Const && rhs_const));  // should be optimized out
 
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
           // Optimization 2:
@@ -614,8 +613,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           // 3. add parallel mv in each bb: (vreg1, ...) = (r1, ...)
           auto vr = new_virtual_reg();
           lhs.emplace_back(resolve(inst, mbb), vr);
-          for (int i = 0; i < x->incoming_bbs->size(); i++) {
-            auto pred_bb = x->incoming_bbs->at(i);
+          for (u32 i = 0; i < x->incoming_bbs->size(); i++) {
+            auto pred_bb = (*x->incoming_bbs)[i];
             auto val = resolve(x->incoming_values[i].value, bb_map[pred_bb]);
             mv[pred_bb].emplace_back(vr, val);
           }

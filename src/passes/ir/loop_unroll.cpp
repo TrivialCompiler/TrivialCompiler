@@ -26,19 +26,13 @@ static void clone_inst(Inst *x, BasicBlock *bb, std::unordered_map<Value *, Valu
     res = new LoadInst(y->lhs_sym, get(y->arr), get(y->index), bb);
   } else if (auto y = dyn_cast<StoreInst>(x)) {
     res = new StoreInst(y->lhs_sym, get(y->arr), get(y->data), get(y->index), bb);
-  } else if (auto y = dyn_cast<MemOpInst>(x)) {
+  } else if (isa<MemOpInst>(x)) {
     return; // 同LoadInst之理
   } else {
     // 不可能是Branch, Jump, resurn, CallInst, Alloca, Phi, MemPhi
     UNREACHABLE();
   }
   map.insert_or_assign(x, res);
-}
-
-// gvn_gcm pass已经把其他形式的equiv的Value用同一个指针表示了，这里只用考虑ConstValue
-static bool equiv(Value *l, Value *r) {
-  if (auto l1 = dyn_cast<ConstValue>(l), r1 = dyn_cast<ConstValue>(r); l1 && r1) return l1->imm == r1->imm;
-  else return l == r;
 }
 
 void loop_unroll(IrFunc *f) {
@@ -110,10 +104,10 @@ void loop_unroll(IrFunc *f) {
           if (x->incoming_values[idx_in_header].value != ix) break;
           if (cond0) {
             // 两个cond的n必须是同一个，这可以保证bb_body中的cond的n不是循环中定义的
-            if (cond->tag == cond0->tag && equiv(i0, cond0->lhs.value) && equiv(n, cond0->rhs.value)) {
+            if (cond->tag == cond0->tag && i0 == cond0->lhs.value && n == cond0->rhs.value) {
               cond0_i0 = 0;
               break;
-            } else if (op::isrev((op::Op) cond->tag, (op::Op) cond0->tag) && equiv(i0, cond0->rhs.value) && equiv(n, cond0->lhs.value)) {
+            } else if (op::isrev((op::Op) cond->tag, (op::Op) cond0->tag) && i0 == cond0->rhs.value && n == cond0->lhs.value) {
               cond0_i0 = 1;
               break;
             } else break;
@@ -153,8 +147,8 @@ void loop_unroll(IrFunc *f) {
 
     dbg("Performing loop unroll");
     // 验证结束，循环展开，目前为了实现简单仅展开2次，如果实现正确的话运行n次就可以展开2^n次
-    Value *old_n = (&cond->lhs)[!cond_ix].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, new ConstValue(-step),
-      cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
+    Value *old_n = (&cond->lhs)[!cond_ix].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step),
+                                                                         cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
     if (cond0) {
       Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
       br0->cond.set(new_cond0);
@@ -211,7 +205,7 @@ void loop_unroll(IrFunc *f) {
         } else break;
       }
       for (Inst *i = bb_header->insts.head, *i1 = bb_if->insts.head; i; i = i->next, i1 = i1->next) {
-        if (auto x = dyn_cast<PhiInst>(i)) {
+        if (isa<PhiInst>(i)) {
           assert(isa<PhiInst>(i1));
           auto it = map.find(i);
           assert(it != map.end());
@@ -224,7 +218,7 @@ void loop_unroll(IrFunc *f) {
           bool found = false;
           for (Inst *j = bb_if->insts.head; !found; j = j->next) {
             if (auto y = dyn_cast<PhiInst>(j)) {
-              if (equiv(y->incoming_values[0].value, from_header) && equiv(y->incoming_values[1].value, from_body)) {
+              if (y->incoming_values[0].value == from_header && y->incoming_values[1].value == from_body) {
                 x->incoming_values[!idx_in_end].set(y);
                 found = true;
               }

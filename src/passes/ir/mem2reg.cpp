@@ -34,16 +34,16 @@ void mem2reg(IrFunc *f) {
   // worklist定义在循环外面，只是为了减少申请内存的次数
   std::vector<BasicBlock *> worklist; // 用stack还是queue在这里没有本质区别
   std::unordered_map<PhiInst *, u32> phis; // 记录加入的phi属于的alloca的id
-  for (auto &[alloca, id] : alloca_ids) {
+  for (auto alloca_id : alloca_ids) {
     f->clear_all_vis();
-    for (BasicBlock *bb : alloca_defs[id]) { worklist.push_back(bb); }
+    for (BasicBlock *bb : alloca_defs[alloca_id.second]) { worklist.push_back(bb); }
     while (!worklist.empty()) {
       BasicBlock *x = worklist.back();
       worklist.pop_back();
       for (BasicBlock *y : df[x]) {
         if (!y->vis) {
           y->vis = true;
-          phis.insert({new PhiInst(y), id});
+          phis.insert({new PhiInst(y), alloca_id.second});
           worklist.push_back(y);
         }
       }

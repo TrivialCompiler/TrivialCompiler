@@ -137,9 +137,9 @@ struct MachineFunc {
   ilist<MachineBB> bb;
   IrFunc *func;
   // number of virtual registers allocated
-  i32 virtual_max = 0;
+  u32 virtual_max = 0;
   // size of stack allocated for local alloca and spilled registers
-  i32 stack_size = 0;
+  u32 stack_size = 0;
   // set of callee saved registers used
   std::set<ArmReg> used_callee_saved_regs;
   // offset += stack_size + saved_regs * 4;

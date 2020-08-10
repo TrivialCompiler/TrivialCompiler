@@ -205,7 +205,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             os << endl;
             increase_count();
           }
-        } else if (auto x = dyn_cast<MIReturn>(inst)) {
+        } else if (isa<MIReturn>(inst)) {
           // function epilogue
           // restore registers and pc from stack
           // increase sp

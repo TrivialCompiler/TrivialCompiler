@@ -33,17 +33,17 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
-    for (int i = (int)ArmReg::r0; i < (int)ArmReg::r0 + std::min(x->func->params.size(), (size_t)4); ++i) {
+    for (u32 i = (u32)ArmReg::r0; i < (u32)ArmReg::r0 + std::min(x->func->params.size(), (size_t)4); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
-    for (int i = (int)ArmReg::r0; i <= (int)ArmReg::r3; i++) {
+    for (u32 i = (u32)ArmReg::r0; i <= (u32)ArmReg::r3; i++) {
       def.push_back(MachineOperand::R((ArmReg)i));
     }
     def.push_back(MachineOperand::R(ArmReg::lr));
     def.push_back(MachineOperand::R(ArmReg::ip));
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
-  } else if (auto x = dyn_cast<MIReturn>(inst)) {
+  } else if (isa<MIReturn>(inst)) {
     // ret
     use.push_back(MachineOperand::R(ArmReg::r0));
   }
@@ -72,7 +72,7 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
     use = {&x->data, &x->addr, &x->offset};
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     use = {&x->lhs, &x->rhs};
-  } else if (auto x = dyn_cast<MICall>(inst)) {
+  } else if (isa<MICall>(inst)) {
     // intentionally blank
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {&x->dst};
@@ -170,9 +170,9 @@ void allocate_register(MachineProgram *p) {
       std::map<MachineOperand, u32> loop_cnt;
 
       // allocatable registers: r0 to r11, r12(ip), lr
-      i32 k = (int)ArmReg::r12 - (int)ArmReg::r0 + 1 + 1;
+      constexpr u32 k = (u32)ArmReg::r12 - (u32)ArmReg::r0 + 1 + 1;
       // init degree for pre colored nodes
-      for (i32 i = (int)ArmReg::r0; i <= (int)ArmReg::lr; i++) {
+      for (u32 i = (u32)ArmReg::r0; i <= (u32)ArmReg::lr; i++) {
         auto op = MachineOperand::R((ArmReg)i);
         // very large
         degree[op] = 0x40000000;
@@ -274,7 +274,7 @@ void allocate_register(MachineProgram *p) {
       auto move_related = [&](MachineOperand n) { return !node_moves(n).empty(); };
 
       auto mk_worklist = [&]() {
-        for (i32 i = 0; i < f->virtual_max; i++) {
+        for (u32 i = 0; i < f->virtual_max; i++) {
           // initial
           auto vreg = MachineOperand::V(i);
           if (degree[vreg] >= k) {
@@ -387,7 +387,7 @@ void allocate_register(MachineProgram *p) {
       };
 
       auto conservative = [&](std::set<MachineOperand> adj_u, std::set<MachineOperand> adj_v) {
-        int count = 0;
+        u32 count = 0;
         // set union
         for (auto n : adj_v) {
           adj_u.insert(n);
@@ -475,7 +475,7 @@ void allocate_register(MachineProgram *p) {
           auto n = select_stack.back();
           select_stack.pop_back();
           std::set<i32> ok_colors;
-          for (int i = 0; i < k - 1; i++) {
+          for (u32 i = 0; i < k - 1; i++) {
             ok_colors.insert(i);
           }
           ok_colors.insert((i32)ArmReg::lr);

@@ -31,13 +31,6 @@ static Value *find_eq(VN &vn, BinaryInst *x) {
   return x;
 }
 
-static Value *find_eq(VN &vn, ConstValue *x) {
-  for (auto &[k, v] : vn) {
-    if (auto y = dyn_cast<ConstValue>(k); y && y != x && y->imm == x->imm) return v;
-  }
-  return x;
-}
-
 // GetElementPtrInst和LoadInst的find_eq中，对x->arr.value的递归搜索最终会终止于AllocaInst, ParamRef, GlobalRef，它们直接用指针比较
 static Value *find_eq(VN &vn, GetElementPtrInst *x) {
   for (u32 i = 0; i < vn.size(); ++i) {
@@ -93,7 +86,6 @@ static Value *vn_of(VN &vn, Value *x) {
   u32 idx = vn.size();
   vn.emplace_back(x, x);
   if (auto y = dyn_cast<BinaryInst>(x)) vn[idx].second = find_eq(vn, y);
-  else if (auto y = dyn_cast<ConstValue>(x)) vn[idx].second = find_eq(vn, y);
   else if (auto y = dyn_cast<GetElementPtrInst>(x)) vn[idx].second = find_eq(vn, y);
   else if (auto y = dyn_cast<LoadInst>(x)) vn[idx].second = find_eq(vn, y);
   else if (auto y = dyn_cast<CallInst>(x)) vn[idx].second = find_eq(vn, y);
@@ -111,17 +103,17 @@ static Value *vn_of(VN &vn, Value *x) {
 // 故两个操作符相同时结果为Add，否则为Rsb; c为Add是C2前是正号，否则是负号
 static void try_fold_lhs(BinaryInst *x) {
   if (auto r = dyn_cast<ConstValue>(x->rhs.value)) {
-    if (x->tag == Value::Tag::Sub) x->rhs.set(r = new ConstValue(-r->imm)), x->tag = Value::Tag::Add;
+    if (x->tag == Value::Tag::Sub) x->rhs.set(r = ConstValue::get(-r->imm)), x->tag = Value::Tag::Add;
     if (auto l = dyn_cast<BinaryInst>(x->lhs.value)) {
       if (auto lr = dyn_cast<ConstValue>(l->rhs.value)) {
-        if (l->tag == Value::Tag::Sub) l->rhs.set(lr = new ConstValue(-lr->imm)), l->tag = Value::Tag::Add;
+        if (l->tag == Value::Tag::Sub) l->rhs.set(lr = ConstValue::get(-lr->imm)), l->tag = Value::Tag::Add;
         if ((x->tag == Value::Tag::Add || x->tag == Value::Tag::Rsb) && (l->tag == Value::Tag::Add || l->tag == Value::Tag::Rsb)) {
           x->lhs.set(l->lhs.value);
-          x->rhs.set(new ConstValue(r->imm + (x->tag == Value::Tag::Add ? lr->imm : -lr->imm)));
+          x->rhs.set(ConstValue::get(r->imm + (x->tag == Value::Tag::Add ? lr->imm : -lr->imm)));
           x->tag = (x->tag == Value::Tag::Add) == (l->tag == Value::Tag::Add) ? Value::Tag::Add : Value::Tag::Rsb;
         } else if (x->tag == Value::Tag::Mul && r->tag == Value::Tag::Mul) {
           x->lhs.set(l->lhs.value);
-          x->rhs.set(new ConstValue(lr->imm * r->imm));
+          x->rhs.set(ConstValue::get(lr->imm * r->imm));
         }
       }
     }
@@ -268,7 +260,7 @@ void gvn_gcm(IrFunc *f) {
         // for most instructions reach here, rhs is IMM
         if (l && r) {
           // both constant, evaluate and eliminate
-          replace(x, new ConstValue(op::eval((op::Op) x->tag, l->imm, r->imm)));
+          replace(x, ConstValue::get(op::eval((op::Op) x->tag, l->imm, r->imm)));
         } else {
           try_fold_lhs(x);
           if (auto value = x->optimizedValue()) {
@@ -301,9 +293,9 @@ void gvn_gcm(IrFunc *f) {
               break;
             }
           }
-          if (replaced) replace(x, new ConstValue(x->lhs_sym->flatten_init[offset]->result));
+          if (replaced) replace(x, ConstValue::get(x->lhs_sym->flatten_init[offset]->result));
         }
-        if (!replaced)replace(i, vn_of(vn, i));
+        if (!replaced) replace(i, vn_of(vn, i));
       } else if (isa<GetElementPtrInst>(i) || is_pure_call(i)) {
         replace(i, vn_of(vn, i));
       } else if (isa<StoreInst>(i)) {

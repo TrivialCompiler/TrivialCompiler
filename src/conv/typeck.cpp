@@ -164,11 +164,11 @@ struct Env {
       ++loop_cnt;
       ck_stmt(x->body);
       --loop_cnt;
-    } else if (auto x = dyn_cast<Break>(s)) {
+    } else if (isa<Break>(s)) {
       if (!loop_cnt) {
         ERR("break out of loop");
       }
-    } else if (auto x = dyn_cast<Continue>(s)) {
+    } else if (isa<Continue>(s)) {
       if (!loop_cnt) {
         ERR("continue out of loop");
       }
@@ -244,7 +244,7 @@ struct Env {
         auto a = ck_expr(x->args[i]);
         std::vector<Expr *> &p = f->params[i].dims;
         // 跳过第一个维度的检查，因为函数参数的第一个维度为空
-        bool ok = a.first && a.second - a.first == p.size();
+        bool ok = a.first && (size_t)(a.second - a.first) == p.size();
         for (u32 j = 1, end = p.size(); ok && j < end; ++j) {
           if (a.first[j]->result != p[j]->result) {
             ok = false;
@@ -282,7 +282,7 @@ struct Env {
     if (auto x = dyn_cast<Binary>(e)) {
       eval(x->lhs), eval(x->rhs);
       x->result = op::eval((op::Op) x->tag, x->lhs->result, x->rhs->result);
-    } else if (auto x = dyn_cast<Call>(e)) {
+    } else if (isa<Call>(e)) {
       // 常量表达式中不能包含函数调用
       ERR("function call in const expression");
     } else if (auto x = dyn_cast<Index>(e)) {

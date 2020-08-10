@@ -27,7 +27,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       return inst;
     }
   } else if (auto x = dyn_cast<IntConst>(expr)) {
-    return new ConstValue(x->val);
+    return ConstValue::get(x->val);
   } else if (auto x = dyn_cast<Index>(expr)) {
     // evalulate dims first
     std::vector<Value *> dims;
@@ -41,7 +41,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       // access to element
       if (x->dims.empty()) {
         // direct access
-        auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), ctx->bb);
+        auto inst = new LoadInst(x->lhs_sym, x->lhs_sym->value, ConstValue::get(0), ctx->bb);
         return inst;
       } else {
         // all levels except last level, emit GetElementPtr
@@ -75,7 +75,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
       return res;
     } else {
       // access to array itself
-      auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, new ConstValue(0), 0, ctx->bb);
+      auto inst = new GetElementPtrInst(x->lhs_sym, x->lhs_sym->value, ConstValue::get(0), 0, ctx->bb);
       return inst;
     }
   } else if (auto x = dyn_cast<Call>(expr)) {
@@ -111,7 +111,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
         if (decl.init.val1) {
           // assign variable to expr
           auto init = convert_expr(ctx, decl.init.val1);
-          new StoreInst(&decl, inst, init, new ConstValue(0), ctx->bb);
+          new StoreInst(&decl, inst, init, ConstValue::get(0), ctx->bb);
         } else {
           // assign each element of flatten_init
           // heuristic: count how many elements are zero
@@ -136,9 +136,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
             // arr
             call_inst->args.emplace_back(inst, call_inst);
             // ch
-            call_inst->args.emplace_back(new ConstValue(0), call_inst);
+            call_inst->args.emplace_back(ConstValue::get(0), call_inst);
             // count = num * 4
-            call_inst->args.emplace_back(new ConstValue(decl.dims[0]->result * 4), call_inst);
+            call_inst->args.emplace_back(ConstValue::get(decl.dims[0]->result * 4), call_inst);
           }
 
           for (u32 i = 0; i < decl.flatten_init.size(); i++) {
@@ -149,7 +149,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
               }
             }
 
-            new StoreInst(&decl, inst, values[i], new ConstValue(i), ctx->bb);
+            new StoreInst(&decl, inst, values[i], ConstValue::get(i), ctx->bb);
           }
         }
       }
@@ -167,7 +167,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     auto rhs = convert_expr(ctx, x->rhs);
 
     if (x->dims.empty()) {
-      new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, new ConstValue(0), ctx->bb);
+      new StoreInst(x->lhs_sym, x->lhs_sym->value, rhs, ConstValue::get(0), ctx->bb);
     } else {
       // all levels except last level, emit GetElementPtr
       auto last = x->lhs_sym->value;
@@ -306,7 +306,7 @@ IrProgram *convert_ssa(Program &p) {
           auto inst = new AllocaInst(&p, entryBB);
           p.value = inst;
           // then copy param into it
-          new StoreInst(&p, inst, new ParamRef(&p), new ConstValue(0), entryBB);
+          new StoreInst(&p, inst, new ParamRef(&p), ConstValue::get(0), entryBB);
         } else {
           // there is no need to alloca for array param
           p.value = new ParamRef(&p);
@@ -321,8 +321,7 @@ IrProgram *convert_ssa(Program &p) {
       // add extra return statement to avoid undefined behavior
       if (!ctx.bb->valid()) {
         if (func->func->is_int) {
-          auto value = new ConstValue(0);
-          new ReturnInst(value, ctx.bb);
+          new ReturnInst(ConstValue::get(0), ctx.bb);
         } else {
           new ReturnInst(nullptr, ctx.bb);
         }

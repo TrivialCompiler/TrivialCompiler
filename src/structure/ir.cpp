@@ -39,6 +39,8 @@ void Value::deleteValue() {
     UNREACHABLE();
 }
 
+std::unordered_map<i32, ConstValue *> ConstValue::POOL;
+
 UndefValue UndefValue::INSTANCE;
 
 std::pair<Use *, Use *> Inst::operands() {
@@ -106,7 +108,7 @@ struct pv {
       os << "%_glob_" << x->decl->name;
     } else if (auto x = dyn_cast<ParamRef>(pv.v)) {
       os << "%" << x->decl->name;
-    } else if (auto x = dyn_cast<UndefValue>(pv.v)) {
+    } else if (isa<UndefValue>(pv.v)) {
       os << "undef";
     } else if (isa<MemPhiInst>(pv.v) || isa<MemOpInst>(pv.v)) {
       os << "mem" << pv.v_index.get(pv.v);
@@ -294,7 +296,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << "call void";
           }
           os << " @" << callee->name << "(";
-          for (int i = 0; i < x->args.size(); i++) {
+          for (u32 i = 0; i < x->args.size(); i++) {
             // type
             if (callee->params[i].dims.empty()) {
               // simple

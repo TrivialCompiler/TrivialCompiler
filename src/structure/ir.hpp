@@ -6,6 +6,7 @@
 #include <map>
 #include <set>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -73,7 +74,7 @@ struct Use {
   Use(const Use &rhs) : value(rhs.value), user(rhs.user) {
     if (value) value->addUse(this);
   }
-  Use& operator=(const Use &rhs) {
+  Use &operator=(const Use &rhs) {
     if (this != &rhs) {
       assert(user == rhs.user);
       set(rhs.value);
@@ -150,7 +151,17 @@ struct ConstValue : Value {
   DEFINE_CLASSOF(Value, p->tag == Tag::Const);
   const i32 imm;
 
-  ConstValue(i32 imm) : Value(Tag::Const), imm(imm) {}
+  static std::unordered_map<i32, ConstValue *> POOL;
+
+  static ConstValue *get(i32 imm) {
+    auto [it, inserted] = POOL.insert({imm, nullptr});
+    if (inserted) it->second = new ConstValue(imm);
+    return it->second;
+  }
+
+ private:
+  // use ConstValue::get instead
+  explicit ConstValue(i32 imm) : Value(Tag::Const), imm(imm) {}
 };
 
 struct GlobalRef : Value {
@@ -208,48 +219,41 @@ struct BinaryInst : Inst {
       : Inst(tag, insertAtEnd), lhs(lhs, this), rhs(rhs, this) {}
 
   BinaryInst(Tag tag, Value *lhs, Value *rhs, Inst *insertBefore)
-    : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
+      : Inst(tag, insertBefore), lhs(lhs, this), rhs(rhs, this) {}
 
   bool rhsCanBeImm() {
     // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or
     return (tag >= Tag::Add && tag <= Tag::Rsb) || (tag >= Tag::Lt && tag <= Tag::Or);
   }
 
-  constexpr static const char* LLVM_OPS[14] = {
-    /* Add = */ "add",
-    /* Sub = */ "sub",
-    /* Rsb = */ nullptr,
-    /* Mul = */ "mul",
-    /* Div = */ "sdiv",
-    /* Mod = */ "srem",
-    /* Lt = */  "icmp slt",
-    /* Le = */  "icmp sle",
-    /* Ge = */  "icmp sge",
-    /* Gt = */  "icmp sgt",
-    /* Eq = */  "icmp eq",
-    /* Ne = */  "icmp ne",
-    /* And = */ "and",
-    /* Or = */  "or",
+  constexpr static const char *LLVM_OPS[14] = {
+      /* Add = */ "add",
+      /* Sub = */ "sub",
+      /* Rsb = */ nullptr,
+      /* Mul = */ "mul",
+      /* Div = */ "sdiv",
+      /* Mod = */ "srem",
+      /* Lt = */ "icmp slt",
+      /* Le = */ "icmp sle",
+      /* Ge = */ "icmp sge",
+      /* Gt = */ "icmp sgt",
+      /* Eq = */ "icmp eq",
+      /* Ne = */ "icmp ne",
+      /* And = */ "and",
+      /* Or = */ "or",
   };
 
   constexpr static std::pair<Tag, Tag> swapableOperators[11] = {
-      {Tag::Add, Tag::Add},
-      {Tag::Sub, Tag::Rsb},
-      {Tag::Mul, Tag::Mul},
-      {Tag::Lt,  Tag::Gt},
-      {Tag::Le,  Tag::Ge},
-      {Tag::Gt,  Tag::Lt},
-      {Tag::Ge,  Tag::Le},
-      {Tag::Eq,  Tag::Eq},
-      {Tag::Ne,  Tag::Ne},
-      {Tag::And, Tag::And},
-      {Tag::Or,  Tag::Or},
+      {Tag::Add, Tag::Add}, {Tag::Sub, Tag::Rsb}, {Tag::Mul, Tag::Mul}, {Tag::Lt, Tag::Gt},
+      {Tag::Le, Tag::Ge},   {Tag::Gt, Tag::Lt},   {Tag::Ge, Tag::Le},   {Tag::Eq, Tag::Eq},
+      {Tag::Ne, Tag::Ne},   {Tag::And, Tag::And}, {Tag::Or, Tag::Or},
   };
 
   bool swapOperand() {
     for (auto [before, after] : swapableOperators) {
       if (tag == before) {
-        // note: Use是被pin在内存中的，不能直接swap它们。如果未来希望这样做，需要实现配套的设施，基本上就是把下面的逻辑在构造函数/拷贝运算符中实现
+        // note:
+        // Use是被pin在内存中的，不能直接swap它们。如果未来希望这样做，需要实现配套的设施，基本上就是把下面的逻辑在构造函数/拷贝运算符中实现
         tag = after;
         Value *l = lhs.value, *r = rhs.value;
         l->killUse(&lhs);
@@ -263,29 +267,26 @@ struct BinaryInst : Inst {
     return false;
   }
 
-  Value* optimizedValue() {
-    // some constants
-    static auto CONST_0 = new ConstValue(0);
-    static auto CONST_1 = new ConstValue(1);
+  Value *optimizedValue() {
     // imm on rhs
     if (auto r = dyn_cast<ConstValue>(rhs.value)) {
       switch (tag) {
         case Tag::Add:
         case Tag::Sub:
-          return r->imm == 0 ? lhs.value : nullptr; // ADD or SUB 0
+          return r->imm == 0 ? lhs.value : nullptr;  // ADD or SUB 0
         case Tag::Mul:
-          if (r->imm == 0) return CONST_0; // MUL 0
+          if (r->imm == 0) return ConstValue::get(0);  // MUL 0
           [[fallthrough]];
         case Tag::Div:
-          if (r->imm == 1) return lhs.value; // MUL or DIV 1
+          if (r->imm == 1) return lhs.value;  // MUL or DIV 1
         case Tag::Mod:
-          return r->imm == 1 ? CONST_0 : nullptr; // MOD 1
+          return r->imm == 1 ? ConstValue::get(0) : nullptr;  // MOD 1
         case Tag::And:
-          if (r->imm == 0) return CONST_0; // AND 0
-          return r->imm == 1 ? lhs.value : nullptr; // AND 1
+          if (r->imm == 0) return ConstValue::get(0);  // AND 0
+          return r->imm == 1 ? lhs.value : nullptr;    // AND 1
         case Tag::Or:
-          if (r->imm == 1) return CONST_1; // OR 1
-          return r->imm == 0 ? lhs.value : nullptr; // OR 0
+          if (r->imm == 1) return ConstValue::get(1);  // OR 1
+          return r->imm == 0 ? lhs.value : nullptr;    // OR 0
         default:
           return nullptr;
       }
@@ -338,7 +339,7 @@ struct GetElementPtrInst : AccessInst {
 
 struct LoadInst : AccessInst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Load);
-  Use mem_token; // 由memdep pass计算
+  Use mem_token;  // 由memdep pass计算
   LoadInst(Decl *lhs_sym, Value *arr, Value *index, BasicBlock *insertAtEnd)
       : AccessInst(Tag::Load, lhs_sym, arr, index, insertAtEnd), mem_token(nullptr, this) {}
 };
@@ -371,7 +372,8 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> *incoming_bbs;
 
-  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
+  explicit PhiInst(BasicBlock *insertAtFront)
+      : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
     incoming_values.reserve(incoming_bbs->size());
     for (u32 i = 0; i < incoming_bbs->size(); ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
