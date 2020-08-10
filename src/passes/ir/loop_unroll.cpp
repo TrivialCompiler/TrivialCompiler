@@ -82,9 +82,11 @@ void loop_unroll(IrFunc *f) {
     auto cond = static_cast<BinaryInst *>(br->cond.value);
     BasicBlock *bb_end = br0->right;
     if (bb_end->pred.size() != 2 || br->right != bb_end) continue;
+    u32 idx_in_end = bb_body == bb_end->pred[1];
 
     int step = 0;
     int cond0_i0 = -1, cond_ix = -1; // 结果为0/1时继续处理，表示i0/ix在cond0/cond的lhs还是rhs
+    Value *i0 = nullptr;
     PhiInst *phi_ix = nullptr;
     for (int pos = 0; cond0_i0 == -1 && pos < 2; ++pos) { // 考虑i < n和n > i两种写法
       step = 0, cond_ix = pos;
@@ -99,7 +101,7 @@ void loop_unroll(IrFunc *f) {
         } else if (auto x = dyn_cast<PhiInst>(i)) {
           if (x->bb != bb_header) break;
           assert(x->incoming_values.size() == 2);
-          Value *i0 = x->incoming_values[!idx_in_header].value;
+          i0 = x->incoming_values[!idx_in_header].value;
           phi_ix = x;
           if (x->incoming_values[idx_in_header].value != ix) break;
           if (cond0) {
@@ -122,7 +124,7 @@ void loop_unroll(IrFunc *f) {
         } else break;
       }
     }
-    if (cond0_i0 == -1) continue;
+    if (cond0_i0 == -1 || step == 0) continue;
 
     assert(!isa<PhiInst>(bb_body->insts.head));
     // 把bb_header中的非phi/跳转指令移动到bb_body，此时还不确定是否应该展开，但是这个转移是可以做的，方便后面算指令条数
@@ -147,37 +149,79 @@ void loop_unroll(IrFunc *f) {
 
     dbg("Performing loop unroll");
     // 验证结束，循环展开，目前为了实现简单仅展开2次，如果实现正确的话运行n次就可以展开2^n次
-    Value *old_n = (&cond->lhs)[!cond_ix].value, *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step),
-                                                                         cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
-    if (cond0) {
-      Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
-      br0->cond.set(new_cond0);
-    }
-
     std::unordered_map<Value *, Value *> map;
+    auto get = [&map](Value *v) {
+      auto it = map.find(v);
+      return it != map.end() ? it->second : v;
+    };
     for (Inst *i = bb_header->insts.head;; i = i->next) {
       if (auto x = dyn_cast<PhiInst>(i)) {
         map.insert({x, x->incoming_values[idx_in_header].value});
       } else break;
     }
+
+    Value *old_n = (&cond->lhs)[!cond_ix].value;
     bb_body->insts.remove(br); // 后面需要往bb_body的最后insert，所以先把跳转指令去掉，等下再加回来
-    Inst *orig_last = bb_body->insts.tail; // 不可能为null，因为bb_body中至少存在一条计算i1的指令 todo: 真的吗？上面并没有判断至少有一个BinaryInst
+    Inst *orig_last = bb_body->insts.tail; // 不可能为null，因为bb_body中至少存在一条计算i1的指令
     assert(orig_last != nullptr);
+
+    // 先做一个特判，如果可能的话完全展开这个循环
+    if (auto i0c = dyn_cast<ConstValue>(i0), old_nc = dyn_cast<ConstValue>(old_n); i0c && old_nc) {
+      i32 beg = i0c->imm, end = old_nc->imm, times = (end - beg) / step; // 这不是精确的次数，可能会差一次
+      if (times <= 0 || times > 32) goto normal_unroll;
+      beg += step;
+      while (op::eval((op::Op) cond->tag, cond_ix == 0 ? beg : end, cond_ix == 0 ? end : beg)) {
+        for (Inst *i = bb_body->insts.head;; i = i->next) {
+          clone_inst(i, bb_body, map);
+          if (i == orig_last) break;
+        }
+        for (Inst *i = bb_header->insts.head;; i = i->next) {
+          if (auto x = dyn_cast<PhiInst>(i)) {
+            auto it = map.find(x);
+            assert(it != map.end());
+            it->second = get(x->incoming_values[idx_in_header].value);
+          } else break;
+        }
+        beg += step;
+      }
+      delete br;
+      bb_header->pred.erase(bb_header->pred.begin() + idx_in_header);
+      new JumpInst(bb_end, bb_body);
+      for (Inst *i = bb_end->insts.head;; i = i->next) {
+        if (auto x = dyn_cast<PhiInst>(i)) {
+          x->incoming_values[idx_in_end].set(get(x->incoming_values[idx_in_end].value));
+        } else break;
+      }
+      for (Inst *i = bb_header->insts.head;;) {
+        if (auto x = dyn_cast<PhiInst>(i)) {
+          Inst *next = x->next;
+          x->replaceAllUseWith(x->incoming_values[!idx_in_header].value);
+          bb_header->insts.remove(x);
+          delete x;
+          i = next;
+        } else break;
+      }
+      continue;
+    }
+    // 特判失败了，还是展开2次
+    normal_unroll:
+    Value *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step),
+                                  cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
+    if (cond0) {
+      Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
+      br0->cond.set(new_cond0);
+    }
+
     for (Inst *i = bb_body->insts.head;; i = i->next) {
       clone_inst(i, bb_body, map);
       if (i == orig_last) break;
     }
     bb_body->insts.insertAtEnd(br);
 
-    auto get = [&map](Value *v) {
-      auto it = map.find(v);
-      return it != map.end() ? it->second : v;
-    };
     Value *new_ix = get((&cond->lhs)[cond_ix].value);
     Value *new_cond = new BinaryInst(cond->tag, cond_ix == 0 ? new_ix : new_n, cond_ix == 0 ? new_n : new_ix, br);
     br->cond.set(new_cond);
 
-    u32 idx_in_end = bb_body == bb_end->pred[1];
     auto bb_if = new BasicBlock;
     auto bb_last = new BasicBlock;
     f->bb.insertAfter(bb_if, bb_body);
