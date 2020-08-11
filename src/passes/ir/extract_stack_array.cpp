@@ -29,7 +29,7 @@ void extract_stack_array(IrProgram *p) {
         bool can_make_global = true;
         auto size = alloc->sym->dims[0]->result;
         auto buffer = new int[size]();  // auto initialized to 0
-        std::unordered_set<Inst *> stores, met_stores;
+        std::unordered_set<StoreInst *> stores, met_stores;
         CallInst *memset = nullptr;
         for (auto use = alloc->uses.head; use; use = use->next) {
           if (auto store = dyn_cast<StoreInst>(use->user)) {
@@ -95,7 +95,7 @@ void extract_stack_array(IrProgram *p) {
             // remove all stores
             for (auto &s : stores) {
               s->bb->insts.remove(s);
-              delete (StoreInst *)s;
+              delete s;
             }
           }
         }
