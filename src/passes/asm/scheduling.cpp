@@ -68,6 +68,10 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
     return {1, CortexA72FUKind::Integer};
   } else if (isa<MIReturn>(inst)) {
     return {1, CortexA72FUKind::Branch};
+  } else if (isa<MIBranch>(inst)) {
+    return {1, CortexA72FUKind::Branch};
+  } else if (isa<MIJump>(inst)) {
+    return {1, CortexA72FUKind::Branch};
   }
   UNREACHABLE();
 }
