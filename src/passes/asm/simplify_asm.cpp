@@ -23,6 +23,22 @@ void simplify_asm(MachineFunc* f) {
           dbg("Removed unconditional jump to next bb");
           bb->insts.remove(inst);
         }
+      } else if (auto x = dyn_cast<MILoad>(inst)) {
+        if (auto y = dyn_cast_nullable<MIStore>(x->prev)) {
+          dbg(x->addr, y->addr);
+          if (x->addr.is_equiv(y->addr) && x->offset == y->offset && x->shift == y->shift && x->mode == y->mode) {
+            // match:
+            // str r0, [r1, #0]
+            // ldr r2, [r1, #0]
+            // ldr can be optimized to:
+            // mov r2, r0
+            dbg("Removed unneeded load");
+            auto i = new MIMove(x->next);
+            i->dst = x->dst;
+            i->rhs = y->data;
+            bb->insts.remove(inst);
+          }
+        }
       }
     }
   }
