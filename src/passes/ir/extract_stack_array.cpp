@@ -10,7 +10,7 @@ void extract_stack_array(IrProgram *p) {
     if (f->builtin) continue;
     BasicBlock *bb = f->bb.head;
     Inst *inst = bb->insts.head;
-    auto next_inst = [](Inst *inst, BasicBlock *&bb) -> Inst* {
+    auto next_inst = [](Inst *inst, BasicBlock *&bb) -> Inst * {
       if (inst && inst->next) {
         return inst->next;
       } else {
@@ -61,8 +61,9 @@ void extract_stack_array(IrProgram *p) {
             } else if (auto ptr = dyn_cast<GetElementPtrInst>(inst_check)) {
               if (ptr->arr.value == alloc) break;
             } else if (auto call = dyn_cast<CallInst>(inst_check)) {
-              assert(call->func == Func::BUILTIN[8].val); // MEMSET only
-              memset = call;
+              if (call->func == Func::BUILTIN[8].val) {
+                memset = call;
+              }
             } else if (isa<BranchInst>(inst_check)) {
               break;
             }
@@ -76,10 +77,12 @@ void extract_stack_array(IrProgram *p) {
             for (int i = 0; i < size; ++i) {
               init.push_back(buffer[i] == 0 ? &IntConst::ZERO : new IntConst{Expr::Tag::IntConst, buffer[i]});
             }
-            auto name = new std::string("__extracted_" + std::string(f->func->name) + "_" + std::string(alloc->sym->name));
+            auto name =
+                new std::string("__extracted_" + std::string(f->func->name) + "_" + std::string(alloc->sym->name));
             auto extract_array = "Extract local array " + std::string(alloc->sym->name) + " to global " + *name;
             dbg(extract_array);
-            extracted_decl = new Decl{true, true, true, {name->c_str(), name->length()}, alloc->sym->dims, {nullptr}, init};
+            extracted_decl =
+                new Decl{true, true, true, {name->c_str(), name->length()}, alloc->sym->dims, {nullptr}, init};
             extracted_decl->value = new GlobalRef(extracted_decl);
             p->glob_decl.push_back(extracted_decl);
             // remove memset
