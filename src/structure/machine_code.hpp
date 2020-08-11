@@ -204,6 +204,7 @@ struct MachineOperand {
   bool is_virtual() const { return state == State::Virtual; }
   bool is_imm() const { return state == State::Immediate; }
   bool is_precolored() const { return state == State::PreColored; }
+  bool is_reg() const { return state == State::PreColored || state == State::Allocated || state == State::Virtual; }
   bool needs_color() const { return state == State::Virtual || state == State::PreColored; }
 
   explicit operator std::string() const {

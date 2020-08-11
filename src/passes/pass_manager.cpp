@@ -7,6 +7,7 @@
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
 #include "asm/simplify_asm.hpp"
+#include "asm/scheduling.hpp"
 #include "ir/bbopt.hpp"
 #include "ir/callgraph.hpp"
 #include "ir/cfg.hpp"
@@ -45,7 +46,7 @@ static PassDesc ir_passes[] = {
 };
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),
-                                DEFINE_PASS(compute_stack_info)};
+                                DEFINE_PASS(compute_stack_info), DEFINE_PASS(instruction_schedule)};
 
 #undef DEFINE_PASS
 
