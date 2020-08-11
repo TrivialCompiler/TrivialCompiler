@@ -92,7 +92,7 @@ void extract_stack_array(IrProgram *p) {
             // remove all stores
             for (auto &s : stores) {
               s->bb->insts.remove(s);
-              delete s;
+              delete (StoreInst *)s;
             }
           }
         }
