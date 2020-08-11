@@ -286,7 +286,7 @@ struct MachineInst {
 };
 
 struct MIBinary : MachineInst {
-  // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or, LongMul, FMA
+  // Add, Sub, Rsb, Mul, Div, Mod, Lt, Le, Ge, Gt, Eq, Ne, And, Or
   DEFINE_CLASSOF(MachineInst, Tag::Add <= p->tag && p->tag <= Tag::Or);
   MachineOperand dst;
   MachineOperand lhs;

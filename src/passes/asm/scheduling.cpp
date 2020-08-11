@@ -58,16 +58,36 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
 
 enum class CortexA72FUKind { Branch, Integer, IntegerMultiple, Load, Store };
 
+// reference: Cortex-A72 software optimization guide
 std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
   // TODO: check inst->tag
   if (auto x = dyn_cast<MIBinary>(inst)) {
-    return {1, CortexA72FUKind::Integer};
+    if (x->tag == MachineInst::Tag::Mul) {
+      return {3, CortexA72FUKind::IntegerMultiple};
+    } else if (x->tag == MachineInst::Tag::Div) {
+      // 4~12
+      return {8, CortexA72FUKind::IntegerMultiple};
+    } else if (x->tag >= MachineInst::Tag::Add && x->tag <= MachineInst::Tag::Rsb) {
+      if (x->shift.shift == 0) {
+        // no shift
+        return {1, CortexA72FUKind::Integer};
+      } else {
+        return {2, CortexA72FUKind::IntegerMultiple};
+      }
+    } else {
+      UNREACHABLE();
+    }
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
-    return {4, CortexA72FUKind::IntegerMultiple};
+    return {3, CortexA72FUKind::IntegerMultiple};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     return {4, CortexA72FUKind::IntegerMultiple};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
-    return {1, CortexA72FUKind::Integer};
+    // TODO: handle movw/movt case
+    if (x->cond == ArmCond::Any) {
+      return {1, CortexA72FUKind::Integer};
+    } else {
+      return {2, CortexA72FUKind::Integer};
+    }
   } else if (auto x = dyn_cast<MILoad>(inst)) {
     return {4, CortexA72FUKind::Load};
   } else if (auto x = dyn_cast<MIStore>(inst)) {
