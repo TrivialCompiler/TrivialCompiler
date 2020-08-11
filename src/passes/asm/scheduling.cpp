@@ -67,15 +67,13 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
     } else if (x->tag == MachineInst::Tag::Div) {
       // 4~12
       return {8, CortexA72FUKind::IntegerMultiple};
-    } else if (x->tag >= MachineInst::Tag::Add && x->tag <= MachineInst::Tag::Rsb) {
+    } else {
       if (x->shift.shift == 0) {
         // no shift
         return {1, CortexA72FUKind::Integer};
       } else {
         return {2, CortexA72FUKind::IntegerMultiple};
       }
-    } else {
-      UNREACHABLE();
     }
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     return {3, CortexA72FUKind::IntegerMultiple};
