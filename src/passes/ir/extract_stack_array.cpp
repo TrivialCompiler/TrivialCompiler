@@ -26,11 +26,11 @@ void extract_stack_array(IrProgram *p) {
     for (; inst; inst = next_inst(inst, bb)) {
       // check each AllocaInst
       if (auto alloc = dyn_cast<AllocaInst>(inst)) {
-        bool all_store_constant = true;
+        bool can_make_global = true;
         auto size = alloc->sym->dims[0]->result;
         auto buffer = new int[size]();  // auto initialized to 0
         std::unordered_set<Inst *> stores, met_stores;
-        Inst *memset = nullptr;
+        CallInst *memset = nullptr;
         for (auto use = alloc->uses.head; use; use = use->next) {
           if (auto store = dyn_cast<StoreInst>(use->user)) {
             if (auto data = dyn_cast<ConstValue>(store->data.value), index = dyn_cast<ConstValue>(store->index.value);
@@ -38,12 +38,16 @@ void extract_stack_array(IrProgram *p) {
               buffer[index->imm] = data->imm;
               stores.insert(store);
             } else {
-              all_store_constant = false;
+              can_make_global = false;
               break;
             }
+          } else if (isa<GetElementPtrInst>(use->user)) {
+            // used for function calling
+            can_make_global = false;
+            break;
           }
         }
-        if (all_store_constant) {
+        if (can_make_global) {
           BasicBlock *bb_check = alloc->bb;
           Inst *inst_check;
           // iterate from next instruction, until the first use
@@ -54,15 +58,11 @@ void extract_stack_array(IrProgram *p) {
               }
             } else if (auto load = dyn_cast<LoadInst>(inst_check)) {
               if (load->arr.value == alloc) break;
+            } else if (auto ptr = dyn_cast<GetElementPtrInst>(inst_check)) {
+              if (ptr->arr.value == alloc) break;
             } else if (auto call = dyn_cast<CallInst>(inst_check)) {
-              // FIXME: check getelementptr used in Call?
-              if (call->func != Func::BUILTIN[8].val) {
-                for (auto &arg : call->args) {
-                  if (arg.value == alloc) break;
-                }
-              } else {
-                memset = call;
-              }
+              assert(call->func == Func::BUILTIN[8].val); // MEMSET only
+              memset = call;
             } else if (isa<BranchInst>(inst_check)) {
               break;
             }

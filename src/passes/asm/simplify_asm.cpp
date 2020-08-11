@@ -25,7 +25,6 @@ void simplify_asm(MachineFunc* f) {
         }
       } else if (auto x = dyn_cast<MILoad>(inst)) {
         if (auto y = dyn_cast_nullable<MIStore>(x->prev)) {
-          dbg(x->addr, y->addr);
           if (x->addr.is_equiv(y->addr) && x->offset == y->offset && x->shift == y->shift && x->mode == y->mode) {
             // match:
             // str r0, [r1, #0]
