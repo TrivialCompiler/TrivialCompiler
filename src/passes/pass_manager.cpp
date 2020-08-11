@@ -16,6 +16,7 @@
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
+#include "ir/extract_stack_array.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *);
@@ -43,6 +44,7 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(dce),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
+    DEFINE_PASS(extract_stack_array)
 };
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),

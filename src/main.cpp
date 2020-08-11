@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   // open input file
   int fd = open(src, O_RDONLY);
   if (fd < 0) {
-    fprintf(stderr, "failed to open %s\n", argv[1]);
+    fprintf(stderr, "failed to open %s\n", src);
     return SYSTEM_ERROR;
   }
   struct stat st {};
