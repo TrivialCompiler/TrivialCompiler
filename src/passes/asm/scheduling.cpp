@@ -51,23 +51,23 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
   if (auto x = dyn_cast<MIBinary>(inst)) {
     return {1, CortexA72FUKind::Integer};
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
-    return {4, CortexA72FUKind::Integer};
+    return {4, CortexA72FUKind::IntegerMultiple};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
-    return {4, CortexA72FUKind::Integer};
+    return {4, CortexA72FUKind::IntegerMultiple};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     return {1, CortexA72FUKind::Integer};
   } else if (auto x = dyn_cast<MILoad>(inst)) {
-    return {4, CortexA72FUKind::Integer};
+    return {4, CortexA72FUKind::Load};
   } else if (auto x = dyn_cast<MIStore>(inst)) {
-    return {3, CortexA72FUKind::Integer};
+    return {3, CortexA72FUKind::Store};
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     return {1, CortexA72FUKind::Integer};
   } else if (auto x = dyn_cast<MICall>(inst)) {
-    return {1, CortexA72FUKind::Integer};
+    return {1, CortexA72FUKind::Branch};
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     return {1, CortexA72FUKind::Integer};
   } else if (isa<MIReturn>(inst)) {
-    return {1, CortexA72FUKind::Integer};
+    return {1, CortexA72FUKind::Branch};
   }
   UNREACHABLE();
 }
@@ -77,13 +77,11 @@ struct Node {
   u32 priority;
   u32 latency;
   CortexA72FUKind kind;
-  u32 in_degree;
-  u32 out_degree;
   u32 temp;
   std::set<Node *> out_edges;
   std::set<Node *> in_edges;
 
-  Node(MachineInst *inst) : inst(inst), priority(0), in_degree(0), out_degree(0) {
+  Node(MachineInst *inst) : inst(inst), priority(0) {
     auto [l, k] = get_info(inst);
     latency = l;
     kind = k;
@@ -111,6 +109,8 @@ void instruction_schedule(MachineFunc *f) {
     std::map<u32, std::vector<Node *>> read_insts;
     // instruction that writes this register
     std::map<u32, Node *> write_insts;
+    // instruction that might have side effect
+    Node *side_effect = nullptr;
     std::vector<Node *> nodes;
 
     // calculate data dependence graph
@@ -127,8 +127,6 @@ void instruction_schedule(MachineFunc *f) {
           if (auto &w = write_insts[u.value]) {
             w->out_edges.insert(node);
             node->in_edges.insert(w);
-            w->out_degree++;
-            node->in_degree++;
           }
         }
       }
@@ -139,15 +137,11 @@ void instruction_schedule(MachineFunc *f) {
           for (auto &r : read_insts[d.value]) {
             r->out_edges.insert(node);
             node->in_edges.insert(r);
-            r->out_degree++;
-            node->in_degree++;
           }
           // add edges for write-after-write
           if (auto &w = write_insts[d.value]) {
             w->out_edges.insert(node);
             node->in_edges.insert(w);
-            w->out_degree++;
-            node->in_degree++;
           }
         }
       }
@@ -166,14 +160,33 @@ void instruction_schedule(MachineFunc *f) {
           write_insts[d.value] = node;
         }
       }
+
+      // don't schedule instructions with side effect
+      if (side_effect) {
+        side_effect->out_edges.insert(node);
+        node->in_edges.insert(side_effect);
+      }
+      if (isa<MIStore>(inst) || isa<MICall>(inst)) {
+        side_effect = node;
+      }
+
+      // should be put at the end of bb
+      if (isa<MIBranch>(inst) || isa<MIJump>(inst) || isa<MIReturn>(inst)) {
+        for (auto &n : nodes) {
+          if (n != node) {
+            n->out_edges.insert(node);
+            node->in_edges.insert(n);
+          }
+        }
+      }
     }
 
     // calculate priority
     // temp is out_degree in this part
     std::vector<Node *> vis;
     for (auto &n : nodes) {
-      n->temp = n->out_degree;
-      if (n->out_degree == 0) {
+      n->temp = n->out_edges.size();
+      if (n->out_edges.empty()) {
         vis.push_back(n);
         n->priority = n->latency;
       }
@@ -207,8 +220,8 @@ void instruction_schedule(MachineFunc *f) {
     std::vector<Node *> ready;
     // temp is in_degree in this part
     for (auto &n : nodes) {
-      n->temp = n->in_degree;
-      if (n->in_degree == 0) {
+      n->temp = n->in_edges.size();
+      if (n->in_edges.empty()) {
         ready.push_back(n);
       }
     }
@@ -241,7 +254,7 @@ void instruction_schedule(MachineFunc *f) {
 
       cycle++;
       for (auto &f : fu) {
-        if (f.complete_cycle == cycle) {
+        if (f.complete_cycle == cycle && f.inflight) {
           // finish
           // put nodes to ready
           for (auto &t : f.inflight->out_edges) {
