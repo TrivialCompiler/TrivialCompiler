@@ -61,8 +61,12 @@ void extract_stack_array(IrProgram *p) {
             } else if (auto ptr = dyn_cast<GetElementPtrInst>(inst_check)) {
               if (ptr->arr.value == alloc) break;
             } else if (auto call = dyn_cast<CallInst>(inst_check)) {
-              if (call->func == Func::BUILTIN[8].val) {
-                memset = call;
+              for (auto &arg : call->args) {
+                // can only be memset, and will only appear once
+                if (arg.value == alloc) {
+                  assert(memset == nullptr && call->func == Func::BUILTIN[8].val);
+                  memset = call;
+                }
               }
             } else if (isa<BranchInst>(inst_check)) {
               break;
