@@ -47,6 +47,7 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
     }
     def.push_back(MachineOperand::R(ArmReg::lr));
     def.push_back(MachineOperand::R(ArmReg::ip));
+    def.push_back(COND);
   } else if (auto x = dyn_cast<MIGlobal>(inst)) {
     def = {x->dst};
   } else if (isa<MIReturn>(inst)) {
@@ -143,8 +144,10 @@ void instruction_schedule(MachineFunc *f) {
     std::map<u32, std::vector<Node *>> read_insts;
     // instruction that writes this register
     std::map<u32, Node *> write_insts;
-    // instruction that might have side effect
+    // loads can be reordered, but not across store and call
+    // instruction that might have side effect (store, call)
     Node *side_effect = nullptr;
+    std::vector<Node *> load_insts;
     std::vector<Node *> nodes;
 
     // calculate data dependence graph
@@ -196,14 +199,27 @@ void instruction_schedule(MachineFunc *f) {
       }
 
       // don't schedule instructions with side effect
-      if (side_effect) {
-        side_effect->out_edges.insert(node);
-        node->in_edges.insert(side_effect);
-      }
-      if (isa<MILoad>(inst) || isa<MIStore>(inst) || isa<MICall>(inst)) {
-        side_effect = node;
+      if (isa<MIStore>(inst) || isa<MICall>(inst)) {
+        if (side_effect) {
+          side_effect->out_edges.insert(node);
+          node->in_edges.insert(side_effect);
+        }
+        for (auto &n : load_insts) {
+          n->out_edges.insert(node);
+          node->in_edges.insert(n);
+        }
+        load_insts.clear();
+      } else if (isa<MILoad>(inst)) {
+        if (side_effect) {
+          side_effect->out_edges.insert(node);
+          node->in_edges.insert(side_effect);
+        }
+        load_insts.push_back(node);
       }
 
+      if (isa<MIStore>(inst) || isa<MICall>(inst)) {
+        side_effect = node;
+      }
       // should be put at the end of bb
       if (isa<MIBranch>(inst) || isa<MIJump>(inst) || isa<MIReturn>(inst)) {
         for (auto &n : nodes) {
@@ -262,7 +278,7 @@ void instruction_schedule(MachineFunc *f) {
     u32 cycle = 0;
     while (!ready.empty() || num_inflight > 0) {
       std::sort(ready.begin(), ready.end(), NodeCompare{});
-      for (int i = 0; i < ready.size();) {
+      for (u32 i = 0; i < ready.size();) {
         auto inst = ready[i];
         auto kind = inst->kind;
         bool fired = false;
