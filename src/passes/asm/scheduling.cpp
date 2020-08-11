@@ -41,6 +41,7 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
     for (u32 i = (u32)ArmReg::r0; i < (u32)ArmReg::r0 + std::min(x->func->params.size(), (size_t)4); ++i) {
       use.push_back(MachineOperand::R((ArmReg)i));
     }
+    use.push_back(MachineOperand::R(ArmReg::sp));
     for (u32 i = (u32)ArmReg::r0; i <= (u32)ArmReg::r3; i++) {
       def.push_back(MachineOperand::R((ArmReg)i));
     }
@@ -181,7 +182,7 @@ void instruction_schedule(MachineFunc *f) {
         side_effect->out_edges.insert(node);
         node->in_edges.insert(side_effect);
       }
-      if (isa<MIStore>(inst) || isa<MICall>(inst)) {
+      if (isa<MILoad>(inst) || isa<MIStore>(inst) || isa<MICall>(inst)) {
         side_effect = node;
       }
 
