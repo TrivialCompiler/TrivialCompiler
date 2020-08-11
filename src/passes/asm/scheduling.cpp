@@ -2,6 +2,9 @@
 
 #include <queue>
 
+// virtual operand that represents condition register
+const MachineOperand COND = MachineOperand{.state = MachineOperand::State::PreColored, .value = 0x40000000};
+
 std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_scheduling(MachineInst *inst) {
   std::vector<MachineOperand> def;
   std::vector<MachineOperand> use;
@@ -18,13 +21,21 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
+    if (x->cond != ArmCond::Any) {
+      use.push_back(COND);
+    }
   } else if (auto x = dyn_cast<MILoad>(inst)) {
     def = {x->dst};
     use = {x->addr, x->offset};
   } else if (auto x = dyn_cast<MIStore>(inst)) {
     use = {x->data, x->addr, x->offset};
   } else if (auto x = dyn_cast<MICompare>(inst)) {
+    def = {COND};
     use = {x->lhs, x->rhs};
+  } else if (auto x = dyn_cast<MIBranch>(inst)) {
+    if (x->cond != ArmCond::Any) {
+      use = {COND};
+    }
   } else if (auto x = dyn_cast<MICall>(inst)) {
     // args (also caller save)
     for (u32 i = (u32)ArmReg::r0; i < (u32)ArmReg::r0 + std::min(x->func->params.size(), (size_t)4); ++i) {
