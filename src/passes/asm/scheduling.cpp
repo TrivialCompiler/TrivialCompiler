@@ -3,7 +3,7 @@
 #include <queue>
 
 // virtual operand that represents condition register
-const MachineOperand COND = MachineOperand{.state = MachineOperand::State::PreColored, .value = 0x40000000};
+const MachineOperand COND = MachineOperand{MachineOperand::State::PreColored, 0x40000000};
 
 std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_scheduling(MachineInst *inst) {
   std::vector<MachineOperand> def;
@@ -75,9 +75,9 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
         return {2, CortexA72FUKind::IntegerMultiple};
       }
     }
-  } else if (auto x = dyn_cast<MILongMul>(inst)) {
+  } else if (isa<MILongMul>(inst)) {
     return {3, CortexA72FUKind::IntegerMultiple};
-  } else if (auto x = dyn_cast<MIFma>(inst)) {
+  } else if (isa<MIFma>(inst)) {
     return {4, CortexA72FUKind::IntegerMultiple};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     // TODO: handle movw/movt case
@@ -86,15 +86,15 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
     } else {
       return {2, CortexA72FUKind::Integer};
     }
-  } else if (auto x = dyn_cast<MILoad>(inst)) {
+  } else if (isa<MILoad>(inst)) {
     return {4, CortexA72FUKind::Load};
-  } else if (auto x = dyn_cast<MIStore>(inst)) {
+  } else if (isa<MIStore>(inst)) {
     return {3, CortexA72FUKind::Store};
-  } else if (auto x = dyn_cast<MICompare>(inst)) {
+  } else if (isa<MICompare>(inst)) {
     return {1, CortexA72FUKind::Integer};
-  } else if (auto x = dyn_cast<MICall>(inst)) {
+  } else if (isa<MICall>(inst)) {
     return {1, CortexA72FUKind::Branch};
-  } else if (auto x = dyn_cast<MIGlobal>(inst)) {
+  } else if (isa<MIGlobal>(inst)) {
     return {1, CortexA72FUKind::Integer};
   } else if (isa<MIReturn>(inst)) {
     return {1, CortexA72FUKind::Branch};
@@ -239,10 +239,9 @@ void instruction_schedule(MachineFunc *f) {
 
     // functional units
     // see cortex a72 software optimisation
-    CortexA72FU fu[] = {
-        {.kind = CortexA72FUKind::Branch},  {.kind = CortexA72FUKind::Integer},
-        {.kind = CortexA72FUKind::Integer}, {.kind = CortexA72FUKind::IntegerMultiple},
-        {.kind = CortexA72FUKind::Load},    {.kind = CortexA72FUKind::Store},
+    CortexA72FU units[] = {
+        {CortexA72FUKind::Branch},          {CortexA72FUKind::Integer}, {CortexA72FUKind::Integer},
+        {CortexA72FUKind::IntegerMultiple}, {CortexA72FUKind::Load},    {CortexA72FUKind::Store},
     };
     u32 num_inflight = 0;
 
@@ -267,10 +266,9 @@ void instruction_schedule(MachineFunc *f) {
         auto inst = ready[i];
         auto kind = inst->kind;
         bool fired = false;
-        for (auto &f : fu) {
+        for (auto &f : units) {
           if (f.kind == kind && f.inflight == nullptr) {
             // fire!
-            dbg(inst->inst->tag);
             bb->insts.insertAtEnd(inst->inst);
             num_inflight++;
             f.inflight = inst;
@@ -287,17 +285,17 @@ void instruction_schedule(MachineFunc *f) {
       }
 
       cycle++;
-      for (auto &f : fu) {
-        if (f.complete_cycle == cycle && f.inflight) {
+      for (auto &unit : units) {
+        if (unit.complete_cycle == cycle && unit.inflight) {
           // finish
           // put nodes to ready
-          for (auto &t : f.inflight->out_edges) {
+          for (auto &t : unit.inflight->out_edges) {
             t->temp--;
             if (t->temp == 0) {
               ready.push_back(t);
             }
           }
-          f.inflight = nullptr;
+          unit.inflight = nullptr;
           num_inflight--;
         }
       }
