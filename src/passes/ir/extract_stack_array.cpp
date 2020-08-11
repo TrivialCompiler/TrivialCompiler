@@ -14,8 +14,9 @@ void extract_stack_array(IrProgram *p) {
       if (inst && inst->next) {
         return inst->next;
       } else {
-        if (bb->next) {
-          bb = bb->next;
+        auto next_bb = bb->succ()[0];
+        if (next_bb) {
+          bb = next_bb;
           return bb->insts.head;
         } else {
           return nullptr;
@@ -72,7 +73,6 @@ void extract_stack_array(IrProgram *p) {
               break;
             }
           }
-          Decl *extracted_decl;
           if (met_stores == stores) {
             // all stores are visited, good!
             // extract this param to global
@@ -85,7 +85,7 @@ void extract_stack_array(IrProgram *p) {
                 new std::string("__extracted_" + std::string(f->func->name) + "_" + std::string(alloc->sym->name));
             auto extract_array = "Extract local array " + std::string(alloc->sym->name) + " to global " + *name;
             dbg(extract_array);
-            extracted_decl =
+            auto extracted_decl =
                 new Decl{true, true, true, {name->c_str(), name->length()}, alloc->sym->dims, {nullptr}, init};
             extracted_decl->value = new GlobalRef(extracted_decl);
             p->glob_decl.push_back(extracted_decl);
