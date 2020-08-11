@@ -30,7 +30,7 @@ void extract_stack_array(IrProgram *p) {
         auto size = alloc->sym->dims[0]->result;
         auto buffer = new int[size]();  // auto initialized to 0
         std::unordered_set<Inst *> stores, met_stores;
-        Inst *memset;
+        Inst *memset = nullptr;
         for (auto use = alloc->uses.head; use; use = use->next) {
           if (auto store = dyn_cast<StoreInst>(use->user)) {
             if (auto data = dyn_cast<ConstValue>(store->data.value), index = dyn_cast<ConstValue>(store->index.value);
@@ -76,12 +76,17 @@ void extract_stack_array(IrProgram *p) {
             for (int i = 0; i < size; ++i) {
               init.push_back(buffer[i] == 0 ? &IntConst::ZERO : new IntConst{Expr::Tag::IntConst, buffer[i]});
             }
-            auto name = new std::string(std::string(f->func->name) + "_" + std::string(alloc->sym->name));
+            auto name = new std::string("__extracted_" + std::string(f->func->name) + "_" + std::string(alloc->sym->name));
             auto extract_array = "Extract local array " + std::string(alloc->sym->name) + " to global " + *name;
             dbg(extract_array);
             extracted_decl = new Decl{true, true, true, {name->c_str(), name->length()}, alloc->sym->dims, {nullptr}, init};
             extracted_decl->value = new GlobalRef(extracted_decl);
             p->glob_decl.push_back(extracted_decl);
+            // remove memset
+            if (memset) {
+              memset->bb->insts.remove(memset);
+              delete memset;
+            }
             // replace all use to global ref
             alloc->replaceAllUseWith(extracted_decl->value);
             // remove all stores
@@ -89,8 +94,6 @@ void extract_stack_array(IrProgram *p) {
               s->bb->insts.remove(s);
               delete s;
             }
-            memset->bb->insts.remove(memset);
-            delete memset;
           }
         }
         delete[] buffer;
