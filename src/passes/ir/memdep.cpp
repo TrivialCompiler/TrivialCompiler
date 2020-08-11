@@ -16,7 +16,7 @@ static bool dim_alias(const std::vector<Expr *> &dim1, const std::vector<Expr *>
 // 目前只考虑用数组的类型/维度来排除alias，不考虑用下标来排除
 // 分三种情况：!dims.empty() && dims[0] == nullptr => 参数数组; 否则is_glob == true => 全局变量; 否则是局部数组
 // 这个关系是对称的，但不是传递的，例如参数中的int []和int [][5]，int [][10]都alias，但int [][5]和int [][10]不alias
-static bool alias(Decl *arr1, Decl *arr2) {
+bool alias(Decl *arr1, Decl *arr2) {
   if (arr1->is_param_array()) { // 参数
     if (arr2->is_param_array())
       // NOTE_OPT: this assumes that any two arrays in parameters do not alias
@@ -44,10 +44,11 @@ static bool alias(Decl *arr1, Decl *arr2) {
 
 // 如果load的数组不是本函数内定义的，一个函数调用就可能修改其内容，这包括ParamRef和GlobalRef
 // 如果load的数组是本函数内定义的，即是AllocaInst，则只有当其地址被不完全load作为参数传递给一个函数时，这个函数才可能修改它
-static bool is_call_load_alias(Decl *arr, CallInst *y) {
+bool is_arr_call_alias(Decl *arr, CallInst *y) {
   return arr->is_param_array() || arr->is_glob || std::any_of(y->args.begin(), y->args.end(), [arr](Use &u) {
-    auto a = dyn_cast<GetElementPtrInst>(u.value);
-    return a && alias(arr, a->lhs_sym);
+    if (auto a = dyn_cast<GetElementPtrInst>(u.value); a && alias(arr, a->lhs_sym)) return true;
+    if (auto a = dyn_cast<AllocaInst>(u.value); a && arr == a->sym) return true;
+    return false;
   });
 }
 
@@ -108,7 +109,7 @@ void compute_memdep(IrFunc *f) {
             if (auto x = dyn_cast<StoreInst>(i1); x && alias(arr, x->lhs_sym))
               is_alias = true;
               // todo: 这里可以更仔细地考虑到底是否修改了参数，现在是粗略的判断，如果没有side effect一定没有修改参数/全局变量
-            else if (auto x = dyn_cast<CallInst>(i1); x && x->func->has_side_effect && is_call_load_alias(arr, static_cast<CallInst *>(i1)))
+            else if (auto x = dyn_cast<CallInst>(i1); x && x->func->has_side_effect && is_arr_call_alias(arr, x))
               is_alias = true;
             if (is_alias) info.stores.insert(i1);
           }

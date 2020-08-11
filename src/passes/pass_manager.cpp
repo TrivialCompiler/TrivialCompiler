@@ -2,7 +2,6 @@
 
 #include <utility>
 #include <variant>
-#include <type_traits>
 
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
@@ -12,6 +11,7 @@
 #include "ir/callgraph.hpp"
 #include "ir/cfg.hpp"
 #include "ir/dce.hpp"
+#include "ir/dead_store_elim.hpp"
 #include "ir/gvn_gcm.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
@@ -42,6 +42,7 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
+    DEFINE_PASS(dead_store_elim),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(extract_stack_array)
