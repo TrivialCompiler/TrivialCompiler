@@ -42,10 +42,6 @@ void extract_stack_array(IrProgram *p) {
                 can_make_global = false;
                 break;
               }
-            } else if (isa<GetElementPtrInst>(use->user)) {
-              // used for function calling
-              can_make_global = false;
-              break;
             }
           }
           if (can_make_global) {
@@ -59,21 +55,23 @@ void extract_stack_array(IrProgram *p) {
                 }
               } else if (auto load = dyn_cast<LoadInst>(inst_check)) {
                 if (load->arr.value == alloc) break;
-              } else if (auto ptr = dyn_cast<GetElementPtrInst>(inst_check)) {
-                if (alias(ptr->lhs_sym, alloc->sym)) break;
-              } else if (auto call = dyn_cast<CallInst>(inst_check)) {
+              }else if (auto call = dyn_cast<CallInst>(inst_check)) {
                 for (auto &arg : call->args) {
                   // can only be memset, and will only appear once
                   if (arg.value == alloc) {
                     assert(memset == nullptr && call->func == Func::BUILTIN[8].val);
                     memset = call;
+                  } else if (auto p = dyn_cast<GetElementPtrInst>(arg.value); p && alias(alloc->sym, p->lhs_sym)) {
+                    // incomplete load, may change it
+                    can_make_global = false;
+                    break;
                   }
                 }
               } else if (isa<BranchInst>(inst_check)) {
                 break;
               }
             }
-            if (met_stores == stores) {
+            if (can_make_global && met_stores == stores) {
               // all stores are visited, good!
               // extract this param to global
               std::vector<Expr *> init;
