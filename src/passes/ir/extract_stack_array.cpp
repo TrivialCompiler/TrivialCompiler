@@ -3,6 +3,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "memdep.hpp"
 #include "../../structure/ast.hpp"
 
 void extract_stack_array(IrProgram *p) {
@@ -59,7 +60,7 @@ void extract_stack_array(IrProgram *p) {
               } else if (auto load = dyn_cast<LoadInst>(inst_check)) {
                 if (load->arr.value == alloc) break;
               } else if (auto ptr = dyn_cast<GetElementPtrInst>(inst_check)) {
-                if (ptr->arr.value == alloc) break;
+                if (alias(ptr->lhs_sym, alloc->sym)) break;
               } else if (auto call = dyn_cast<CallInst>(inst_check)) {
                 for (auto &arg : call->args) {
                   // can only be memset, and will only appear once
