@@ -22,6 +22,7 @@ void extract_stack_array(IrProgram *p) {
         }
       }
     };
+    std::unordered_set<AllocaInst *> delete_list;
     // iterate through all instructions in a BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
@@ -99,11 +100,17 @@ void extract_stack_array(IrProgram *p) {
                 s->bb->insts.remove(s);
                 delete s;
               }
+              delete_list.insert(alloc);
             }
           }
           delete[] buffer;
         }
       }
+    }
+    // delete extracted AllocaInst
+    for (auto alloc : delete_list) {
+      alloc->bb->insts.remove(alloc);
+      delete alloc;
     }
   }
 }

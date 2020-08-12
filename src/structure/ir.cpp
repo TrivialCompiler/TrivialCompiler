@@ -227,7 +227,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
             os << ", i32 0, i32 0" << endl;
           }
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
-          os << "; getelementptr" << v_index.get(inst) << endl << "\t";
+          os << "; getelementptr " << v_index.get(inst) << endl << "\t";
           u32 temp = v_index.alloc();
           os << "%t" << temp << " = mul i32 " << pv(v_index, x->index.value) << ", " << x->multiplier
              << endl;
@@ -235,7 +235,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
              << ", i32 "
              << "%t" << temp << endl;
         } else if (auto x = dyn_cast<StoreInst>(inst)) {
-          os << "; store" << v_index.get(x) << endl << "\t";
+          os << "; store " << v_index.get(x) << endl << "\t";
           // temp ptr
           u32 temp = v_index.alloc();
           os << "%t" << temp << " = getelementptr inbounds i32, i32";
