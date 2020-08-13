@@ -38,6 +38,8 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(bbopt),
+    DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(loop_unroll),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(gvn_gcm),

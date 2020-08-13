@@ -38,45 +38,39 @@ void loop_unroll(IrFunc *f) {
   std::vector<Loop *> deepest;
   for (Loop *l : info.top_level) get_deepest(deepest, l);
   for (Loop *l : deepest) {
-    // 只考虑这样的循环，前端也只会生成这样的while循环
+    // 只考虑这样的循环，前端生成这样的while循环如果body内没有跳转，会被bbopt优化成这样
     // bb_cond:
     //   ...
-    //   if (i(0) < n) br bb_header else br bb_end
-    //   或者 if (const 非0) br bb_header else br bb_end
-    // bb_header: ; preds [bb_cond, bb_body]
+    //   if (i(0) < n) br bb_body else br bb_end
+    //   或者 if (const 非0) br bb_body else br bb_end
+    // bb_body: ; preds = [bb_cond, bb_body]
     //   i = phi [i(0), bb_cond] [i(x), bb_body]
     //   ...
-    //   jmp bb_body
-    // bb_body: ; preds = [bb_header]
     //   i(1) = i + C1
     //   ...
     //   i(x) = i(x-1) + Cx
     //   ...
-    //   if (i(x) < n) br bb_header else br bb_end // 注意这里是i(x)，不是i
+    //   if (i(x) < n) br bb_body else br bb_end // 注意这里是i(x)，不是i
     // bb_end:; preds = [bb_cond, bb_body]
     //   ...
     // 其中i由循环中的一个phi定值，且来源仅有两个：初值i0和i+常数，n在循环外定值
-    // 根据mem2reg算法的性质，这个循环中不可能在bb_back里放置phi，所以只考虑i由bb_header中的phi定值
     // 大小关系可以是除了==, !=外的四个
-    if (l->bbs.size() != 2) continue;
-    BasicBlock *bb_header = l->bbs[0];
-    BasicBlock *bb_body = l->bbs[1];
-    if (bb_header->pred.size() != 2) continue;
-    u32 idx_in_header = bb_body == bb_header->pred[1];
-    BasicBlock *bb_cond = bb_header->pred[!idx_in_header];
+    if (l->bbs.size() != 1) continue;
+    BasicBlock *bb_body = l->bbs[0];
+    if (bb_body->pred.size() != 2) continue;
+    u32 idx_in_body = bb_body == bb_body->pred[1];
+    BasicBlock *bb_cond = bb_body->pred[!idx_in_body];
     auto br0 = dyn_cast<BranchInst>(bb_cond->insts.tail);
-    if (!br0 || br0->left != bb_header) continue;
-    BinaryInst *cond0; // cond0可能是nullptr，此时bb_cond中以if (const 非0) br bb_header else br bb_end结尾
+    if (!br0 || br0->left != bb_body) continue;
+    BinaryInst *cond0; // cond0可能是nullptr，此时bb_cond中以if (const 非0) br bb_body else br bb_end结尾
     {
       Value *v = br0->cond.value;
       if ((v->tag < Value::Tag::Lt || v->tag > Value::Tag::Gt) && (v->tag != Value::Tag::Const || static_cast<ConstValue *>(v)->imm == 0)) continue;
       cond0 = dyn_cast<BinaryInst>(v);
     }
     // cond0的lhs和rhs不可能是循环中定义的，不然就不dominate它的use了
-    auto jump = dyn_cast<JumpInst>(bb_header->insts.tail);
-    if (!jump || jump->next != bb_body) continue;
     auto br = dyn_cast<BranchInst>(bb_body->insts.tail);
-    if (!br || br->left != bb_header || br->cond.value->tag < Value::Tag::Lt || br->cond.value->tag > Value::Tag::Gt) continue;
+    if (!br || br->left != bb_body || br->cond.value->tag < Value::Tag::Lt || br->cond.value->tag > Value::Tag::Gt) continue;
     auto cond = static_cast<BinaryInst *>(br->cond.value);
     BasicBlock *bb_end = br0->right;
     if (bb_end->pred.size() != 2 || br->right != bb_end) continue;
@@ -97,11 +91,11 @@ void loop_unroll(IrFunc *f) {
             i = x->lhs.value;
           } else break;
         } else if (auto x = dyn_cast<PhiInst>(i)) {
-          if (x->bb != bb_header) break;
+          if (x->bb != bb_body) break;
           assert(x->incoming_values.size() == 2);
-          i0 = x->incoming_values[!idx_in_header].value;
+          i0 = x->incoming_values[!idx_in_body].value;
           phi_ix = x;
-          if (x->incoming_values[idx_in_header].value != ix) break;
+          if (x->incoming_values[idx_in_body].value != ix) break;
           if (cond0) {
             // 两个cond的n必须是同一个，这可以保证bb_body中的cond的n不是循环中定义的
             if (cond->tag == cond0->tag && i0 == cond0->lhs.value && n == cond0->rhs.value) {
@@ -114,7 +108,7 @@ void loop_unroll(IrFunc *f) {
           } else {
             // 如果cond0是ConstValue，则还是需要检查n的定义位置
             auto n1 = dyn_cast<Inst>(n);
-            if (!n1 || (n1->bb != bb_header && n1->bb != bb_body)) {
+            if (!n1 || n1->bb != bb_body) {
               cond0_i0 = 0; // 这个值没什么用了，只是和-1区分一下
               break;
             } else break;
@@ -124,21 +118,10 @@ void loop_unroll(IrFunc *f) {
     }
     if (cond0_i0 == -1 || step == 0) continue;
 
-    assert(!isa<PhiInst>(bb_body->insts.head));
-    // 把bb_header中的非phi/跳转指令移动到bb_body，此时还不确定是否应该展开，但是这个转移是可以做的，方便后面算指令条数
-    for (Inst *i = bb_header->insts.tail->prev; !isa<PhiInst>(i);) { // 不用判断i是否为null，因为bb_header中至少存在一条定义i的phi
-      Inst *prev = i->prev;
-      bb_header->insts.remove(i);
-      bb_body->insts.insertAtBegin(i); // 不用担心插在phi前了，因为bb_body中没有phi
-      i->bb = bb_body;
-      i = prev;
-      assert(i != nullptr);
-    }
-
     bool inst_ok = true;
     int inst_cnt = 0;
     for (Inst *i = bb_body->insts.head; inst_ok && i; i = i->next) {
-      if (isa<BranchInst>(i)) continue;
+      if (isa<PhiInst>(i) || isa<BranchInst>(i)) continue;
         // 包含call的循环没有什么展开的必要
         // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
       else if (isa<CallInst>(i) || isa<AllocaInst>(i) || ++inst_cnt >= 16) inst_ok = false;
@@ -152,10 +135,14 @@ void loop_unroll(IrFunc *f) {
       auto it = map.find(v);
       return it != map.end() ? it->second : v;
     };
-    for (Inst *i = bb_header->insts.head;; i = i->next) {
+    Inst *first_non_phi = nullptr;
+    for (Inst *i = bb_body->insts.head;; i = i->next) {
       if (auto x = dyn_cast<PhiInst>(i)) {
-        map.insert({x, x->incoming_values[idx_in_header].value});
-      } else break;
+        map.insert({x, x->incoming_values[idx_in_body].value});
+      } else {
+        first_non_phi = i;
+        break;
+      }
     }
 
     Value *old_n = (&cond->lhs)[!cond_ix].value;
@@ -169,32 +156,30 @@ void loop_unroll(IrFunc *f) {
       if (times <= 0 || times > 32) goto normal_unroll;
       beg += step;
       while (op::eval((op::Op) cond->tag, cond_ix == 0 ? beg : end, cond_ix == 0 ? end : beg)) {
-        for (Inst *i = bb_body->insts.head;; i = i->next) {
+        for (Inst *i = first_non_phi;; i = i->next) {
           clone_inst(i, bb_body, map);
           if (i == orig_last) break;
         }
-        for (Inst *i = bb_header->insts.head;; i = i->next) {
+        for (Inst *i = bb_body->insts.head;; i = i->next) {
           if (auto x = dyn_cast<PhiInst>(i)) {
-            auto it = map.find(x);
-            assert(it != map.end());
-            it->second = get(x->incoming_values[idx_in_header].value);
+            map.find(x)->second = get(x->incoming_values[idx_in_body].value);
           } else break;
         }
         beg += step;
       }
       delete br;
-      bb_header->pred.erase(bb_header->pred.begin() + idx_in_header);
+      bb_body->pred.erase(bb_body->pred.begin() + idx_in_body);
       new JumpInst(bb_end, bb_body);
       for (Inst *i = bb_end->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
           x->incoming_values[idx_in_end].set(get(x->incoming_values[idx_in_end].value));
         } else break;
       }
-      for (Inst *i = bb_header->insts.head;;) {
+      for (Inst *i = bb_body->insts.head;;) {
         if (auto x = dyn_cast<PhiInst>(i)) {
           Inst *next = x->next;
-          x->replaceAllUseWith(x->incoming_values[!idx_in_header].value);
-          bb_header->insts.remove(x);
+          x->replaceAllUseWith(x->incoming_values[!idx_in_body].value);
+          bb_body->insts.remove(x);
           delete x;
           i = next;
         } else break;
@@ -203,14 +188,12 @@ void loop_unroll(IrFunc *f) {
     }
     // 特判失败了，还是展开2次
     normal_unroll:
-    Value *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step),
-                                  cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
+    Value *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step), cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
     if (cond0) {
-      Value *new_cond0 = new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0);
-      br0->cond.set(new_cond0);
+      br0->cond.set(new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0));
     }
 
-    for (Inst *i = bb_body->insts.head;; i = i->next) {
+    for (Inst *i = first_non_phi;; i = i->next) {
       clone_inst(i, bb_body, map);
       if (i == orig_last) break;
     }
@@ -231,36 +214,31 @@ void loop_unroll(IrFunc *f) {
       // PhiInst的构造函数要求insts非空，所以先插入最后的指令
       auto if_cond = new BinaryInst(cond->tag, nullptr, nullptr, bb_if);
       new BranchInst(if_cond, bb_last, bb_end, bb_if);
-      // 这一步是构造bb_if中的phi，它来自bb_header和bb_end的phi
-      // (bb_header和bb_end的phi并不一定完全一样，有可能一个值只在循环内用到，也有可能一个循环内定义的值循环中却没有用到)
-      // 循环1构造来自bb_header的phi，顺便将来自bb_header的phi的来自bb_body的值修改为新值
-      // 循环2修改map，将来自bb_header的phi映射到刚刚插入的phi
+      // 这一步是构造bb_if中的phi，它来自bb_body和bb_end的phi
+      // (bb_body和bb_end的phi并不一定完全一样，有可能一个值只在循环内用到，也有可能一个循环内定义的值循环中却没有用到)
+      // 循环1构造来自bb_body的phi，顺便将来自bb_body的phi的来自bb_body的值修改为新值
+      // 循环2修改map，将来自bb_body的phi映射到刚刚插入的phi
       // 循环3构造来自bb_end的phi
-      // 循环1和2不能合并，否则违背了phi的parallel的特性，当bb_header中的一个phi作为另一个phi的操作数时，就可能出错
-      for (Inst *i = bb_header->insts.head;; i = i->next) {
+      // 循环1和2不能合并，否则违背了phi的parallel的特性，当bb_body中的一个phi作为另一个phi的操作数时，就可能出错
+      for (Inst *i = bb_body->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
-          Value *from_header = x->incoming_values[!idx_in_header].value, *from_body = get(x->incoming_values[idx_in_header].value);
-          x->incoming_values[idx_in_header].set(from_body);
+          Value *from_cond = x->incoming_values[!idx_in_body].value, *from_body = get(x->incoming_values[idx_in_body].value);
+          x->incoming_values[idx_in_body].set(from_body);
           auto p = new PhiInst(if_cond);
-          p->incoming_values[0].set(from_header);
+          p->incoming_values[0].set(from_cond);
           p->incoming_values[1].set(from_body);
         } else break;
       }
-      for (Inst *i = bb_header->insts.head, *i1 = bb_if->insts.head; i; i = i->next, i1 = i1->next) {
-        if (isa<PhiInst>(i)) {
-          assert(isa<PhiInst>(i1));
-          auto it = map.find(i);
-          assert(it != map.end());
-          it->second = i1;
-        }
+      for (Inst *i = bb_body->insts.head, *i1 = bb_if->insts.head;; i = i->next, i1 = i1->next) {
+        if (isa<PhiInst>(i)) map.find(i)->second = i1; else break;
       }
       for (Inst *i = bb_end->insts.head;; i = i->next) {
         if (auto x = dyn_cast<PhiInst>(i)) {
-          Value *from_header = x->incoming_values[!idx_in_end].value, *from_body = get(x->incoming_values[idx_in_end].value);
+          Value *from_cond = x->incoming_values[!idx_in_end].value, *from_body = get(x->incoming_values[idx_in_end].value);
           bool found = false;
           for (Inst *j = bb_if->insts.head; !found; j = j->next) {
             if (auto y = dyn_cast<PhiInst>(j)) {
-              if (y->incoming_values[0].value == from_header && y->incoming_values[1].value == from_body) {
+              if (y->incoming_values[0].value == from_cond && y->incoming_values[1].value == from_body) {
                 x->incoming_values[!idx_in_end].set(y);
                 found = true;
               }
@@ -268,7 +246,7 @@ void loop_unroll(IrFunc *f) {
           }
           if (!found) {
             auto p = new PhiInst(if_cond);
-            p->incoming_values[0].set(from_header);
+            p->incoming_values[0].set(from_cond);
             p->incoming_values[1].set(from_body);
             x->incoming_values[!idx_in_end].set(p);
           }
@@ -279,7 +257,7 @@ void loop_unroll(IrFunc *f) {
     }
     bb_end->pred[!idx_in_end] = bb_if;
     bb_end->pred[idx_in_end] = bb_last;
-    for (Inst *i = bb_body->insts.head;; i = i->next) {
+    for (Inst *i = first_non_phi;; i = i->next) {
       clone_inst(i, bb_last, map);
       if (i == orig_last) break;
     }

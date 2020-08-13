@@ -106,4 +106,27 @@ void bbopt(IrFunc *f) {
     }
     bb = next;
   }
+
+  // 合并无条件跳转，这对性能没有影响，但是可以让其他优化更好写
+  for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
+    if (auto x = dyn_cast<JumpInst>(bb->insts.tail)) {
+      BasicBlock *target = x->next;
+      if (target->pred.size() == 1 && !isa<PhiInst>(target->insts.head)) {
+        for (Inst *i = target->insts.head; i;) {
+          Inst *next = i->next;
+          target->insts.remove(i);
+          bb->insts.insertBefore(i, x);
+          i->bb = bb;
+          i = next;
+        }
+        bb->insts.remove(x);
+        delete x;
+        for (BasicBlock *s : bb->succ()) {
+          if (s) { *std::find(s->pred.begin(), s->pred.end(), target) = bb; }
+        }
+        f->bb.remove(target);
+        delete target;
+      }
+    }
+  }
 }
