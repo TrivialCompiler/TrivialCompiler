@@ -2,7 +2,6 @@
 #include "memdep.hpp"
 
 void dead_store_elim(IrFunc *f) {
-  clear_memdep(f);
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;

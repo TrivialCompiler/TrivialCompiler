@@ -22,19 +22,17 @@ static void clone_inst(Inst *x, BasicBlock *bb, std::unordered_map<Value *, Valu
   } else if (auto y = dyn_cast<GetElementPtrInst>(x)) {
     res = new GetElementPtrInst(y->lhs_sym, get(y->arr), get(y->index), y->multiplier, bb);
   } else if (auto y = dyn_cast<LoadInst>(x)) {
-    // 这个pass不维护内存依赖，如果需要的话就重新运行一次memdep pass
-    res = new LoadInst(y->lhs_sym, get(y->arr), get(y->index), bb);
+    res = new LoadInst(y->lhs_sym, get(y->arr), get(y->index), bb); // 不维护内存依赖
   } else if (auto y = dyn_cast<StoreInst>(x)) {
     res = new StoreInst(y->lhs_sym, get(y->arr), get(y->data), get(y->index), bb);
-  } else if (isa<MemOpInst>(x)) {
-    return; // 同LoadInst之理
   } else {
-    // 不可能是Branch, Jump, resurn, CallInst, Alloca, Phi, MemPhi
+    // 不可能是Branch, Jump, resurn, CallInst, Alloca, Phi, MemOp, MemPhi
     UNREACHABLE();
   }
   map.insert_or_assign(x, res);
 }
 
+// 这个pass不能处理memdep信息，需要保证调用它时没有memdep信息
 void loop_unroll(IrFunc *f) {
   LoopInfo info = compute_loop_info(f);
   std::vector<Loop *> deepest;
@@ -140,7 +138,7 @@ void loop_unroll(IrFunc *f) {
     bool inst_ok = true;
     int inst_cnt = 0;
     for (Inst *i = bb_body->insts.head; inst_ok && i; i = i->next) {
-      if (isa<BranchInst>(i) || isa<MemOpInst>(i)) continue;
+      if (isa<BranchInst>(i)) continue;
         // 包含call的循环没有什么展开的必要
         // 目前不考虑有局部数组的情形，memdep应该不能处理多个局部数组对应同一个Decl
       else if (isa<CallInst>(i) || isa<AllocaInst>(i) || ++inst_cnt >= 16) inst_ok = false;

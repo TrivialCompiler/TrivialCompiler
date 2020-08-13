@@ -613,8 +613,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           // 3. add parallel mv in each bb: (vreg1, ...) = (r1, ...)
           auto vr = new_virtual_reg();
           lhs.emplace_back(resolve(inst, mbb), vr);
-          for (u32 i = 0; i < x->incoming_bbs->size(); i++) {
-            auto pred_bb = (*x->incoming_bbs)[i];
+          for (u32 i = 0; i < x->incoming_values.size(); i++) {
+            auto pred_bb = x->incoming_bbs()[i];
             auto val = resolve(x->incoming_values[i].value, bb_map[pred_bb]);
             mv[pred_bb].emplace_back(vr, val);
           }

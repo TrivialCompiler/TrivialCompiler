@@ -367,23 +367,22 @@ struct AllocaInst : Inst {
 
 struct PhiInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Tag::Phi);
-
-  // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
-  std::vector<BasicBlock *> *incoming_bbs;
+  std::vector<BasicBlock *> &incoming_bbs() { return bb->pred; }
 
-  explicit PhiInst(BasicBlock *insertAtFront)
-      : Inst(Tag::Phi, insertAtFront->insts.head), incoming_bbs(&insertAtFront->pred) {
-    incoming_values.reserve(incoming_bbs->size());
-    for (u32 i = 0; i < incoming_bbs->size(); ++i) {
+  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Tag::Phi, insertAtFront->insts.head) {
+    u32 n = incoming_bbs().size();
+    incoming_values.reserve(n);
+    for (u32 i = 0; i < n; ++i) {
       // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
       incoming_values.emplace_back(nullptr, this);
     }
   }
 
-  explicit PhiInst(Inst *insertBefore) : Inst(Tag::Phi, insertBefore), incoming_bbs(&insertBefore->bb->pred) {
-    incoming_values.reserve(incoming_bbs->size());
-    for (u32 i = 0; i < incoming_bbs->size(); ++i) {
+  explicit PhiInst(Inst *insertBefore) : Inst(Tag::Phi, insertBefore) {
+    u32 n = incoming_bbs().size();
+    incoming_values.reserve(n);
+    for (u32 i = 0; i < n; ++i) {
       incoming_values.emplace_back(nullptr, this);
     }
   }
@@ -401,22 +400,19 @@ struct MemOpInst : Inst {
 // 我不希望让它继承PhiInst，这也许会影响以前的一些对PhiInst的使用
 struct MemPhiInst : Inst {
   DEFINE_CLASSOF(Value, p->tag == Tag::MemPhi);
-
-  // incoming_values.size() == incoming_bbs.size()
   std::vector<Use> incoming_values;
-  std::vector<BasicBlock *> *incoming_bbs;
+  std::vector<BasicBlock *> &incoming_bbs() { return bb->pred; }
 
   // load依赖store和store依赖load两种依赖用到的MemPhiInst不一样
   // 前者的load_or_arr来自于load的数组地址，类型是Decl *，后者的load_or_arr来自于LoadInst
   void *load_or_arr;
 
-  explicit MemPhiInst(void *load_or_arr, BasicBlock *insertAtFront)
-      : Inst(Tag::MemPhi), incoming_bbs(&insertAtFront->pred), load_or_arr(load_or_arr) {
+  explicit MemPhiInst(void *load_or_arr, BasicBlock *insertAtFront) : Inst(Tag::MemPhi), load_or_arr(load_or_arr) {
     bb = insertAtFront;
     bb->mem_phis.insertAtBegin(this);
-    incoming_values.reserve(insertAtFront->pred.size());
-    for (u32 i = 0; i < insertAtFront->pred.size(); ++i) {
-      // 在new PhiInst的时候还不知道它用到的value是什么，先填nullptr，后面再用Use::set填上
+    u32 n = incoming_bbs().size();
+    incoming_values.reserve(n);
+    for (u32 i = 0; i < n; ++i) {
       incoming_values.emplace_back(nullptr, this);
     }
   }

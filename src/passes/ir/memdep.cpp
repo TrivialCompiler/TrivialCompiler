@@ -72,6 +72,13 @@ void clear_memdep(IrFunc *f) {
     }
   }
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
+    for (Inst *i = bb->insts.head; i; i = i->next) {
+      for (Use *u = i->uses.head; u; u = u->next) {
+        assert(!isa<MemOpInst>(u->user) && !isa<MemPhiInst>(u->user));
+      }
+    }
+  }
+  for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->mem_phis.head; i;) {
       Inst *next = i->next;
       delete static_cast<MemPhiInst *>(i);
@@ -91,8 +98,6 @@ void clear_memdep(IrFunc *f) {
 
 // 构造load对store，store对load的依赖关系，分成两趟分别计算
 void compute_memdep(IrFunc *f) {
-  // 清空原来的结果
-  clear_memdep(f);
   // 把所有数组地址相同的load一起考虑，因为相关的store集合计算出来必定是一样的
   std::unordered_map<Decl *, LoadInfo> loads;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {

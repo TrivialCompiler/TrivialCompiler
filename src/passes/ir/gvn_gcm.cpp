@@ -193,7 +193,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
             // 如果找u2.value == i的，那么两次查找都会返回[%x0, bb2]，导致后面认为只有一个bb用到了%x0
             return &u2 == u;
           });
-          use = (*y->incoming_bbs)[it - y->incoming_values.begin()];
+          use = y->incoming_bbs()[it - y->incoming_values.begin()];
         }
         lca = lca ? find_lca(lca, use) : use;
       }
@@ -307,7 +307,7 @@ void gvn_gcm(IrFunc *f) {
       i = next;
     }
   }
-  dce(f), compute_memdep(f);
+  clear_memdep(f), dce(f), compute_memdep(f);
   // 阶段2，gcm
   LoopInfo info = compute_loop_info(f);
   std::vector<Inst *> insts;
@@ -330,4 +330,5 @@ void gvn_gcm(IrFunc *f) {
       }
     }
   }
+  clear_memdep(f);
 }

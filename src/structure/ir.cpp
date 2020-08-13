@@ -204,7 +204,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
         for (u32 j = 0; j < x->incoming_values.size(); ++j) {
           if (j != 0) os << ", ";
           os << "[" << pv(v_index, x->incoming_values[j].value) << ", %_"
-             << bb_index.find((*x->incoming_bbs)[j])->second << "]";
+             << bb_index.find(x->incoming_bbs()[j])->second << "]";
         }
         os << " for load/arr@" << x->load_or_arr << endl;
       }
@@ -318,7 +318,7 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           for (u32 i = 0; i < x->incoming_values.size(); ++i) {
             if (i != 0) os << ", ";
             os << "[" << pv(v_index, x->incoming_values[i].value) << ", %_"
-               << bb_index.find((*x->incoming_bbs)[i])->second << "]";
+               << bb_index.find(x->incoming_bbs()[i])->second << "]";
           }
           os << endl;
         } else if (auto x = dyn_cast<MemOpInst>(inst)) {
