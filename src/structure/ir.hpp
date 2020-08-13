@@ -137,6 +137,7 @@ struct IrFunc {
   // has_side_effect: 修改了全局变量/传入的数组参数，或者调用了has_side_effect的函数
   // no side effect函数的没有user的调用可以删除
   bool has_side_effect;
+  bool can_be_inlined;
 
   // pure函数的参数相同的调用可以删除
   bool pure() const { return !(load_global || has_side_effect); }
@@ -370,7 +371,9 @@ struct PhiInst : Inst {
   std::vector<Use> incoming_values;
   std::vector<BasicBlock *> &incoming_bbs() { return bb->pred; }
 
-  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Tag::Phi, insertAtFront->insts.head) {
+  explicit PhiInst(BasicBlock *insertAtFront) : Inst(Tag::Phi) {
+    bb = insertAtFront;
+    bb->insts.insertAtBegin(this);
     u32 n = incoming_bbs().size();
     incoming_values.reserve(n);
     for (u32 i = 0; i < n; ++i) {

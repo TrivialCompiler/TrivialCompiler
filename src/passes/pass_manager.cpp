@@ -13,6 +13,7 @@
 #include "ir/dce.hpp"
 #include "ir/dead_store_elim.hpp"
 #include "ir/gvn_gcm.hpp"
+#include "ir/inline_func.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
@@ -47,8 +48,13 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(dce),
     DEFINE_PASS(dead_store_elim),
     DEFINE_PASS(bbopt),
+    DEFINE_PASS(extract_stack_array),
+    DEFINE_PASS(inline_func),
+    DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
-    DEFINE_PASS(extract_stack_array)
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(dce),
+    DEFINE_PASS(compute_dom_info),
 };
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),

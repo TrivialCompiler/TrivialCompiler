@@ -82,7 +82,7 @@ struct ilist {
     insertAfter->next = newNode;
 
     if (tail == insertAfter) {
-      head = newNode;
+      tail = newNode;
     }
   }
 
