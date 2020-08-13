@@ -43,6 +43,7 @@ void loop_unroll(IrFunc *f) {
     //   ...
     //   if (i(0) < n) br bb_body else br bb_end
     //   或者 if (const 非0) br bb_body else br bb_end
+    //   或者 br bb_body
     // bb_body: ; preds = [bb_cond, bb_body]
     //   i = phi [i(0), bb_cond] [i(x), bb_body]
     //   ...
@@ -59,22 +60,43 @@ void loop_unroll(IrFunc *f) {
     BasicBlock *bb_body = l->bbs[0];
     if (bb_body->pred.size() != 2) continue;
     u32 idx_in_body = bb_body == bb_body->pred[1];
+    auto br = dyn_cast<BranchInst>(bb_body->insts.tail);
+    if (!br || br->left != bb_body || br->cond.value->tag < Value::Tag::Lt || br->cond.value->tag > Value::Tag::Gt) continue;
+    auto cond = static_cast<BinaryInst *>(br->cond.value);
     BasicBlock *bb_cond = bb_body->pred[!idx_in_body];
+    BasicBlock *bb_end = br->right;
     auto br0 = dyn_cast<BranchInst>(bb_cond->insts.tail);
-    if (!br0 || br0->left != bb_body) continue;
+    if (!br0) {
+      auto jump = dyn_cast<JumpInst>(bb_cond->insts.tail);
+      if (!jump || jump->next != bb_body || bb_end->pred.size() != 1) continue;
+      assert(!isa<PhiInst>(bb_end->insts.head));
+      bb_cond->insts.remove(jump);
+      delete jump;
+      br0 = new BranchInst(ConstValue::get(1), bb_body, bb_end, bb_cond);
+      bb_end->pred.push_back(bb_cond);
+      for (Inst *i = bb_body->insts.head; i; i = i->next) {
+        PhiInst *phi = nullptr;
+        for (Use *u = i->uses.head; u;) {
+          Use *next = u->next;
+          if (u->user->bb != bb_body && u->user != phi) {
+            if (phi == nullptr) {
+              phi = new PhiInst(bb_end);
+              phi->incoming_values[0].set(i);
+              phi->incoming_values[1].set(&UndefValue::INSTANCE);
+            }
+            u->set(phi);
+          }
+          u = next;
+        }
+      }
+    } else if (br0->left != bb_body || br0->right != bb_end || bb_end->pred.size() != 2) continue;
+    u32 idx_in_end = bb_body == bb_end->pred[1];
     BinaryInst *cond0; // cond0可能是nullptr，此时bb_cond中以if (const 非0) br bb_body else br bb_end结尾
     {
       Value *v = br0->cond.value;
       if ((v->tag < Value::Tag::Lt || v->tag > Value::Tag::Gt) && (v->tag != Value::Tag::Const || static_cast<ConstValue *>(v)->imm == 0)) continue;
       cond0 = dyn_cast<BinaryInst>(v);
     }
-    // cond0的lhs和rhs不可能是循环中定义的，不然就不dominate它的use了
-    auto br = dyn_cast<BranchInst>(bb_body->insts.tail);
-    if (!br || br->left != bb_body || br->cond.value->tag < Value::Tag::Lt || br->cond.value->tag > Value::Tag::Gt) continue;
-    auto cond = static_cast<BinaryInst *>(br->cond.value);
-    BasicBlock *bb_end = br0->right;
-    if (bb_end->pred.size() != 2 || br->right != bb_end) continue;
-    u32 idx_in_end = bb_body == bb_end->pred[1];
 
     int step = 0;
     int cond0_i0 = -1, cond_ix = -1; // 结果为0/1时继续处理，表示i0/ix在cond0/cond的lhs还是rhs
