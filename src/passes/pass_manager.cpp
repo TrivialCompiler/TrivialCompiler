@@ -20,6 +20,7 @@
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
 #include "ir/remove_identical_branch.hpp"
+#include "ir/remove_unused_function.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *);
@@ -57,6 +58,8 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(dce),
+    DEFINE_PASS(compute_callgraph),
+    DEFINE_PASS(remove_unused_function),
     DEFINE_PASS(compute_dom_info),
 };
 

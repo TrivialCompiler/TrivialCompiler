@@ -135,6 +135,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
         auto it = glob_map.find(x->decl);
         if (it == glob_map.end()) {
           // load global addr in entry bb
+//          if (glo)
           auto new_inst = new MIGlobal(x->decl, mf->bb.head);
           // allocate virtual reg
           auto res = new_virtual_reg();
