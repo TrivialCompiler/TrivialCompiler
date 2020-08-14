@@ -38,6 +38,22 @@ void simplify_asm(MachineFunc* f) {
             bb->insts.remove(inst);
           }
         }
+      } else if (auto x = dyn_cast<MICompare>(inst)) {
+        if (auto y = dyn_cast_nullable<MIMove>(x->next)) {
+          if (auto z = dyn_cast_nullable<MIMove>(y->next)) {
+            if (x->rhs == MachineOperand::I(0) && y->rhs == MachineOperand::I(1) && z->rhs == MachineOperand::I(0) &&
+                x->lhs.is_equiv(y->dst) && x->lhs.is_equiv(z->dst) && y->cond == ArmCond::Ne &&
+                z->cond == ArmCond::Eq && y->shift.is_none() && z->shift.is_none()) {
+              // match:
+              // cmp	r1, #0
+              // movne	r1, #1
+              // moveq	r1, #0
+              // the last `moveq` can be removed
+              dbg("Simplify vreg != 0");
+              bb->insts.remove(z);
+            }
+          }
+        }
       }
     }
   }

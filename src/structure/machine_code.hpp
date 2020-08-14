@@ -73,6 +73,8 @@ struct ArmShift {
     type = None;
   }
 
+  bool is_none() const { return type == None; }
+
   explicit operator std::string() const {
     const char *name;
     switch (type) {
