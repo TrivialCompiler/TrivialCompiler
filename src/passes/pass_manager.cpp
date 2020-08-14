@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <variant>
+#include <iostream>
 
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
@@ -105,5 +106,16 @@ void run_passes(IntermediateProgram p, bool opt) {
     for (auto &desc : ir_passes) {
       run_pass(p, desc);
     }
+  }
+}
+
+void print_passes() {
+  std::cout << "IR Passes:" << std::endl;
+  for (auto &[pass, name] : ir_passes) {
+    std::cout << name << std::endl;
+  }
+  std::cout << "ASM Passes:" << std::endl;
+  for (auto &[pass, name] : asm_passes) {
+    std::cout << name << std::endl;
   }
 }

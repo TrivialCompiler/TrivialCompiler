@@ -6,3 +6,4 @@
 using IntermediateProgram = std::variant<IrProgram *, MachineProgram *>;
 
 void run_passes(IntermediateProgram p, bool opt);
+void print_passes();

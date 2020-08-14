@@ -15,17 +15,20 @@
 
 
 int main(int argc, char *argv[]) {
-  bool opt = false, print_usage = false;
+  bool opt = false, print_usage = false, print_pass = false;
   char *src = nullptr, *output = nullptr, *ir_file = nullptr;
 
   // parse command line options and check
-  for (int ch; (ch = getopt(argc, argv, "Sdl:o:O:h")) != -1;) {
+  for (int ch; (ch = getopt(argc, argv, "Sdpl:o:O:h")) != -1;) {
     switch (ch) {
       case 'S':
         // do nothing
         break;
       case 'd':
         debug_mode = true;
+        break;
+      case 'p':
+        print_pass = true;
         break;
       case 'l':
         ir_file = strdup(optarg);
@@ -48,10 +51,15 @@ int main(int argc, char *argv[]) {
     src = argv[optind];
   }
 
-  dbg(src, output, ir_file, opt, print_usage, debug_mode);
+  dbg(src, output, ir_file, opt, print_usage, print_pass, debug_mode);
+
+  if (print_pass) {
+    print_passes();
+    return 0;
+  }
 
   if (src == nullptr || print_usage) {
-    fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-d (debug mode)] [-o output_file] [-O level] input_file\n", argv[0]);
+    fprintf(stderr, "Usage: %s [-l ir_file] [-S] [-p (print passes)] [-d (debug mode)] [-o output_file] [-O level] input_file\n", argv[0]);
     return !print_usage && SYSTEM_ERROR;
   }
 
