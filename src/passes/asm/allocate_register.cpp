@@ -582,6 +582,31 @@ void allocate_register(MachineProgram *p) {
             MachineInst *first_use = nullptr;
             MachineInst *last_def = nullptr;
             i32 vreg = -1;
+            auto checkpoint = [&]() {
+              if (first_use) {
+                auto load_inst = new MILoad(first_use);
+                load_inst->bb = bb;
+                load_inst->addr = MachineOperand::R(ArmReg::sp);
+                load_inst->shift = 0;
+                generate_access_offset(load_inst);
+                load_inst->dst = MachineOperand::V(vreg);
+                first_use = nullptr;
+              }
+
+              if (last_def) {
+                auto store_inst = new MIStore();
+                store_inst->bb = bb;
+                store_inst->addr = MachineOperand::R(ArmReg::sp);
+                store_inst->shift = 0;
+                bb->insts.insertAfter(store_inst, last_def);
+                generate_access_offset(store_inst);
+                store_inst->data = MachineOperand::V(vreg);
+                last_def = nullptr;
+              }
+              vreg = -1;
+            };
+
+            int i = 0;
             for (auto orig_inst = bb->insts.head; orig_inst; orig_inst = orig_inst->next) {
               auto [def, use] = get_def_use_ptr(orig_inst);
               if (def && *def == n) {
@@ -605,27 +630,14 @@ void allocate_register(MachineProgram *p) {
                   }
                 }
               }
+
+              if (i++ > 30) {
+                // don't span vreg for too long
+                checkpoint();
+              }
             }
 
-            if (first_use) {
-              auto load_inst = new MILoad(first_use);
-              load_inst->bb = bb;
-              load_inst->addr = MachineOperand::R(ArmReg::sp);
-              load_inst->shift = 0;
-              generate_access_offset(load_inst);
-              load_inst->dst = MachineOperand::V(vreg);
-              // new MIComment("spill load", load_inst);
-            }
-
-            if (last_def) {
-              auto store_inst = new MIStore();
-              store_inst->bb = bb;
-              store_inst->addr = MachineOperand::R(ArmReg::sp);
-              store_inst->shift = 0;
-              bb->insts.insertAfter(store_inst, last_def);
-              generate_access_offset(store_inst);
-              store_inst->data = MachineOperand::V(vreg);
-            }
+            checkpoint();
           }
           f->stack_size += 4;  // increase stack size
         }
