@@ -1,32 +1,32 @@
 #include "pass_manager.hpp"
 
+#include <iostream>
 #include <utility>
 #include <variant>
-#include <iostream>
 
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
-#include "asm/simplify_asm.hpp"
 #include "asm/scheduling.hpp"
+#include "asm/simplify_asm.hpp"
 #include "ir/bbopt.hpp"
 #include "ir/callgraph.hpp"
 #include "ir/cfg.hpp"
 #include "ir/dce.hpp"
 #include "ir/dead_store_elim.hpp"
+#include "ir/extract_stack_array.hpp"
 #include "ir/gvn_gcm.hpp"
 #include "ir/inline_func.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
-#include "ir/extract_stack_array.hpp"
+#include "ir/remove_identical_branch.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *);
 using MachineFuncPass = void (*)(MachineFunc *);
 using MachineProgramPass = void (*)(MachineProgram *);
 using CompilePass = std::variant<IrFuncPass, IrProgramPass, MachineFuncPass, MachineProgramPass>;
-using PassDesc = std::pair<CompilePass, const char*>;
-
+using PassDesc = std::pair<CompilePass, const char *>;
 
 #define DEFINE_PASS(p) \
   { p, #p }
@@ -40,8 +40,10 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(remove_identical_branch),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
+    DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(loop_unroll),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
@@ -59,7 +61,8 @@ static PassDesc ir_passes[] = {
 };
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),
-                                DEFINE_PASS(compute_stack_info), DEFINE_PASS(instruction_schedule),  DEFINE_PASS(simplify_asm)};
+                                DEFINE_PASS(compute_stack_info), DEFINE_PASS(instruction_schedule),
+                                DEFINE_PASS(simplify_asm)};
 
 #undef DEFINE_PASS
 
@@ -68,7 +71,7 @@ struct overloaded : Ts... {
   using Ts::operator()...;
 };
 template <class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
+overloaded(Ts...)->overloaded<Ts...>;
 
 static inline void run_pass(IntermediateProgram p, const PassDesc &desc) {
   auto &pass = std::get<0>(desc);
@@ -95,7 +98,6 @@ static inline void run_pass(IntermediateProgram p, const PassDesc &desc) {
                         }},
              p);
 }
-
 
 void run_passes(IntermediateProgram p, bool opt) {
   if (std::get_if<MachineProgram *>(&p)) {
