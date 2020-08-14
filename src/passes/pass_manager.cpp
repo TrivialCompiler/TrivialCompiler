@@ -58,7 +58,7 @@ static PassDesc ir_passes[] = {
 };
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),
-                                DEFINE_PASS(compute_stack_info),  DEFINE_PASS(simplify_asm)};
+                                DEFINE_PASS(compute_stack_info), DEFINE_PASS(instruction_schedule),  DEFINE_PASS(simplify_asm)};
 
 #undef DEFINE_PASS
 
