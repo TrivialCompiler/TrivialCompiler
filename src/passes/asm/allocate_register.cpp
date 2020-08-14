@@ -592,7 +592,7 @@ void allocate_register(MachineProgram *p) {
                 bb->insts.insertAfter(store_inst, orig_inst);
                 generate_access_offset(store_inst);
                 store_inst->data = MachineOperand::V(vreg);
-                new MIComment("spill store", store_inst);
+                //new MIComment("spill store", store_inst);
               }
 
               for (auto &u : use) {
@@ -607,7 +607,7 @@ void allocate_register(MachineProgram *p) {
                   load_inst->shift = 0;
                   generate_access_offset(load_inst);
                   load_inst->dst = MachineOperand::V(vreg);
-                  new MIComment("spill load", load_inst);
+                  //new MIComment("spill load", load_inst);
                 }
               }
             }
