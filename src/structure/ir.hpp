@@ -137,7 +137,7 @@ struct IrFunc {
   // has_side_effect: 修改了全局变量/传入的数组参数，或者调用了has_side_effect的函数
   // no side effect函数的没有user的调用可以删除
   bool has_side_effect;
-  bool can_be_inlined;
+  bool can_inline;
 
   // pure函数的参数相同的调用可以删除
   bool pure() const { return !(load_global || has_side_effect); }

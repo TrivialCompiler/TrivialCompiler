@@ -4,16 +4,16 @@
 
 void inline_func(IrProgram *p) {
   for (IrFunc *f = p->func.head; f; f = f->next) {
-    bool can_be_inlined = !f->builtin && f->bb.head->pred.empty();
+    bool can_inline = !f->builtin && f->bb.head->pred.empty();
     u32 inst_cnt = 0;
-    for (BasicBlock *bb = f->bb.head; can_be_inlined && bb; bb = bb->next) {
-      for (Inst *i = bb->insts.head; can_be_inlined && i; i = i->next) {
-        if (isa<AllocaInst>(i) || ++inst_cnt >= 64) can_be_inlined = false;
+    for (BasicBlock *bb = f->bb.head; can_inline && bb; bb = bb->next) {
+      for (Inst *i = bb->insts.head; can_inline && i; i = i->next) {
+        if (isa<AllocaInst>(i) || ++inst_cnt >= 64) can_inline = false;
         // todo: 直接递归调用自身不能被内联，这是实现的限制，理论上应该是可以的，因为现在inline时是直接操作函数，会inline的同时修改它
-        if (auto x = dyn_cast<CallInst>(i); x && x->func == f) can_be_inlined = false;
+        if (auto x = dyn_cast<CallInst>(i); x && x->func == f) can_inline = false;
       }
     }
-    f->can_be_inlined = can_be_inlined;
+    f->can_inline = can_inline;
   }
 
   std::unordered_map<BasicBlock *, BasicBlock *> bb_map;
@@ -31,14 +31,14 @@ void inline_func(IrProgram *p) {
     calls.clear();
     for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
       for (Inst *i = bb->insts.head; i; i = i->next) {
-        if (auto x = dyn_cast<CallInst>(i); x && x->func->can_be_inlined) calls.push_back(x);
+        if (auto x = dyn_cast<CallInst>(i); x && x->func->can_inline) calls.push_back(x);
       }
     }
     for (CallInst *x : calls) {
       IrFunc *callee = x->func;
       {
-        auto msg = "Inlining " + std::string(callee->func->name) + " into " + std::string(f->func->name);
-        dbg(msg);
+        auto inline_func = "Inlining " + std::string(callee->func->name) + " into " + std::string(f->func->name);
+        dbg(inline_func);
       }
       bb_map.clear(), val_map.clear(), sym_map.clear(), ret_map.clear();
       std::vector<Use> &args = x->args;
