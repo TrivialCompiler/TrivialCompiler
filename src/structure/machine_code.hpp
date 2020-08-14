@@ -144,6 +144,8 @@ struct MachineFunc {
   u32 stack_size = 0;
   // set of callee saved registers used
   std::set<ArmReg> used_callee_saved_regs;
+  // whether lr is allocated
+  bool use_lr = false;
   // offset += stack_size + saved_regs * 4;
   std::vector<MachineInst *> sp_arg_fixup;
 };

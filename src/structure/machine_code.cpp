@@ -68,8 +68,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   };
 
   auto print_reg_list = [](std::ostream& os, MachineFunc *f) {
-    for (auto r : f->used_callee_saved_regs) {
-      os << "r" << int(r) << ", ";
+    for (auto r = f->used_callee_saved_regs.cbegin(); r != f->used_callee_saved_regs.cend(); ++r) {
+      if (r != f->used_callee_saved_regs.cbegin()) os << ", ";
+      os << "r" << int(*r);
     }
   };
 
@@ -211,10 +212,22 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           // increase sp
           if (f->stack_size) {
             move_stack(false, f->stack_size, output_instruction, "\t");
+            os << "\t";
           }
-          os << "pop" << "\t" << "{";
-          print_reg_list(os, f);
-          os << "pc}" << endl;
+          bool no_bx = false;
+          if (!f->used_callee_saved_regs.empty()) {
+            os << "pop" << "\t" << "{";
+            print_reg_list(os, f);
+            if (f->use_lr) {
+              os << ", pc";
+              no_bx = true;
+            }
+            os << "}" << endl;
+          }
+          if (!no_bx) {
+            if (!f->used_callee_saved_regs.empty()) os << "\t";
+            os << "bx" << "\t" << "lr" << endl;
+          }
           insert_pool();
           increase_count(2);
         } else if (auto x = dyn_cast<MICall>(inst)) {
@@ -239,9 +252,12 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     os << f->func->func->name << ":" << endl;
 
     // function prologue
-    os << "\t" << "push" << "\t" << "{";
-    print_reg_list(os, f);
-    os << "lr}" << endl;
+    if (f->use_lr || !f->used_callee_saved_regs.empty()) {
+      os << "\t" << "push" << "\t" << "{";
+      print_reg_list(os, f);
+      if (f->use_lr) os << ", lr";
+      os << "}" << endl;
+    }
     // move sp down
     if (f->stack_size) {
       move_stack(true, f->stack_size, output_instruction, "\t");
