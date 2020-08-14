@@ -226,8 +226,6 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     BasicBlock *bb_end = new BasicBlock;
     ctx->func->bb.insertAtEnd(bb_cond1);
     ctx->func->bb.insertAtEnd(bb_loop);
-    ctx->func->bb.insertAtEnd(bb_cond2);
-    ctx->func->bb.insertAtEnd(bb_end);
 
     // jump to cond1 bb
     new JumpInst(bb_cond1, ctx->bb);
@@ -248,10 +246,12 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
     }
 
     // cond2
+    ctx->func->bb.insertAtEnd(bb_cond2);
     ctx->bb = bb_cond2;
     cond = convert_expr(ctx, x->cond);
     new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
+    ctx->func->bb.insertAtEnd(bb_end);
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
