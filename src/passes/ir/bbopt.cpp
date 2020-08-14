@@ -124,6 +124,7 @@ void bbopt(IrFunc *f) {
 
   // 合并无条件跳转，这对性能没有影响，但是可以让其他优化更好写
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
+    again:
     if (auto x = dyn_cast<JumpInst>(bb->insts.tail)) {
       BasicBlock *target = x->next;
       if (target->pred.size() == 1) {
@@ -142,6 +143,7 @@ void bbopt(IrFunc *f) {
         }
         f->bb.remove(target);
         delete target;
+        goto again;
       }
     }
   }
