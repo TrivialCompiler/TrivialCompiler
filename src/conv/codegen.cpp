@@ -309,16 +309,6 @@ MachineProgram *machine_code_generation(IrProgram *p) {
                     new_inst->shift.type = ArmShift::Lsr;
                   }
                 }
-              } else if (d == 1000000007) {
-                dbg("gg");
-                // magic constant used in bitset, try disable optimization
-                auto move = new MIMove(mbb);
-                move->rhs = MachineOperand::I(d);
-                move->dst = new_virtual_reg();
-                auto div = new MIBinary(MachineInst::Tag::Div, mbb);
-                div->lhs = lhs;
-                div->rhs = move->dst;
-                div->dst = dst;
               } else {
                 const u32 W = 32;
                 u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;

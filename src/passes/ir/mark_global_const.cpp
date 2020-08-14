@@ -23,7 +23,7 @@ void mark_global_const(IrProgram *p) {
   for (Decl *d : p->glob_decl) {
     if (!d->is_const && !has_store(d->value)) {
       // NOTE_OPT: we choose not to inline global arrays (which causes bad performance on bitset)
-//      if (!d->dims.empty()) continue;
+      if (!d->dims.empty()) continue;
       d->is_const = true;
       auto global_const = "Marking global variable '" + std::string(d->name) + "' as const";
       dbg(global_const);
