@@ -112,10 +112,10 @@ void run_passes(IntermediateProgram p, bool opt) {
 void print_passes() {
   std::cout << "IR Passes:" << std::endl;
   for (auto &[pass, name] : ir_passes) {
-    std::cout << name << std::endl;
+    std::cout << "* " << name << std::endl;
   }
   std::cout << "ASM Passes:" << std::endl;
   for (auto &[pass, name] : asm_passes) {
-    std::cout << name << std::endl;
+    std::cout << "* " << name << std::endl;
   }
 }
