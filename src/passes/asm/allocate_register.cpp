@@ -600,7 +600,7 @@ void allocate_register(MachineProgram *p) {
                     vreg = f->virtual_max++;
                   }
                   u->value = vreg;
-                  if (!first_use) {
+                  if (!first_use && !last_def) {
                     first_use = orig_inst;
                   }
                 }
