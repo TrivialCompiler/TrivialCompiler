@@ -214,17 +214,18 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             move_stack(false, f->stack_size, output_instruction, "\t");
             os << "\t";
           }
-          bool no_bx = false;
-          if (!f->used_callee_saved_regs.empty()) {
+          bool need_bx = true;
+          if (!f->used_callee_saved_regs.empty() || f->use_lr) {
             os << "pop" << "\t" << "{";
             print_reg_list(os, f);
             if (f->use_lr) {
-              os << ", pc";
-              no_bx = true;
+              if (!f->used_callee_saved_regs.empty()) os << ", ";
+              os << "pc";
+              need_bx = false;
             }
             os << "}" << endl;
           }
-          if (!no_bx) {
+          if (need_bx) {
             if (!f->used_callee_saved_regs.empty()) os << "\t";
             os << "bx" << "\t" << "lr" << endl;
           }
@@ -255,7 +256,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     if (f->use_lr || !f->used_callee_saved_regs.empty()) {
       os << "\t" << "push" << "\t" << "{";
       print_reg_list(os, f);
-      if (f->use_lr) os << ", lr";
+      if (f->use_lr) {
+        if (!f->used_callee_saved_regs.empty()) os << ", ";
+        os << "lr";
+      }
       os << "}" << endl;
     }
     // move sp down
