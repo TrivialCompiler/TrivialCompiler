@@ -18,8 +18,9 @@ void if_to_cond(MachineFunc* f) {
       auto bb3 = b->target;
       if (bb2 && bb2->next == bb3) {
         bool can_optimize = true;
-        if (b->cond == ArmCond::Ge) can_optimize = false;
+        u32 count = 0;
         for (auto inst = bb2->insts.head; inst; inst = inst->next) {
+          count++;
           if (auto x = dyn_cast<MIAccess>(inst)) {
             if (x->cond != ArmCond::Any) {
               can_optimize = false;
@@ -31,6 +32,11 @@ void if_to_cond(MachineFunc* f) {
           } else {
             can_optimize = false;
           }
+        }
+
+        if (count > 4) {
+          // too many instructions, does not worth it
+          can_optimize = false;
         }
 
         if (can_optimize) {
