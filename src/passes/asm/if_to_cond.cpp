@@ -18,6 +18,7 @@ void if_to_cond(MachineFunc* f) {
       auto bb3 = b->target;
       if (bb2 && bb2->next == bb3) {
         bool can_optimize = true;
+        if (b->cond == ArmCond::Ge) can_optimize = false;
         for (auto inst = bb2->insts.head; inst; inst = inst->next) {
           if (auto x = dyn_cast<MIAccess>(inst)) {
             if (x->cond != ArmCond::Any) {
@@ -33,7 +34,7 @@ void if_to_cond(MachineFunc* f) {
         }
 
         if (can_optimize) {
-          dbg("Optimizing branchs to conditional execution");
+          dbg("Optimizing branches to conditional execution");
           bb->insts.remove(b);
           ArmCond cond = opposite_cond(b->cond);
           for (auto inst = bb2->insts.head; inst; inst = inst->next) {
