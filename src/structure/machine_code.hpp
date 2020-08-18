@@ -323,8 +323,7 @@ struct MILongMul : MIQuaternary {
   DEFINE_CLASSOF(MachineInst, Tag::LongMul == p->tag);
   MachineOperand dst;
 
-  explicit MILongMul(MachineBB *insertAtEnd) : MIQuaternary(Tag::LongMul, insertAtEnd) {
-  }
+  explicit MILongMul(MachineBB *insertAtEnd) : MIQuaternary(Tag::LongMul, insertAtEnd) {}
 };
 
 struct MIFma : MIQuaternary {
@@ -333,8 +332,10 @@ struct MIFma : MIQuaternary {
   MachineOperand dst;
   bool add;
   bool sign;
+  ArmCond cond;
 
-  explicit MIFma(bool add, bool sign, MachineBB *insertAtEnd) : MIQuaternary(Tag::FMA, insertAtEnd), add(add), sign(sign) {}
+  explicit MIFma(bool add, bool sign, MachineBB *insertAtEnd)
+      : MIQuaternary(Tag::FMA, insertAtEnd), add(add), sign(sign), cond(ArmCond::Any) {}
 };
 
 struct MIMove : MachineInst {
@@ -394,9 +395,10 @@ struct MIAccess : MachineInst {
   MachineOperand addr;
   MachineOperand offset;
   i32 shift;
-  MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
-  MIAccess(MachineInst::Tag tag, MachineInst *insertBefore) : MachineInst(tag, insertBefore) {}
-  MIAccess(MachineInst::Tag tag) : MachineInst(tag) {}
+  ArmCond cond;
+  MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd), cond(ArmCond::Any) {}
+  MIAccess(MachineInst::Tag tag, MachineInst *insertBefore) : MachineInst(tag, insertBefore), cond(ArmCond::Any) {}
+  MIAccess(MachineInst::Tag tag) : MachineInst(tag), cond(ArmCond::Any) {}
 };
 
 struct MILoad : MIAccess {

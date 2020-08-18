@@ -6,6 +6,7 @@
 
 #include "asm/allocate_register.hpp"
 #include "asm/compute_stack_info.hpp"
+#include "asm/if_to_cond.hpp"
 #include "asm/scheduling.hpp"
 #include "asm/simplify_asm.hpp"
 #include "ir/bbopt.hpp"
@@ -41,7 +42,7 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(gvn_gcm),
     DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(gvn_gcm),
-    DEFINE_PASS(remove_identical_branch),
+    // DEFINE_PASS(remove_identical_branch),
     DEFINE_PASS(bbopt),
     DEFINE_PASS(compute_dom_info),
     DEFINE_PASS(gvn_gcm),
@@ -65,7 +66,7 @@ static PassDesc ir_passes[] = {
 
 static PassDesc asm_passes[] = {DEFINE_PASS(allocate_register), DEFINE_PASS(simplify_asm),
                                 DEFINE_PASS(compute_stack_info), DEFINE_PASS(instruction_schedule),
-                                DEFINE_PASS(simplify_asm)};
+                                DEFINE_PASS(simplify_asm), DEFINE_PASS(if_to_cond)};
 
 #undef DEFINE_PASS
 

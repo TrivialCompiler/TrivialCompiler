@@ -67,7 +67,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
     }
   };
 
-  auto print_reg_list = [](std::ostream& os, MachineFunc *f) {
+  auto print_reg_list = [](std::ostream &os, MachineFunc *f) {
     for (auto r = f->used_callee_saved_regs.cbegin(); r != f->used_callee_saved_regs.cend(); ++r) {
       if (r != f->used_callee_saved_regs.cbegin()) os << ", ";
       os << "r" << int(*r);
@@ -102,10 +102,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           if (x->offset.is_imm()) {
             i32 offset = x->offset.value << x->shift;
-            os << inst_name << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
+            os << inst_name << x->cond << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
           } else {
-            os << inst_name << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift << "]"
-               << endl;
+            os << inst_name << x->cond << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift
+               << "]" << endl;
           }
           increase_count();
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
@@ -133,7 +133,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
           if (x->shift.type != ArmShift::None) {
-            //assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
+            // assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
             os << ", " << x->shift;
           }
           os << endl;
@@ -145,8 +145,8 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           if (x->sign) {
             os << "sm";
           }
-          os << (x->add ? "mla" : "mls")
-             << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", " << x->acc << endl;
+          os << (x->add ? "mla" : "mls") << x->cond << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs << ", "
+             << x->acc << endl;
         } else if (auto x = dyn_cast<MICompare>(inst)) {
           os << "cmp"
              << "\t" << x->lhs << ", " << x->rhs << endl;
@@ -163,31 +163,31 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
               os << "ldr" << x->cond << "\t" << x->dst << ", =" << imm << endl;
             }
             increase_count();
-//            using std::to_string;
-//            // split into high & low 16 bits
-//            u32 imm = x->rhs.value;
-//            u32 low_bits = imm & 0xffffu;
-//            u32 high_bits = imm >> 16u;
-//            auto low_operand = MachineOperand::I((i32)low_bits);
-//            auto high_operand = MachineOperand::I((i32)high_bits);
-//            // debug output
-//            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
-//                              to_string(high_bits) + " and " + to_string(low_bits);
-//            dbg(move_split);
-//            // output asm
-//            os << "@ original imm: " << (i32)imm << endl;
-//            os << std::hex;
-//            os << "\t"
-//               << "movw"
-//               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
-//            increase_count();
-//            if (high_bits != 0) {
-//              os << "\t"
-//                 << "movt"
-//                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
-//              increase_count();
-//            }
-//            os << std::dec;
+            //            using std::to_string;
+            //            // split into high & low 16 bits
+            //            u32 imm = x->rhs.value;
+            //            u32 low_bits = imm & 0xffffu;
+            //            u32 high_bits = imm >> 16u;
+            //            auto low_operand = MachineOperand::I((i32)low_bits);
+            //            auto high_operand = MachineOperand::I((i32)high_bits);
+            //            // debug output
+            //            auto move_split = "Immediate number " + to_string((i32)imm) + " in MIMove split to " +
+            //                              to_string(high_bits) + " and " + to_string(low_bits);
+            //            dbg(move_split);
+            //            // output asm
+            //            os << "@ original imm: " << (i32)imm << endl;
+            //            os << std::hex;
+            //            os << "\t"
+            //               << "movw"
+            //               << "\t" << x->dst << ", " << low_operand << " @ 0x" << low_bits << endl;
+            //            increase_count();
+            //            if (high_bits != 0) {
+            //              os << "\t"
+            //                 << "movt"
+            //                 << "\t" << x->dst << ", " << high_operand << " @ 0x" << high_bits << endl;
+            //              increase_count();
+            //            }
+            //            os << std::dec;
           } else {
             os << "mov" << x->cond << "\t" << x->dst << ", " << x->rhs;
             if (x->shift.type != ArmShift::None) {
@@ -216,7 +216,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           bool need_bx = true;
           if (!f->used_callee_saved_regs.empty() || f->use_lr) {
-            os << "pop" << "\t" << "{";
+            os << "pop"
+               << "\t"
+               << "{";
             print_reg_list(os, f);
             if (f->use_lr) {
               if (!f->used_callee_saved_regs.empty()) os << ", ";
@@ -227,7 +229,9 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           }
           if (need_bx) {
             if (!f->used_callee_saved_regs.empty()) os << "\t";
-            os << "bx" << "\t" << "lr" << endl;
+            os << "bx"
+               << "\t"
+               << "lr" << endl;
           }
           insert_pool();
           increase_count(2);
@@ -254,7 +258,10 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
 
     // function prologue
     if (f->use_lr || !f->used_callee_saved_regs.empty()) {
-      os << "\t" << "push" << "\t" << "{";
+      os << "\t"
+         << "push"
+         << "\t"
+         << "{";
       print_reg_list(os, f);
       if (f->use_lr) {
         if (!f->used_callee_saved_regs.empty()) os << ", ";
