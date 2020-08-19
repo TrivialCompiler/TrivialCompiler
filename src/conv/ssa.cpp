@@ -278,7 +278,7 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
       convert_stmt(ctx, stmt);
-      if (isa<Continue>(stmt) || isa<Break>(stmt)) {
+      if (isa<Continue>(stmt) || isa<Break>(stmt) || isa<Return>(stmt)) {
         break;
       }
     }
