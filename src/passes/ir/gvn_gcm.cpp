@@ -63,8 +63,14 @@ static Value *find_eq(VN &vn, LoadInst *x) {
   return x;
 }
 
+static bool is_pure_call(Inst *i) {
+  auto x = dyn_cast<CallInst>(i);
+  return x && x->func->pure()
+         && std::none_of(x->args.begin(), x->args.end(), [](Use &arg) { return isa<GetElementPtrInst>(arg.value); });
+}
+
 static Value *find_eq(VN &vn, CallInst *x) {
-  if (!x->func->pure()) return x;
+  if (!is_pure_call(x)) return x;
   for (u32 i = 0; i < vn.size(); ++i) {
     auto[k, v] = vn[i];
     if (auto y = dyn_cast<CallInst>(k); y && y->func == x->func) {
@@ -127,11 +133,6 @@ static void transfer_inst(Inst *i, BasicBlock *new_bb) {
   new_bb->insts.insertBefore(i, new_bb->insts.tail);
 }
 
-static bool is_pure_call(Inst *i) {
-  if (auto x = dyn_cast<CallInst>(i); x && x->func->pure()) return true;
-  return false;
-}
-
 // 目前只考虑移动BinaryInst的位置，其他都不允许移动
 static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, Inst *i) {
   auto schedule_op = [&vis, entry](Inst *x, Value *op) {
@@ -157,9 +158,9 @@ static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, I
       schedule_op(x, x->arr.value);
       schedule_op(x, x->index.value);
       schedule_op(x, x->mem_token.value);
-    } else if (auto x = dyn_cast<CallInst>(i); x && x->func->pure()) {
+    } else if (is_pure_call(i)) {
       transfer_inst(x, entry);
-      for (Use &arg : x->args) {
+      for (Use &arg : static_cast<CallInst *>(i)->args) {
         schedule_op(x, arg.value);
       }
     }
