@@ -159,9 +159,9 @@ static void schedule_early(std::unordered_set<Inst *> &vis, BasicBlock *entry, I
       schedule_op(x, x->index.value);
       schedule_op(x, x->mem_token.value);
     } else if (is_pure_call(i)) {
-      transfer_inst(x, entry);
+      transfer_inst(i, entry);
       for (Use &arg : static_cast<CallInst *>(i)->args) {
-        schedule_op(x, arg.value);
+        schedule_op(i, arg.value);
       }
     }
   }
