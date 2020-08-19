@@ -33,7 +33,7 @@ int main() {
 
     starttime();
     i = 0;
-    while (i < 1000) {
+    while (i < 500) {
         transpose(n, A, B);
         transpose(n, B, A);
         i = i + 1;
