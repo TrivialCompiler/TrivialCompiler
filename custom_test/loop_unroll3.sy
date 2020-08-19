@@ -5,15 +5,11 @@ int pure(int n) {
 void test(int n) {
     int i, j, k;
     
-    i = n;
     j = 0;
-    while (i >= 0) {
-        while (i >= 0) {
-            break;
-            j = j + i;
-        }
+    i = 0;
+    while (i <= 0) {
         j = j + i;
-        i = i - 1;
+        i = i + 1;
     }
     putint(j);
     putch(10);
