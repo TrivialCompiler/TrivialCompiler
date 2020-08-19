@@ -36,7 +36,7 @@ int main() {
 
     starttime();
     i = 0;
-    while (i < 10) {
+    while (i < 1000) {
         conv1d(n, A, B, C);
         conv1d(n, B, C, A);
         i = i + 1;

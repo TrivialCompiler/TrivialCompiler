@@ -44,7 +44,7 @@ int main() {
 
     starttime();
     i = 0;
-    while (i < 5) {
+    while (i < 50) {
         mv(n, A, B, C);
         mv(n, A, C, B);
         i = i + 1;
