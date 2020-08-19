@@ -45,7 +45,7 @@ Value *convert_expr(SsaContext *ctx, Expr *expr) {
     } else {
       auto rhs = convert_expr(ctx, x->rhs);
       // happened to have same tag values
-      auto inst = new BinaryInst((Value::Tag) x->tag, lhs, rhs, ctx->bb);
+      auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
       return inst;
     }
   } else if (auto x = dyn_cast<IntConst>(expr)) {
@@ -278,6 +278,9 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
   } else if (auto x = dyn_cast<Block>(stmt)) {
     for (auto &stmt : x->stmts) {
       convert_stmt(ctx, stmt);
+      if (isa<Continue>(stmt) || isa<Break>(stmt)) {
+        break;
+      }
     }
   } else if (auto x = dyn_cast<Return>(stmt)) {
     if (x->val) {
