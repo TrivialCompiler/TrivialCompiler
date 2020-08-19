@@ -14,16 +14,38 @@ struct SsaContext {
 Value *convert_expr(SsaContext *ctx, Expr *expr) {
   if (auto x = dyn_cast<Binary>(expr)) {
     auto lhs = convert_expr(ctx, x->lhs);
-    auto rhs = convert_expr(ctx, x->rhs);
     if (x->tag == Expr::Tag::Mod) {
+      auto rhs = convert_expr(ctx, x->rhs);
       // a % b := a - b * a / b (ARM has no MOD instruction)
       auto quotient = new BinaryInst(Value::Tag::Div, lhs, rhs, ctx->bb);
       auto multiple = new BinaryInst(Value::Tag::Mul, rhs, quotient, ctx->bb);
       auto remainder = new BinaryInst(Value::Tag::Sub, lhs, multiple, ctx->bb);
       return remainder;
+    } else if (x->tag == Expr::And || x->tag == Expr::Or) {
+      auto rhs_bb = new BasicBlock, after_bb = new BasicBlock;
+      ctx->func->bb.insertAtEnd(rhs_bb);
+      if (x->tag == Expr::And) {
+        new BranchInst(lhs, rhs_bb, after_bb, ctx->bb);
+      } else {
+        auto inv = new BinaryInst(Value::Tag::Eq, lhs, ConstValue::get(0), ctx->bb);
+        new BranchInst(inv, rhs_bb, after_bb, ctx->bb);
+      }
+      // 这里需要pred的大小为2，真正维护pred在最后才做，可以保证是[当前bb, rhs的实际计算bb]的顺序
+      // 注意rhs的实际计算bb不一定就是rhs_bb，因为rhs也可能是&& ||
+      after_bb->pred.resize(2);
+      ctx->bb = rhs_bb;
+      auto rhs = convert_expr(ctx, x->rhs);
+      new JumpInst(after_bb, ctx->bb);
+      ctx->func->bb.insertAtEnd(after_bb);
+      ctx->bb = after_bb;
+      auto inst = new PhiInst(ctx->bb);
+      inst->incoming_values[0].set(lhs);
+      inst->incoming_values[1].set(rhs);
+      return inst;
     } else {
+      auto rhs = convert_expr(ctx, x->rhs);
       // happened to have same tag values
-      auto inst = new BinaryInst((Value::Tag)x->tag, lhs, rhs, ctx->bb);
+      auto inst = new BinaryInst((Value::Tag) x->tag, lhs, rhs, ctx->bb);
       return inst;
     }
   } else if (auto x = dyn_cast<IntConst>(expr)) {
@@ -327,6 +349,9 @@ IrProgram *convert_ssa(Program &p) {
         }
       }
 
+      for (BasicBlock *bb = func->bb.head; bb; bb = bb->next) {
+        bb->pred.clear();
+      }
       for (BasicBlock *bb = func->bb.head; bb; bb = bb->next) {
         for (BasicBlock *x : bb->succ()) {
           if (x) x->pred.push_back(bb);
