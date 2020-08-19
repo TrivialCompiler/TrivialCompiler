@@ -8,7 +8,7 @@ void simplify_asm(MachineFunc* f) {
           dbg("Removed identity move");
           bb->insts.remove(inst);
         } else if (auto y = dyn_cast_nullable<MIMove>(inst->next)) {
-          if (y->dst.is_equiv(x->dst) && !y->rhs.is_equiv(x->dst) && y->is_simple()) {
+          if (y->dst.is_equiv(x->dst) && !y->rhs.is_equiv(x->dst) && y->is_simple() && x->is_simple()) {
             dbg("Removed useless move");
             bb->insts.remove(inst);
           }
