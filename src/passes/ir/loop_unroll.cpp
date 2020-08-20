@@ -92,6 +92,8 @@ void loop_unroll(IrFunc *f) {
     } else if (br0->left != bb_body || br0->right != bb_end || bb_end->pred.size() != 2) continue;
     u32 idx_in_end = bb_body == bb_end->pred[1];
     BinaryInst *cond0; // cond0可能是nullptr，此时bb_cond中以if (const 非0) br bb_body else br bb_end结尾
+    // 如果bb_cond是无条件跳转到bb_body的(包括cond0本身是const或者上面处理的直接jump)，这意味着循环体至少执行一次
+    // 但是我们loop unroll后就不能无条件跳转了，因为此时循环会至少执行两次，所以需要把cond0改成BinaryInst并且也要修改它的n(在下面处理)
     {
       Value *v = br0->cond.value;
       if ((v->tag < Value::Tag::Lt || v->tag > Value::Tag::Gt) && (v->tag != Value::Tag::Const || static_cast<ConstValue *>(v)->imm == 0)) continue;
@@ -128,10 +130,15 @@ void loop_unroll(IrFunc *f) {
               break;
             } else break;
           } else {
-            // 如果cond0是ConstValue，则还是需要检查n的定义位置
+            // 如果cond0是ConstValue，则还是需要检查n的定义位置，并且把cond0改回BinaryInst
             auto n1 = dyn_cast<Inst>(n);
             if (!n1 || n1->bb != bb_body) {
-              cond0_i0 = 0; // 这个值没什么用了，只是和-1区分一下
+              // cond0是ConstValue一般是i0和n都是常数，不过为了保险还是检查一下
+              if (auto i0c = dyn_cast<ConstValue>(i0), nc = dyn_cast<ConstValue>(n);
+                i0c && nc && op::eval((op::Op) cond->tag, cond_ix == 0 ? i0c->imm : nc->imm, cond_ix == 0 ? nc->imm : i0c->imm)) {
+                cond0_i0 = cond_ix;
+                cond0 = new BinaryInst(cond->tag, cond_ix == 0 ? i0c : nc, cond_ix == 0 ? nc : i0c, br0);
+              } else break;
               break;
             } else break;
           }
@@ -211,9 +218,7 @@ void loop_unroll(IrFunc *f) {
     // 特判失败了，还是展开2次
     normal_unroll:
     Value *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step), cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
-    if (cond0) {
-      br0->cond.set(new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0));
-    }
+    br0->cond.set(new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0));
 
     for (Inst *i = first_non_phi;; i = i->next) {
       clone_inst(i, bb_body, map);
