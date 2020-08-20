@@ -1,53 +1,3 @@
-void test(int n) {
-    int i, j, k;
-    
-    j = 0;
-    i = 0;
-    while (i < 31) {
-        j = j + i;
-        i = i + 1;
-    }
-    putint(j);
-    putch(10);
-    putint(i);
-    putch(10);
-}
-
-void test2(int n) {
-    int i, j, k;
-    
-    j = 0;
-    i = 0;
-    while (i < n) {
-        j = j + i;
-        i = i + 1;
-        n = n - 1;
-    }
-    putint(j);
-    putch(10);
-    putint(i);
-    putch(10);
-}
-
-void test3(int n) {
-    int i, j;
-    
-    j = 0;
-    i = 0;
-    while (i < n) {
-        int k = 1;
-        j = j + i;
-        i = i + 1;
-        k = n - k;
-        n = k;
-        k = i;
-    }
-    putint(j);
-    putch(10);
-    putint(i);
-    putch(10);
-}
-
 void test4(int n) {
     int i, j;
     
@@ -69,10 +19,7 @@ int main() {
     int i;
     i = -1;
     while (i < 10) {
-        test(i);
-        test2(i);
         i = i + 1;
-        test3(i);
         test4(i);
     }
     return 0;
