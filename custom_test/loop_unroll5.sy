@@ -1,5 +1,5 @@
 void test5(int n) {
-    int i, j, k, l;
+    int i = 0, j = 0, k = 0, l = 0;
     int res = 0;
     
     i = 0;

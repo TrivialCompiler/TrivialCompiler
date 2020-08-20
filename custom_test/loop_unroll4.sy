@@ -1,5 +1,5 @@
 void test4(int n) {
-    int i, j;
+    int i = 0, j = 0;
     
     i = 0;
     while (i < n) {
