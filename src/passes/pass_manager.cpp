@@ -20,6 +20,7 @@
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
+#include "ir/remove_identical_branch.hpp"
 #include "ir/remove_unused_function.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
