@@ -9,6 +9,7 @@ jobs:
         container: jiegec/comp_judge:20.04
         steps:
             - uses: actions/checkout@v2
+            - uses: textbook/git-checkout-submodule-action@master
             - run: bash utils/run_test.sh
             - run: python3 utils/extract_result.py build/Testing/Temporary/LastTest.log build/Testing/Temporary/LastTest.json
             - uses: actions/upload-artifact@v2
@@ -19,4 +20,3 @@ jobs:
                   build/*.S
                   build/*.bc
                   build/Testing/Temporary/LastTest.log build/Testing/Temporary/LastTest.json
-                  
