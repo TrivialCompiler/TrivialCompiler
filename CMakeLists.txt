@@ -63,7 +63,7 @@ if (CUSTOM_TEST)
 endif()
 
 set(run_command_prefix /usr/bin/time -v timeout -v 120)
-set(test_command "bash ${CMAKE_CURRENT_SOURCE_DIR}/utils/run_case.sh")
+set(test_command bash "${CMAKE_CURRENT_SOURCE_DIR}/utils/run_case.sh")
 
 # create test cases
 foreach(case_file ${all_test_cases})
