@@ -7,12 +7,7 @@ variables:
     - cp .gitmodules-ci .gitmodules
     - git submodule sync
     - git submodule update --init
-    - mkdir -p build && cd build
-    - bash ../utils/initialize_cmake.sh
-    - make -j4
-    - bash ../utils/build_oneliner.sh
-    - ./TrivialCompiler -p
-    - env CTEST_OUTPUT_ON_FAILURE=1 ctest
+    - bash utils/run_test.sh
   after_script:
     - 'curl --header "PRIVATE-TOKEN: $CI_ARTIFACT_TOKEN" https://git.tsinghua.edu.cn/api/v4/projects/${CI_PROJECT_ID}/jobs/artifacts/master/raw/${RESULT_JSON_PATH}?job=${CI_JOB_NAME} -o ${RESULT_JSON_PATH} || true'
     - python3 utils/extract_result.py build/Testing/Temporary/LastTest.log ${RESULT_JSON_PATH}
