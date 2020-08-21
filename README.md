@@ -4,6 +4,8 @@
 
 TrivialCompiler is a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly.
 
+![Architecture of TrivialCompiler](architecture.png)
+
 ## Compiling
 
 ```bash
