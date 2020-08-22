@@ -217,8 +217,8 @@ void loop_unroll(IrFunc *f) {
     }
     // 特判失败了，还是展开2次
     normal_unroll:
-    Value *new_n = new BinaryInst(Value::Tag::Add, old_n, ConstValue::get(-step), cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
-    br0->cond.set(new BinaryInst(cond0->tag, cond0_i0 == 0 ? cond0->lhs.value : new_n, cond0_i0 == 0 ? new_n : cond0->rhs.value, cond0));
+    Value *new_i0 = new BinaryInst(Value::Tag::Add, (&cond0->lhs)[cond0_i0].value, ConstValue::get(step), cond0 ? static_cast<Inst *>(cond0) : static_cast<Inst *>(br0));
+    br0->cond.set(new BinaryInst(cond0->tag, cond0_i0 == 0 ? new_i0 : old_n, cond0_i0 == 0 ? old_n : new_i0, cond0));
 
     for (Inst *i = first_non_phi;; i = i->next) {
       clone_inst(i, bb_body, map);
@@ -226,8 +226,8 @@ void loop_unroll(IrFunc *f) {
     }
     bb_body->insts.insertAtEnd(br);
 
-    Value *new_ix = get((&cond->lhs)[cond_ix].value);
-    Value *new_cond = new BinaryInst(cond->tag, cond_ix == 0 ? new_ix : new_n, cond_ix == 0 ? new_n : new_ix, br);
+    Value *new_ix = new BinaryInst(Value::Tag::Add, get((&cond->lhs)[cond_ix].value), ConstValue::get(step), br);
+    Value *new_cond = new BinaryInst(cond->tag, cond_ix == 0 ? new_ix : old_n, cond_ix == 0 ? old_n : new_ix, br);
     br->cond.set(new_cond);
 
     auto bb_if = new BasicBlock;
