@@ -20,6 +20,11 @@ struct Loop {
     for (Loop *x = this; x; x = x->parent) ++ret;
     return ret;
   }
+
+  void get_deepest_loops(std::vector<Loop *> &deepest) {
+    if (sub_loops.empty()) deepest.push_back(this);
+    else for (Loop *x : sub_loops) x->get_deepest_loops(deepest);
+  }
 };
 
 struct LoopInfo {
@@ -31,6 +36,12 @@ struct LoopInfo {
   u32 depth_of(BasicBlock *bb) {
     auto it = loop_of_bb.find(bb);
     return it == loop_of_bb.end() ? 0 : it->second->depth();
+  }
+
+  std::vector<Loop *> deepest_loops() {
+    std::vector<Loop *> deepest;
+    for (Loop *l : top_level) l->get_deepest_loops(deepest);
+    return deepest;
   }
 };
 

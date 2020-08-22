@@ -98,6 +98,7 @@ void clear_memdep(IrFunc *f) {
 
 // 构造load对store，store对load的依赖关系，分成两趟分别计算
 void compute_memdep(IrFunc *f) {
+  compute_dom_info(f);
   // 把所有数组地址相同的load一起考虑，因为相关的store集合计算出来必定是一样的
   std::unordered_map<Decl *, LoadInfo> loads;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {

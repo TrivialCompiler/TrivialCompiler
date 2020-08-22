@@ -115,6 +115,7 @@ static void populate(LoopInfo &info, BasicBlock *bb) {
 }
 
 LoopInfo compute_loop_info(IrFunc *f) {
+  compute_dom_info(f);
   LoopInfo info;
   std::vector<BasicBlock *> worklist;
   collect_loops(info, worklist, f->bb.head);

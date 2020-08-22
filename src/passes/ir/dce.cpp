@@ -1,4 +1,5 @@
 #include "dce.hpp"
+#include "remove_useless_loop.hpp"
 
 static void dfs(std::unordered_set<Inst *> &vis, Inst *i) {
   if (!vis.insert(i).second) return;
@@ -9,6 +10,8 @@ static void dfs(std::unordered_set<Inst *> &vis, Inst *i) {
 
 void dce(IrFunc *f) {
   std::unordered_set<Inst *> vis;
+  again:
+  vis.clear();
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     for (Inst *i = bb->insts.head; i; i = i->next) {
       if (i->has_side_effect()) dfs(vis, i);
@@ -32,4 +35,5 @@ void dce(IrFunc *f) {
       i = next;
     }
   }
+  if (remove_useless_loop(f)) goto again;
 }

@@ -8,6 +8,7 @@
 
 // 这里假定dom树已经造好了
 void mem2reg(IrFunc *f) {
+  compute_dom_info(f);
   std::unordered_map<Value *, u32> alloca_ids;  // 把alloca映射到整数，后面有好几个vector用这个做下标
   std::vector<Value *> allocas;
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {

@@ -5,6 +5,7 @@
 #include "cfg.hpp"
 #include "dce.hpp"
 #include "memdep.hpp"
+#include "bbopt.hpp"
 
 using VN = std::vector<std::pair<Value *, Value *>>;
 
@@ -233,6 +234,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
 // 现在的依赖关系有点复杂，gvn_gcm的第一阶段需要memdep，第二阶段需要memdep和dce, 而dce会清除memdep的结果
 // 不是很方便在pass manager里表示这种关系，所以只能在第一阶段前手动调用memdep，第二阶段前手动依次调用dce和memdep
 void gvn_gcm(IrFunc *f) {
+  bbopt(f);
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
   compute_memdep(f);
@@ -332,4 +334,5 @@ void gvn_gcm(IrFunc *f) {
     }
   }
   clear_memdep(f);
+  bbopt(f);
 }

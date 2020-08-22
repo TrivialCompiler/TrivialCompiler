@@ -5,11 +5,6 @@
 #include "../../structure/op.hpp"
 #include "cfg.hpp"
 
-static void get_deepest(std::vector<Loop *> &deepest, Loop *l) {
-  if (l->sub_loops.empty()) deepest.push_back(l);
-  else for (Loop *x : l->sub_loops) get_deepest(deepest, x);
-}
-
 static void clone_inst(Inst *x, BasicBlock *bb, std::unordered_map<Value *, Value *> &map) {
   auto get = [&map](const Use &u) {
     Value *v = u.value;
@@ -34,9 +29,7 @@ static void clone_inst(Inst *x, BasicBlock *bb, std::unordered_map<Value *, Valu
 
 // 这个pass不能处理memdep信息，需要保证调用它时没有memdep信息
 void loop_unroll(IrFunc *f) {
-  LoopInfo info = compute_loop_info(f);
-  std::vector<Loop *> deepest;
-  for (Loop *l : info.top_level) get_deepest(deepest, l);
+  std::vector<Loop *> deepest = compute_loop_info(f).deepest_loops();
   for (Loop *l : deepest) {
     // 只考虑这样的循环，前端生成这样的while循环如果body内没有跳转，会被bbopt优化成这样
     // bb_cond:
