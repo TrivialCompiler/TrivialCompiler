@@ -24,4 +24,8 @@ void _sysy_starttime(int lineno);
 void _sysy_stoptime(int lineno);
 
 }
+
+// for conv0-conv2
+#define true ture
+
 #endif
