@@ -55,7 +55,17 @@ bool remove_useless_loop(IrFunc *f) {
 
     dbg("Removing useless loop");
     changed = true;
-    **std::find_if(pre_header->succ_ref().begin(), pre_header->succ_ref().end(), [x = l->bbs[0]](BasicBlock **y) { return *y == x; }) = unique_exit;
+    {
+      bool found = false;
+      for (BasicBlock **s : pre_header->succ_ref()) {
+        if (s && *s == l->bbs[0]) {
+          found = true;
+          *s = unique_exit;
+          break;
+        }
+      }
+      assert(found);
+    }
     unique_exit->pred.push_back(pre_header);
     for (auto it = exiting.begin(); it < exiting.end(); ++it) {
       u32 idx = std::find(unique_exit->pred.begin(), unique_exit->pred.end(), *it) - unique_exit->pred.begin();
