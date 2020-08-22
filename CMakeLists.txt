@@ -46,6 +46,7 @@ enable_testing()
 
 file(GLOB preliminary_func_test_cases "sysyruntimelibrary/section1/functional_test/*.sy")
 file(GLOB preliminary_perf_test_cases "sysyruntimelibrary/section1/performance_test/*.sy")
+file(GLOB final_perf_test_cases "sysyruntimelibrary/section2/performance_test/*.sy")
 file(GLOB custom_test_cases "custom_test/*.sy")
 
 set(all_test_cases "")
@@ -55,7 +56,7 @@ if (FUNC_TEST)
 endif()
 
 if (PERF_TEST)
-    set(all_test_cases ${all_test_cases} ${preliminary_perf_test_cases})
+    set(all_test_cases ${all_test_cases} ${preliminary_perf_test_cases} ${final_perf_test_cases})
 endif()
 
 if (CUSTOM_TEST)
