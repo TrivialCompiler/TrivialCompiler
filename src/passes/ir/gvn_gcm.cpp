@@ -235,6 +235,7 @@ static void schedule_late(std::unordered_set<Inst *> &vis, LoopInfo &info, Inst 
 // 不是很方便在pass manager里表示这种关系，所以只能在第一阶段前手动调用memdep，第二阶段前手动依次调用dce和memdep
 void gvn_gcm(IrFunc *f) {
   bbopt(f);
+  again:
   BasicBlock *entry = f->bb.head;
   // 阶段1，gvn
   compute_memdep(f);
@@ -334,5 +335,5 @@ void gvn_gcm(IrFunc *f) {
     }
   }
   clear_memdep(f);
-  bbopt(f);
+  if (bbopt(f)) goto again;
 }

@@ -9,7 +9,9 @@ static void dfs(BasicBlock *bb) {
   }
 }
 
-void bbopt(IrFunc *f) {
+// 如果发生了将入度为1的bb的phi直接替换成这个值的优化，则返回true，gvn_gcm需要这个信息，因为这可能产生新的优化机会
+// 如果不这样做，最终交给后端的ir可能包含常量间的二元运算，这是后端不允许的
+bool bbopt(IrFunc *f) {
   bool changed;
   do {
     changed = false;
@@ -107,11 +109,14 @@ void bbopt(IrFunc *f) {
     bb = next;
   }
 
+  bool inst_changed = false;
+
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     if (bb->pred.size() == 1) {
       for (Inst *i = bb->insts.head;;) {
         Inst *next = i->next;
         if (auto x = dyn_cast<PhiInst>(i)) {
+          inst_changed = true;
           assert(x->incoming_values.size() == 1);
           x->replaceAllUseWith(x->incoming_values[0].value);
           bb->insts.remove(x);
@@ -147,4 +152,6 @@ void bbopt(IrFunc *f) {
       }
     }
   }
+
+  return inst_changed;
 }
