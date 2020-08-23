@@ -2,9 +2,30 @@
 
 [![Build and Test](https://github.com/TrivialCompiler/TrivialCompiler/workflows/Build%20and%20Test/badge.svg)](https://github.com/TrivialCompiler/TrivialCompiler)
 
-TrivialCompiler is a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly. It is licensed under [GPLv3](LICENSE).
+TrivialCompiler is a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly. 
+
+## License
+
+Copyright (C) 2020 Chenhao Li, Jiajie Chen, Shengqi Chen
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+## Architecture
 
 ![Architecture of TrivialCompiler](architecture.png)
+
+Errata: the `.bc` should be `.ll` in the picture.
 
 ## Compiling
 
