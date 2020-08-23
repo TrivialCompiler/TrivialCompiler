@@ -1,6 +1,5 @@
 include = '''
-#include <cstdlib>
-#include "../ast.hpp"''' # 不要在最后加换行，否则会影响到gen.py的分割
+#include "../structure/ast.hpp"''' # 不要在最后加换行，否则会影响到gen.py的分割
 
 priority = [
   { assoc = 'left', terms = ['Or'] },
