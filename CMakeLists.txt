@@ -74,11 +74,11 @@ foreach(case_file ${all_test_cases})
     string(REGEX REPLACE ".sy$" ".out" case_output ${case_file})
 
     # check our compiler
-    # .sy -> .bc
-    add_custom_command(OUTPUT "${case_name}.bc"
-            COMMAND ${run_command_prefix} ./${project_name} -l "${case_name}.bc" "${case_file}"
+    # .sy -> .ll
+    add_custom_command(OUTPUT "${case_name}.ll"
+            COMMAND ${run_command_prefix} ./${project_name} -l "${case_name}.ll" "${case_file}"
             DEPENDS ./${project_name} "${case_file}")
-    add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.bc")
+    add_custom_target("llvm_ir_${case_name}" DEPENDS "${case_name}.ll")
     # .sy -> .S
     add_custom_command(OUTPUT "${case_name}.S"
             COMMAND ${run_command_prefix} ./${project_name} -o "${case_name}.S" "${case_file}"
@@ -132,10 +132,10 @@ foreach(case_file ${all_test_cases})
     endif()
 
     # use LLVM to generate exe from IR
-    # .bc -> .o
+    # .ll -> .o
     add_custom_command(OUTPUT "${case_name}_llvm.o"
-            COMMAND llc -O3 -march=arm -mcpu=cortex-a72 -float-abi=hard -filetype=obj "${case_name}.bc" -o "${case_name}_llvm.o"
-            DEPENDS "${case_name}.bc")
+            COMMAND llc -O3 -march=arm -mcpu=cortex-a72 -float-abi=hard -filetype=obj "${case_name}.ll" -o "${case_name}_llvm.o"
+            DEPENDS "${case_name}.ll")
     # .o -> exe
     add_custom_target("${case_name}_llvm"
             COMMAND arm-linux-gnueabihf-gcc -u getint -g -marm -mfpu=neon -mfloat-abi=hard -static "${case_name}_llvm.o" "${CMAKE_CURRENT_SOURCE_DIR}/sysyruntimelibrary/libsysy.a" -o "${case_name}_llvm"

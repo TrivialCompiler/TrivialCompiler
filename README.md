@@ -2,7 +2,7 @@
 
 [![Build and Test](https://github.com/TrivialCompiler/TrivialCompiler/workflows/Build%20and%20Test/badge.svg)](https://github.com/TrivialCompiler/TrivialCompiler)
 
-TrivialCompiler is a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly.
+TrivialCompiler is a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly. It is licensed under [GPLv3](LICENSE).
 
 ![Architecture of TrivialCompiler](architecture.png)
 
@@ -26,7 +26,7 @@ Options:
 * `-p`: print the names of all passes to run and exit
 * `-d`: enable debug mode (WARNING: will produce excessive amount of output)
 * `-O`: set optimization level to `level` (no effect on behaviour currently)
-* `-l`: write LLVM IR to `ir_file` and exit, running only frontend
+* `-l`: dump LLVM IR (text format) to `ir_file` and exit (by running frontend only)
 * `-o`: write assembly to `output_file`
 
 You must specify either `-l` or `-o`, or nothing will actually happen.
