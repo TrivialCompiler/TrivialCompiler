@@ -1,4 +1,3 @@
-TrivialCompiler - a compiler written in C++17 that translates SysY (a C-like toy language) into ARM-v7a assembly.
 Copyright (C) 2020 Chenhao Li, Jiajie Chen, Shengqi Chen
 
 This program is free software: you can redistribute it and/or modify
