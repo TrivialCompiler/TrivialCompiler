@@ -134,7 +134,8 @@ struct Env {
         ERR("can only assign int to int");
       }
     } else if (auto x = dyn_cast<ExprStmt>(s)) {
-      ck_expr(x->val);
+      // 不要检查分号
+      if (x->val) ck_expr(x->val);
     } else if (auto x = dyn_cast<DeclStmt>(s)) {
       auto &top = local_stk.back();
       for (Decl &d : x->decls) {
