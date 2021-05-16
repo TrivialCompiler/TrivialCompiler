@@ -1,5 +1,6 @@
 #include "extract_stack_array.hpp"
 
+#include <cstdlib>
 #include <unordered_set>
 #include <vector>
 
@@ -22,6 +23,7 @@ void extract_stack_array(IrProgram *p) {
         }
       }
     };
+    size_t sym_counter = 0;
     std::unordered_set<AllocaInst *> delete_list;
     // iterate through all instructions in a BB
     for (auto bb = f->bb.head; bb; bb = bb->next) {
@@ -80,8 +82,8 @@ void extract_stack_array(IrProgram *p) {
               for (int i = 0; i < size; ++i) {
                 init.push_back(buffer[i] == 0 ? &IntConst::ZERO : new IntConst{Expr::Tag::IntConst, buffer[i]});
               }
-              auto name =
-                  new std::string("__extracted_" + std::string(f->func->name) + "_" + std::string(alloc->sym->name));
+              auto name = new std::string("__extracted_" + std::string(f->func->name) + "_" +
+                                          std::string(alloc->sym->name) + "_" + std::to_string(sym_counter++));
               auto extract_array = "Extract local array " + std::string(alloc->sym->name) + " to global " + *name;
               dbg(extract_array);
               auto extracted_decl =
