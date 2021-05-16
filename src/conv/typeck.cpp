@@ -102,7 +102,7 @@ struct Env {
     if (d.has_init) {
       if (d.dims.empty() && d.init.val1) {  // 形如int x = 1
         ck_expr(d.init.val1);
-        if (d.is_const) {
+        if (d.is_const || d.is_glob) {
           eval(d.init.val1);
         }
         d.flatten_init.push_back(d.init.val1);
