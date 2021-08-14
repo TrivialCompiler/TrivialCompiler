@@ -4,10 +4,13 @@
 #include <unordered_map>
 
 #include "../../structure/ast.hpp"
+#include "bbopt.hpp"
 #include "cfg.hpp"
 
 // 这里假定dom树已经造好了
 void mem2reg(IrFunc *f) {
+  // 删除所有不可达bb，以防计算dom时出现问题
+  bbopt(f);
   compute_dom_info(f);
   std::unordered_map<Value *, u32> alloca_ids;  // 把alloca映射到整数，后面有好几个vector用这个做下标
   std::vector<Value *> allocas;

@@ -31,6 +31,7 @@ Errata: the `.bc` should be `.ll` in the picture.
 
 ```bash
 mkdir build
+cd build
 cmake .. -DCMAKE_BUILD_TYPE=Debug # use Release for better performance, Debug for enabling ASan
 make -j
 ./TrivialCompiler -h # show usage
