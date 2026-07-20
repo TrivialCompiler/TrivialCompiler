@@ -237,41 +237,33 @@ void convert_stmt(SsaContext *ctx, Stmt *stmt) {
 
     ctx->bb = bb_end;
   } else if (auto x = dyn_cast<While>(stmt)) {
-    // four bb:
-    // cond1: loop or end
-    // loop: cond2
-    // cond2 : loop or end
+    // three bb:
+    // cond: loop or end
+    // loop: cond
     // end
-    BasicBlock *bb_cond1 = new BasicBlock;
+    BasicBlock *bb_cond = new BasicBlock;
     BasicBlock *bb_loop = new BasicBlock;
-    BasicBlock *bb_cond2 = new BasicBlock;
     BasicBlock *bb_end = new BasicBlock;
-    ctx->func->bb.insertAtEnd(bb_cond1);
+    ctx->func->bb.insertAtEnd(bb_cond);
     ctx->func->bb.insertAtEnd(bb_loop);
 
-    // jump to cond1 bb
-    new JumpInst(bb_cond1, ctx->bb);
+    // jump to cond bb
+    new JumpInst(bb_cond, ctx->bb);
 
-    // cond1
-    ctx->bb = bb_cond1;
+    // cond
+    ctx->bb = bb_cond;
     auto cond = convert_expr(ctx, x->cond);
     new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     // loop
     ctx->bb = bb_loop;
-    ctx->loop_stk.emplace_back(bb_cond2, bb_end);
+    ctx->loop_stk.emplace_back(bb_cond, bb_end);
     convert_stmt(ctx, x->body);
     ctx->loop_stk.pop_back();
-    // jump to cond2 bb
+    // jump to cond bb
     if (!ctx->bb->valid()) {
-      new JumpInst(bb_cond2, ctx->bb);
+      new JumpInst(bb_cond, ctx->bb);
     }
-
-    // cond2
-    ctx->func->bb.insertAtEnd(bb_cond2);
-    ctx->bb = bb_cond2;
-    cond = convert_expr(ctx, x->cond);
-    new BranchInst(cond, bb_loop, bb_end, ctx->bb);
 
     ctx->func->bb.insertAtEnd(bb_end);
     ctx->bb = bb_end;
