@@ -59,7 +59,14 @@ if __name__ == '__main__':
         ratio_clang = f'{time_tc * 100 / time_clang:0.2f}%' if time_clang != 0 else 'N/A'
         data.append([case, time_llvm / 1e6, time_gcc / 1e6, time_clang / 1e6, time_tc / 1e6, ratio_llvm, ratio_gcc, ratio_clang])
 
-    print(tabulate(data, headers=["Case", "LLVM", "GCC", "Clang", "TC", "Ratio(LLVM)", "Ratio(GCC)", "Ratio(Clang)"]))
+    headers = ["Case", "LLVM", "GCC", "Clang", "TC", "Ratio(LLVM)", "Ratio(GCC)", "Ratio(Clang)"]
+    print(tabulate(data, headers=headers))
+
+    if len(sys.argv) > 3:
+        with open(sys.argv[3], 'w') as f:
+            f.write('## Test Results\n\n')
+            f.write(tabulate(data, headers=headers, tablefmt='github'))
+            f.write('\n')
 
     # some tests are not run, copy them from old data
     for case in old_results:

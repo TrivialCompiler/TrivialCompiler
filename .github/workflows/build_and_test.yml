@@ -69,7 +69,9 @@ jobs:
               trivialcompiler-ci \
               python3 utils/extract_result.py \
                 build/Testing/Temporary/LastTest.log \
-                build/Testing/Temporary/LastTest.json
+                build/Testing/Temporary/LastTest.json \
+                build/Testing/Temporary/LastTest.md
+            cat build/Testing/Temporary/LastTest.md >> "$GITHUB_STEP_SUMMARY"
           else
             echo "No CTest log found; skipping result extraction."
           fi
@@ -82,5 +84,6 @@ jobs:
           path: |
             build/Testing/Temporary/*.log
             build/Testing/Temporary/LastTest.json
+            build/Testing/Temporary/LastTest.md
             build/*.S
             build/*.ll
