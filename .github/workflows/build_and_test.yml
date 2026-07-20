@@ -1,25 +1,86 @@
 name: Build and Test
 
 on:
-    push:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        if: "!contains(github.event.head_commit.message, 'ci skip')"
-        container: jiegec/comp_judge:20.04
-        steps:
-            - uses: actions/checkout@v2
-            - uses: textbook/git-checkout-submodule-action@master
-            - run: bash utils/run_test.sh
-              env:
-                CI_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-            - run: python3 utils/extract_result.py build/Testing/Temporary/LastTest.log build/Testing/Temporary/LastTest.json
-            - uses: actions/upload-artifact@v2
-              with:
-                name: run-result
-                path: |
-                  build/Testing/Temporary/*.log
-                  build/*.S
-                  build/*.bc
-                  build/Testing/Temporary/LastTest.log build/Testing/Temporary/LastTest.json
+  build:
+    runs-on: ubuntu-24.04
+    if: ${{ github.event_name != 'push' || !contains(github.event.head_commit.message, 'ci skip') }}
+    env:
+      CI_COMMIT_MESSAGE: ${{ github.event.head_commit.message || github.event.pull_request.title || '' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build CI image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: utils/Dockerfile
+          tags: trivialcompiler-ci:latest
+          load: true
+          pull: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max,ignore-error=true
+
+      - name: Normalize build directory ownership
+        run: |
+          if [ -d build ]; then
+            docker run --rm \
+              -v "${PWD}:/workspace" \
+              -w /workspace \
+              trivialcompiler-ci \
+              chown -R "$(id -u):$(id -g)" build
+          fi
+
+      - name: Run tests
+        run: |
+          docker run --rm \
+            --user "$(id -u):$(id -g)" \
+            -e CI_COMMIT_MESSAGE \
+            -v "${PWD}:/workspace" \
+            -w /workspace \
+            trivialcompiler-ci \
+            bash utils/run_test.sh
+
+      - name: Extract test result
+        if: ${{ always() }}
+        run: |
+          if [ -f build/Testing/Temporary/LastTest.log ]; then
+            docker run --rm \
+              --user "$(id -u):$(id -g)" \
+              -v "${PWD}:/workspace" \
+              -w /workspace \
+              trivialcompiler-ci \
+              python3 utils/extract_result.py \
+                build/Testing/Temporary/LastTest.log \
+                build/Testing/Temporary/LastTest.json
+          else
+            echo "No CTest log found; skipping result extraction."
+          fi
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: run-result
+          if-no-files-found: warn
+          path: |
+            build/Testing/Temporary/*.log
+            build/Testing/Temporary/LastTest.json
+            build/*.S
+            build/*.ll

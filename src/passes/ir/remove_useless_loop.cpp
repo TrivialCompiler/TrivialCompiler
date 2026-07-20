@@ -56,7 +56,7 @@ bool remove_useless_loop(IrFunc *f) {
     dbg("Removing useless loop");
     changed = true;
     {
-      bool found = false;
+      [[maybe_unused]] bool found = false;
       for (BasicBlock **s : pre_header->succ_ref()) {
         if (s && *s == l->bbs[0]) {
           found = true;
