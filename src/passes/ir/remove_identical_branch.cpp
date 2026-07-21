@@ -1,23 +1,13 @@
+// Narrow branch-removal peephole pass.
+//
+// Targets a narrow matrix-update shape produced by earlier simplification: one
+// branch jumps around a block that computes `load_a + x * load_b` and stores to
+// the same base array under an `x == 0` guard.  The pass removes the empty arm
+// only when the matched loads and arithmetic are singly used.
 #include "remove_identical_branch.hpp"
 
 static bool not_singly_used(Inst *i) { return i->uses.head != i->uses.tail; }
 
-// 目前这个pass的唯一作用是针对mv测例进行优化，它经过前面的优化之后得到的pattern类似
-// bb_if:
-//   ...
-//   if (x == 0) br bb_then else br bb_else
-// bb_then:
-//   br bb_after
-// bb_else:
-//   t1 = a[i]
-//   t2 = b[j]
-//   t3 = x * t2
-//   t4 = t1 + t3
-//   a[j] = t4
-//   br bb_after
-// bb_after:
-//   ...
-// 目前我没有想到什么general的方法可以优化这种if
 void remove_identical_branch(IrFunc *f) {
   for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
     auto br = dyn_cast<BranchInst>(bb->insts.tail);

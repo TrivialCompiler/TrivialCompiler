@@ -1,3 +1,9 @@
+// Register allocation pass.
+//
+// Lowers virtual machine operands to ARM registers, spilling to stack slots when
+// live ranges exceed available registers.  It also knows about writeback memory
+// operands, e.g. `ldr r0, [r1], #4`, where the address register is both used and
+// defined by the access.
 #include "allocate_register.hpp"
 
 #include <algorithm>

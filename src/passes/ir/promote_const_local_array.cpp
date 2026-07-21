@@ -1,3 +1,8 @@
+// Constant local-array promotion pass.
+//
+// Simulates a small deterministic initialization prefix/loop and replaces the
+// local array with a generated constant global.  Example: a loop filling
+// `t[i] = i*i` for a fixed bound becomes static initializer data.
 #include "promote_const_local_array.hpp"
 
 #include <algorithm>
@@ -217,6 +222,8 @@ bool simulate_inst(Inst *inst, AllocaInst *target, std::vector<std::optional<int
   return allow_other_side_effects || !inst->has_side_effect();
 }
 
+// Interpret one simple counted initialization loop and record the final element
+// values when every touched instruction is side-effect free for the target.
 bool summarize_init_loop(BasicBlock *header, AllocaInst *target, std::vector<std::optional<int>> &values,
                          BasicBlock *&preheader, BasicBlock *&body, BasicBlock *&exit,
                          std::unordered_set<Inst *> &init_insts) {
@@ -312,6 +319,8 @@ Decl *make_global_array(IrProgram *p, IrFunc *f, AllocaInst *alloc, const std::v
   return promoted;
 }
 
+// Promote only when all initialization can be simulated and no later write may
+// mutate the array beyond that initializer.
 bool try_promote(IrProgram *p, IrFunc *f, AllocaInst *alloc, size_t id) {
   if (!alloc->sym || alloc->sym->dims.empty() || !alloc->sym->dims[0]) return false;
   int size = alloc->sym->dims[0]->result;

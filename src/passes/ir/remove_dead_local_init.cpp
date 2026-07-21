@@ -1,3 +1,8 @@
+// Dead local zero-initialization removal pass.
+//
+// Tracks small local arrays after a full zero memset and removes that memset
+// when every later read is preceded by a covering store.  Example: `memset(t,0)`
+// followed by stores to all read elements does not need the initial clear.
 #include "remove_dead_local_init.hpp"
 
 #include <algorithm>
@@ -154,6 +159,8 @@ bool load_is_initialized(LoadInst *load, AllocaInst *target, uint64_t state, int
   return state == full_mask(elems);
 }
 
+// Summarize a simple counted loop as a bitset of definitely initialized array
+// elements, instead of exploring every iteration as CFG.
 bool summarize_counted_loop(BasicBlock *header, AllocaInst *target, uint64_t state, int elems, BasicBlock *&exit,
                             uint64_t &out_state) {
   auto br = dyn_cast<BranchInst>(header->insts.tail);
@@ -235,6 +242,8 @@ bool summarize_counted_loop(BasicBlock *header, AllocaInst *target, uint64_t sta
   return true;
 }
 
+// Forward dataflow: if every path reaches each target load with the element
+// definitely initialized by a later store, the original memset is dead.
 bool can_remove(CallInst *memset_call, AllocaInst *target, int elems) {
   std::unordered_map<BasicBlock *, uint64_t> in_state;
   std::queue<BasicBlock *> work;

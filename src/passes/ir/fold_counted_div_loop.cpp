@@ -1,3 +1,8 @@
+// Counted division-loop folding pass.
+//
+// Replaces the externally observed value of a simple counted recurrence
+// `x = x / 2^k` with one post-loop division by `2^(k * trip_count)`.  Example:
+// after 4 iterations of `/ 2`, uses after the loop read `x0 / 16`.
 #include "fold_counted_div_loop.hpp"
 
 #include <algorithm>

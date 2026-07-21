@@ -1,3 +1,8 @@
+// Unused-function removal pass.
+//
+// Deletes non-main functions that have no callers after call-graph analysis.
+// Example: a helper left unreachable after inlining is removed from the IR
+// program before code generation.
 #include "remove_unused_function.hpp"
 #include "../../structure/ast.hpp"
 

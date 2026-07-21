@@ -1,3 +1,8 @@
+// Control-flow analysis utilities.
+//
+// Computes dominator trees, dominance frontiers, and natural loop structure used
+// by SSA and loop passes.  Example: an edge from a block back to one of its
+// dominators forms a loop whose header is that dominator.
 #include "cfg.hpp"
 #include <cassert>
 

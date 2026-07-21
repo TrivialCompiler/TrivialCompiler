@@ -1,3 +1,10 @@
+// Conditional execution and loop-rotation pass.
+//
+// Converts tiny forward branches to ARM conditional instructions and rotates
+// selected hot while loops so the backedge is conditional.  Example:
+//   header: cmp i, n; bge exit
+//   body:   ...; b header
+// becomes a body-local compare plus `blt body`, avoiding one branch per trip.
 #include "if_to_cond.hpp"
 
 namespace {

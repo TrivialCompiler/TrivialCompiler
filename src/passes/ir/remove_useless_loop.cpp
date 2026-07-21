@@ -1,3 +1,8 @@
+// Useless-loop removal pass.
+//
+// Deletes innermost loops whose bodies have no observable side effects and whose
+// live-out values are unused.  Example: a counted loop that only updates dead
+// temporaries disappears.
 #include "remove_useless_loop.hpp"
 #include "cfg.hpp"
 

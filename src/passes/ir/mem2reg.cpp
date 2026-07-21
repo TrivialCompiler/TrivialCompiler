@@ -1,3 +1,8 @@
+// SSA promotion pass.
+//
+// Promotes scalar local allocas to SSA values by inserting phis at dominance
+// frontiers and replacing loads/stores.  Example: `x = 1; y = x` becomes direct
+// SSA use of the value `1`.
 #include "mem2reg.hpp"
 
 #include <algorithm>

@@ -1,3 +1,8 @@
+// Dead-code elimination pass.
+//
+// Marks side-effecting instructions as roots, keeps their operands alive, then
+// deletes unmarked pure work.  Example: an unused `a + b` is removed, while a
+// store or call and the values feeding it stay live.
 #include "dce.hpp"
 #include "remove_useless_loop.hpp"
 

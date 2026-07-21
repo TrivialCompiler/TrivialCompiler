@@ -1,3 +1,8 @@
+// Call graph and function-effect analysis pass.
+//
+// Rebuilds caller/callee edges and propagates purity/global-use summaries.
+// Example: if `main -> f -> putint`, both `f` and `main` are marked as having
+// side effects through the transitive call chain.
 #include "callgraph.hpp"
 
 #include "../../structure/ast.hpp"

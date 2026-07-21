@@ -1,3 +1,8 @@
+// Stack frame analysis pass.
+//
+// Scans allocated machine code to find callee-saved registers, LR use, and stack
+// argument references.  Example: a call or spilled value that defines r4 marks
+// r4 for push/pop in the final function prologue/epilogue.
 #include "compute_stack_info.hpp"
 #include "allocate_register.hpp"
 

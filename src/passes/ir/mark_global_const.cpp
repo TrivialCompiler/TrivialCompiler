@@ -1,3 +1,8 @@
+// Global constant marking pass.
+//
+// Marks globals that are never stored after initialization as constant so later
+// passes can fold or hoist their loads.  Example: a read-only lookup table keeps
+// its initializer and is no longer treated as mutable memory.
 #include "mark_global_const.hpp"
 
 #include "../../structure/ast.hpp"

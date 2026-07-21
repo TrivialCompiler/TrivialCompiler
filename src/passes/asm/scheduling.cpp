@@ -1,3 +1,8 @@
+// Local machine instruction scheduling pass.
+//
+// Builds a dependence graph inside each basic block and reorders independent
+// instructions with a simple Cortex-A72 latency model.  Example: move a load
+// earlier when it does not cross stores/calls and its address operands are ready.
 #include "scheduling.hpp"
 
 #include <queue>

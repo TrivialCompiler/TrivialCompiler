@@ -1,3 +1,8 @@
+// Guarded-loop bound tightening pass.
+//
+// Folds a loop-body guard into the loop header when the guard only skips a tail
+// range of the induction variable.  Example: a header bound `i < n` plus body
+// guard `i < m` becomes a single header bound using `min(n, m)`.
 #include "tighten_guarded_loop_bound.hpp"
 
 #include <algorithm>
@@ -135,6 +140,8 @@ bool has_successor(BasicBlock *from, BasicBlock *succ_bb) {
   return std::any_of(succ.begin(), succ.end(), [succ_bb](BasicBlock **ref) { return ref && *ref == succ_bb; });
 }
 
+// Materialize `min(lhs_bound, rhs_bound)` as two preheader edges and a phi when
+// a single combined header limit is cheaper than keeping the guard block.
 bool split_preheader_with_min_bound(IrFunc *f, BasicBlock *header, BasicBlock *preheader, PhiInst *iv,
                                     Value::Tag lhs_tag, Value *lhs_bound, Value::Tag rhs_tag, Value *rhs_bound) {
   int preheader_idx = pred_index(header, preheader);
@@ -217,6 +224,8 @@ void delete_block(BasicBlock *bb, IrFunc *f) {
   delete bb;
 }
 
+// Match header -> guard -> body -> header loops where the guard only limits a
+// positive-step induction variable, then fold that limit into the header.
 bool try_tighten(BasicBlock *header, IrFunc *f) {
   auto header_br = dyn_cast<BranchInst>(header->insts.tail);
   if (!header_br) return false;

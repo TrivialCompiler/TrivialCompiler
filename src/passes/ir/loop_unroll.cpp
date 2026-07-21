@@ -1,3 +1,8 @@
+// Loop unrolling pass.
+//
+// Expands simple counted loops when the trip count is small or when partial
+// unrolling is profitable.  Example: `for i in 0..4` can become four cloned loop
+// bodies with the induction values remapped.
 #include "loop_unroll.hpp"
 
 #include <cassert>

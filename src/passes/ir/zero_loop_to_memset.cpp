@@ -1,3 +1,8 @@
+// Zeroing-loop to memset pass.
+//
+// Replaces a simple counted loop that stores zero to consecutive elements with a
+// builtin memset call.  Example: `for i in 0..n: a[i] = 0` becomes
+// `memset(a, 0, n * 4)`.
 #include "zero_loop_to_memset.hpp"
 
 #include <algorithm>
@@ -118,6 +123,8 @@ bool exit_phis_are_reusable(BasicBlock *exit, BasicBlock *header, const std::arr
   return true;
 }
 
+// Match a two-block counted loop with one zero store at `arr[iv]` and replace
+// its body with one memset call.
 bool try_replace(BasicBlock *header) {
   auto header_br = dyn_cast<BranchInst>(header->insts.tail);
   if (!header_br || header->pred.size() != 2) return false;

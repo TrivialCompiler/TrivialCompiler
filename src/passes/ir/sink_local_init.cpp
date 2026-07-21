@@ -1,3 +1,8 @@
+// Local initialization sinking pass.
+//
+// Moves entry-block zero memsets for local arrays past cheap guard blocks when
+// one branch returns early.  Example: `memset(t,0); if (bad) return; ...` becomes
+// `if (bad) return; memset(t,0); ...`.
 #include "sink_local_init.hpp"
 
 #include <unordered_set>

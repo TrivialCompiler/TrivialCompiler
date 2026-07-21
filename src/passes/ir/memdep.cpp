@@ -1,3 +1,8 @@
+// Memory-dependence analysis pass.
+//
+// Builds memory tokens for loads, stores, calls, and memory phis so later passes
+// can reason about aliasing stores.  Example: a load records the nearest
+// dominating store/call that may define the array element it reads.
 #include "memdep.hpp"
 
 #include <unordered_map>

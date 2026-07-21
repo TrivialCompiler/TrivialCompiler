@@ -1,3 +1,8 @@
+// Function inlining pass.
+//
+// Clones small, non-recursive callees into call sites and rewires returns with
+// phis when needed.  Example: a tiny helper `inc(x)` called once is replaced by
+// its body in the caller.
 #include "inline_func.hpp"
 #include "cfg.hpp"
 #include "../../structure/ast.hpp"

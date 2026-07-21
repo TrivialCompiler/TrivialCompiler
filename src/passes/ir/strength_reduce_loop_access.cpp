@@ -1,3 +1,8 @@
+// Loop access strength-reduction pass.
+//
+// Replaces affine `base[index + c]` addressing inside simple loops with pointer
+// induction values, reducing repeated index arithmetic.  Example: `a[i + 1]`
+// can advance a derived pointer once per iteration.
 #include "strength_reduce_loop_access.hpp"
 
 #include <algorithm>

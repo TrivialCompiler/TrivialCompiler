@@ -1,3 +1,8 @@
+// Constant-argument specialization pass.
+//
+// Clones eligible functions for hot calls with constant scalar arguments, then
+// replaces those parameters with constants in the clone.  Example: `f(a, 4)`
+// gets a specialized `f.const4(a)` body where loop bounds can fold.
 #include "specialize_const_arg.hpp"
 
 #include <algorithm>

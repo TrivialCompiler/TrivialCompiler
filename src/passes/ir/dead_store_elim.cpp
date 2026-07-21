@@ -1,3 +1,8 @@
+// Memory dead-store and redundant-load elimination pass.
+//
+// Uses memory-dependence tokens to remove overwritten stores and reuse known
+// loaded values.  Example: `a[i] = 1; a[i] = 2` can drop the first store when no
+// aliasing access observes it.
 #include "dead_store_elim.hpp"
 #include "memdep.hpp"
 

@@ -1,3 +1,8 @@
+// Local constant-array extraction pass.
+//
+// Turns a stack array initialized only by constant stores before its first read
+// into a private constant global.  Example: local `int t[3] = {1,0,2}` becomes a
+// generated global and the local alloca/stores disappear.
 #include "extract_stack_array.hpp"
 
 #include <cstdlib>

@@ -1,3 +1,8 @@
+// Machine peephole simplification pass.
+//
+// Removes redundant moves/jumps, coalesces repeated loads, folds stack-address
+// accesses, and turns `access [p, #0]; p = p + C` into legal post-indexed
+// load/store forms when the writeback offset is encodable.
 #include "simplify_asm.hpp"
 
 #include "allocate_register.hpp"

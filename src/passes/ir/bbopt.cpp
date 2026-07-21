@@ -1,3 +1,9 @@
+// Basic-block cleanup pass.
+//
+// Folds constant or duplicate-target branches, removes unreachable blocks,
+// bypasses empty jump blocks, drops single-input phis, and merges straight-line
+// blocks.  Example: `if (1) br A else B` becomes `jump A`, then dead `B` edges
+// and phis are repaired.
 #include "bbopt.hpp"
 
 static void dfs(BasicBlock *bb) {

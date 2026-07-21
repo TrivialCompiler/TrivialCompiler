@@ -1,3 +1,8 @@
+// Global value numbering and code-motion pass.
+//
+// Canonicalizes equivalent expressions, removes redundant loads/calls when
+// memory tokens prove they see the same state, then places computations near
+// their latest safe use.  Example: repeated `a + b` reuses the first value.
 #include "gvn_gcm.hpp"
 
 #include "../../structure/ast.hpp"

@@ -1,3 +1,8 @@
+// Loop-carried store promotion pass.
+//
+// Turns a repeated load-update-store of one stable array slot into a scalar phi
+// inside the loop plus one store on exit.  Example: `a[k] = a[k] + x` in a loop
+// keeps `a[k]` in SSA across iterations.
 #include "promote_loop_store.hpp"
 
 #include <algorithm>
@@ -77,6 +82,8 @@ bool rooted_in_param(Value *addr) {
   return isa<ParamRef>(addr);
 }
 
+// Reject the transform if any other memory operation in the loop might observe
+// or clobber the promoted address.
 bool memory_safe(const Candidate &candidate, const std::vector<BasicBlock *> &blocks) {
   for (BasicBlock *bb : blocks) {
     for (Inst *inst = bb->insts.head; inst; inst = inst->next) {
@@ -148,6 +155,8 @@ void remove_store(StoreInst *store) {
   store->deleteValue();
 }
 
+// Rewrite one load-add-store recurrence into scalar SSA state plus an exit
+// store, preserving the original memory value for code after the loop.
 bool try_promote(Loop *loop) {
   BasicBlock *preheader = nullptr;
   BasicBlock *latch = nullptr;
