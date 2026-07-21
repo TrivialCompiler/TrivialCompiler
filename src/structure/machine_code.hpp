@@ -296,8 +296,9 @@ struct MIBinary : MachineInst {
   MachineOperand lhs;
   MachineOperand rhs;
   ArmShift shift;
+  ArmCond cond;
 
-  MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd) {}
+  MIBinary(Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd), cond(ArmCond::Any) {}
 
   bool isIdentity() {
     switch (tag) {
@@ -396,9 +397,11 @@ struct MIAccess : MachineInst {
   MachineOperand offset;
   i32 shift;
   ArmCond cond;
-  MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd) : MachineInst(tag, insertAtEnd), cond(ArmCond::Any) {}
-  MIAccess(MachineInst::Tag tag, MachineInst *insertBefore) : MachineInst(tag, insertBefore), cond(ArmCond::Any) {}
-  MIAccess(MachineInst::Tag tag) : MachineInst(tag), cond(ArmCond::Any) {}
+  MIAccess(MachineInst::Tag tag, MachineBB *insertAtEnd)
+      : MachineInst(tag, insertAtEnd), mode(Mode::Offset), shift(0), cond(ArmCond::Any) {}
+  MIAccess(MachineInst::Tag tag, MachineInst *insertBefore)
+      : MachineInst(tag, insertBefore), mode(Mode::Offset), shift(0), cond(ArmCond::Any) {}
+  MIAccess(MachineInst::Tag tag) : MachineInst(tag), mode(Mode::Offset), shift(0), cond(ArmCond::Any) {}
 };
 
 struct MILoad : MIAccess {

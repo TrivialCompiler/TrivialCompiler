@@ -1,0 +1,14 @@
+int main() {
+  int a[8] = {};
+  a[0] = 3;
+  int i = 0;
+  while (i < 7) {
+    a[i + 1] = a[i] * 2;
+    i = i + 1;
+  }
+
+  int idx = getint();
+  putint(a[idx]);
+  putch(10);
+  return 0;
+}

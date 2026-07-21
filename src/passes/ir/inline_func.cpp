@@ -8,7 +8,7 @@ void inline_func(IrProgram *p) {
     u32 inst_cnt = 0;
     for (BasicBlock *bb = f->bb.head; can_inline && bb; bb = bb->next) {
       for (Inst *i = bb->insts.head; can_inline && i; i = i->next) {
-        if (isa<AllocaInst>(i) || ++inst_cnt >= 64) can_inline = false;
+        if (isa<AllocaInst>(i) || ++inst_cnt >= 32) can_inline = false;
         // todo: 直接递归调用自身不能被内联，这是实现的限制，理论上应该是可以的，因为现在inline时是直接操作函数，会inline的同时修改它
         if (auto x = dyn_cast<CallInst>(i); x && x->func == f) can_inline = false;
       }
@@ -46,8 +46,13 @@ void inline_func(IrProgram *p) {
       for (u32 j = 0, sz = params.size(); j < sz; ++j) {
         if (params[j].is_param_array()) {
           Value *arg = args[j].value;
-          assert(isa<GetElementPtrInst>(arg));
-          sym_map.insert({&params[j], static_cast<GetElementPtrInst *>(arg)->lhs_sym});
+          if (auto gep = dyn_cast<GetElementPtrInst>(arg)) {
+            sym_map.insert({&params[j], gep->lhs_sym});
+          } else if (auto param = dyn_cast<ParamRef>(arg); param && param->decl->is_param_array()) {
+            sym_map.insert({&params[j], param->decl});
+          } else {
+            UNREACHABLE();
+          }
         }
       }
       auto ret = new BasicBlock;

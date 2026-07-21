@@ -92,7 +92,7 @@ struct Env {
         if (e->result >= 256 && (e->result & (e->result - 1)) == 0) {
           auto extend_dim = "Extending dim from " + std::to_string(e->result) + " to " + std::to_string(e->result + 10);
           dbg(extend_dim);
-          e->result += 10; // avoid cache missing
+          e->result += 10;  // avoid cache missing
         }
         if (it != begin) {
           e->result *= it[-1]->result;

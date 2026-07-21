@@ -1,0 +1,13 @@
+int src[6] = {1, 2, 3, 4, 5, 6};
+int dst[6] = {};
+
+int main() {
+  int n = 6;
+  int i = 0;
+  while (i < n) {
+    dst[i] = src[(n - 1) - i] * 10 + i;
+    i = i + 1;
+  }
+  putarray(6, dst);
+  return 0;
+}

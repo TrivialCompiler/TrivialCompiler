@@ -1,0 +1,13 @@
+int main() {
+  int a[16] = {};
+  a[0] = 1;
+  int i = 0;
+  while (i < 15) {
+    a[i + 1] = a[i] * 2;
+    i = i + 1;
+  }
+
+  putint(a[15]);
+  putch(10);
+  return 0;
+}

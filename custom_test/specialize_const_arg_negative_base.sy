@@ -1,0 +1,22 @@
+void countdown(int n, int a[]) {
+    if (n == -1) return;
+    a[n] = a[n] + 1;
+    countdown(n - 1, a);
+    return;
+}
+
+int a[4];
+
+int main() {
+    a[0] = 1;
+    a[1] = 2;
+    a[2] = 3;
+    a[3] = 4;
+
+    countdown(2, a);
+    countdown(-1, a);
+
+    putint(a[0] * 1000 + a[1] * 100 + a[2] * 10 + a[3]);
+    putch(10);
+    return 0;
+}

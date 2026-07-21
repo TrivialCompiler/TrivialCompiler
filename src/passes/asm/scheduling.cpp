@@ -12,12 +12,18 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
   if (auto x = dyn_cast<MIBinary>(inst)) {
     def = {x->dst};
     use = {x->lhs, x->rhs};
+    if (x->cond != ArmCond::Any) {
+      use.push_back(COND);
+    }
   } else if (auto x = dyn_cast<MILongMul>(inst)) {
     def = {x->dst};
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     def = {x->dst};
-    use = {x->dst, x->lhs, x->rhs, x->acc};
+    use = {x->lhs, x->rhs, x->acc};
+    if (x->cond != ArmCond::Any) {
+      use.push_back(COND);
+    }
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
@@ -27,8 +33,14 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use_
   } else if (auto x = dyn_cast<MILoad>(inst)) {
     def = {x->dst};
     use = {x->addr, x->offset};
+    if (x->mode != MIAccess::Mode::Offset) {
+      def.push_back(x->addr);
+    }
   } else if (auto x = dyn_cast<MIStore>(inst)) {
     use = {x->data, x->addr, x->offset};
+    if (x->mode != MIAccess::Mode::Offset) {
+      def.push_back(x->addr);
+    }
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     def = {COND};
     use = {x->lhs, x->rhs};
@@ -71,7 +83,7 @@ std::pair<u32, CortexA72FUKind> get_info(MachineInst *inst) {
     } else {
       if (x->shift.shift == 0) {
         // no shift
-        return {1, CortexA72FUKind::Integer};
+        return {x->cond == ArmCond::Any ? 1 : 2, CortexA72FUKind::Integer};
       } else {
         return {2, CortexA72FUKind::IntegerMultiple};
       }
@@ -147,6 +159,7 @@ void instruction_schedule(MachineFunc *f) {
     // loads can be reordered, but not across store and call
     // instruction that might have side effect (store, call)
     Node *side_effect = nullptr;
+    Node *call_barrier = nullptr;
     std::vector<Node *> load_insts;
     std::vector<Node *> nodes;
 
@@ -158,6 +171,10 @@ void instruction_schedule(MachineFunc *f) {
       auto [def, use] = get_def_use_scheduling(inst);
       auto node = new Node(inst);
       nodes.push_back(node);
+      if (call_barrier) {
+        call_barrier->out_edges.insert(node);
+        node->in_edges.insert(call_barrier);
+      }
       for (auto &u : use) {
         if (u.is_reg()) {
           // add edges for read-after-write
@@ -219,6 +236,15 @@ void instruction_schedule(MachineFunc *f) {
 
       if (isa<MIStore>(inst) || isa<MICall>(inst)) {
         side_effect = node;
+      }
+      if (isa<MICall>(inst)) {
+        for (auto &n : nodes) {
+          if (n != node) {
+            n->out_edges.insert(node);
+            node->in_edges.insert(n);
+          }
+        }
+        call_barrier = node;
       }
       // should be put at the end of bb
       if (isa<MIBranch>(inst) || isa<MIJump>(inst) || isa<MIReturn>(inst)) {

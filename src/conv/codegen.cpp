@@ -4,6 +4,7 @@
 #include <cassert>
 #include <map>
 #include <optional>
+#include <set>
 
 // list of assignments (lhs, rhs)
 using ParMv = std::vector<std::pair<MachineOperand, MachineOperand>>;
@@ -12,6 +13,7 @@ using u64 = uint64_t;
 static inline void insert_parallel_mv(ParMv &movs, MachineInst *insertBefore) {
   // serialization in any order is okay
   for (auto &[lhs, rhs] : movs) {
+    if (lhs == rhs) continue;
     auto inst = new MIMove(insertBefore);
     inst->dst = lhs;
     inst->rhs = rhs;
@@ -175,7 +177,208 @@ MachineProgram *machine_code_generation(IrProgram *p) {
       }
     };
 
+    auto try_inline_zero_memset = [&](CallInst *call, MachineBB *mbb) {
+      constexpr i32 INLINE_ZERO_MEMSET_MAX_BYTES = 128;
+      if (call->func != Func::BUILTIN[8].val || call->args.size() != 3) {
+        return false;
+      }
+
+      auto fill = dyn_cast<ConstValue>(call->args[1].value);
+      auto count = dyn_cast<ConstValue>(call->args[2].value);
+      if (!fill || !count || fill->imm != 0 || count->imm < 0 || count->imm % 4 != 0 ||
+          count->imm > INLINE_ZERO_MEMSET_MAX_BYTES) {
+        return false;
+      }
+
+      auto words = count->imm / 4;
+      if (words == 0) {
+        return true;
+      }
+
+      auto addr = resolve(call->args[0].value, mbb);
+      auto zero = new_virtual_reg();
+      auto zero_inst = new MIMove(mbb);
+      zero_inst->dst = zero;
+      zero_inst->rhs = MachineOperand::I(0);
+      for (i32 i = 0; i < words; ++i) {
+        auto store_inst = new MIStore(mbb);
+        store_inst->addr = addr;
+        store_inst->offset = MachineOperand::I(i);
+        store_inst->shift = 2;
+        store_inst->data = zero;
+      }
+      return true;
+    };
+
+    auto try_emit_pow2_remainder = [&](BinaryInst *inst, MachineBB *mbb) {
+      // Match `x % C` for positive powers of two. This mirrors the current Div-by-pow2 codegen, which uses a
+      // logical shift; signed-correct remainders need a different lowering sequence.
+      Value *lhs = nullptr;
+      ConstValue *factor = nullptr;
+
+      if (inst->tag == Value::Tag::Mod) {
+        lhs = inst->lhs.value;
+        factor = dyn_cast<ConstValue>(inst->rhs.value);
+      } else if (inst->tag == Value::Tag::Sub) {
+        auto mul = dyn_cast<BinaryInst>(inst->rhs.value);
+        if (!mul || mul->tag != Value::Tag::Mul) {
+          return false;
+        }
+
+        auto div = dyn_cast<BinaryInst>(mul->lhs.value);
+        factor = dyn_cast<ConstValue>(mul->rhs.value);
+        if (!div || div->tag != Value::Tag::Div || !factor) {
+          return false;
+        }
+
+        auto divisor = dyn_cast<ConstValue>(div->rhs.value);
+        if (!divisor || divisor->imm != factor->imm || div->lhs.value != inst->lhs.value) {
+          return false;
+        }
+        lhs = inst->lhs.value;
+      } else {
+        return false;
+      }
+
+      if (!factor || factor->imm <= 0) {
+        return false;
+      }
+
+      auto value = static_cast<u32>(factor->imm);
+      if ((value & (value - 1)) != 0) {
+        return false;
+      }
+
+      auto dst = resolve(inst, mbb);
+      auto src = resolve_no_imm(lhs, mbb);
+      auto rhs = get_imm_operand(factor->imm - 1, mbb);
+      auto and_inst = new MIBinary(MachineInst::Tag::And, mbb);
+      and_inst->dst = dst;
+      and_inst->lhs = src;
+      and_inst->rhs = rhs;
+      return true;
+    };
+
+    auto div_magic_info = [](u32 d) {
+      const u32 W = 32;
+      u64 sign_bit = u64{1} << (W - 1);
+      u64 n_c = sign_bit - (sign_bit % d) - 1;
+      u64 p = W;
+      while (((u64)1 << p) <= n_c * (d - ((u64)1 << p) % d)) {
+        p++;
+      }
+      u32 magic = static_cast<u32>((((u64)1 << p) + (u64)d - ((u64)1 << p) % d) / (u64)d);
+      return std::pair{magic, static_cast<u32>(p - W)};
+    };
+
+    std::map<u32, int> div_magic_use_count;
+    for (BasicBlock *bb = f->bb.head; bb; bb = bb->next) {
+      for (Inst *inst = bb->insts.head; inst; inst = inst->next) {
+        auto bin = dyn_cast<BinaryInst>(inst);
+        auto rhs = bin ? dyn_cast<ConstValue>(bin->rhs.value) : nullptr;
+        if (!bin || bin->tag != Value::Tag::Div || !rhs || rhs->imm <= 0) continue;
+
+        u32 d = rhs->imm;
+        u32 s = __builtin_ctz(d);
+        if (d != (u32(1) << s)) {
+          div_magic_use_count[div_magic_info(d).first]++;
+        }
+      }
+    }
+
+    std::map<u32, MachineOperand> shared_div_magic;
+    auto get_div_magic_operand = [&](u32 magic, MachineBB *mbb) {
+      if (div_magic_use_count[magic] < 3 || mbb == mf->bb.head) {
+        auto local = new MIMove(mbb);
+        local->dst = new_virtual_reg();
+        local->rhs = MachineOperand::I(static_cast<i32>(magic));
+        return local->dst;
+      }
+
+      auto [it, inserted] = shared_div_magic.insert({magic, MachineOperand{}});
+      if (inserted) {
+        auto insert_before = mf->bb.head->insts.tail;
+        auto materialize =
+            insert_before && (isa<MIJump>(insert_before) || isa<MIBranch>(insert_before) || isa<MIReturn>(insert_before))
+                ? new MIMove(insert_before)
+                : new MIMove(mf->bb.head);
+        materialize->dst = new_virtual_reg();
+        materialize->rhs = MachineOperand::I(static_cast<i32>(magic));
+        it->second = materialize->dst;
+      }
+      return it->second;
+    };
+
+    auto try_emit_shiftadd_remainder = [&](BinaryInst *mul, MachineBB *mbb, Inst *&cursor) {
+      if (mul->tag != Value::Tag::Mul || mul->uses.head != mul->uses.tail) return false;
+
+      auto sub = dyn_cast<BinaryInst>(mul->next);
+      if (!sub || sub->tag != Value::Tag::Sub || sub->rhs.value != mul) return false;
+
+      BinaryInst *div = nullptr;
+      ConstValue *factor = nullptr;
+      if ((div = dyn_cast<BinaryInst>(mul->lhs.value))) {
+        factor = dyn_cast<ConstValue>(mul->rhs.value);
+      }
+      if (!factor) {
+        div = dyn_cast<BinaryInst>(mul->rhs.value);
+        factor = dyn_cast<ConstValue>(mul->lhs.value);
+      }
+      if (!div || div->tag != Value::Tag::Div || !factor || factor->imm <= 1 || div->lhs.value != sub->lhs.value) {
+        return false;
+      }
+
+      auto divisor = dyn_cast<ConstValue>(div->rhs.value);
+      if (!divisor || divisor->imm != factor->imm) return false;
+
+      u32 d = static_cast<u32>(factor->imm);
+      u32 shifted = d - 1;
+      if ((shifted & (shifted - 1)) != 0) return false;
+
+      auto quotient = resolve(div, mbb);
+      auto dividend = resolve_no_imm(sub->lhs.value, mbb);
+      auto product = new_virtual_reg();
+      auto product_inst = new MIBinary(MachineInst::Tag::Add, mbb);
+      product_inst->dst = product;
+      product_inst->lhs = quotient;
+      product_inst->rhs = quotient;
+      product_inst->shift.type = ArmShift::Lsl;
+      product_inst->shift.shift = __builtin_ctz(shifted);
+
+      auto result = resolve(sub, mbb);
+      auto rem_inst = new MIBinary(MachineInst::Tag::Rsb, mbb);
+      rem_inst->dst = result;
+      rem_inst->lhs = product;
+      rem_inst->rhs = dividend;
+      cursor = cursor->next;
+      dbg("Rebuilt constant remainder with shifted add");
+      return true;
+    };
+
     std::map<Value *, std::pair<MachineInst *, ArmCond>> cond_map;
+    std::set<Inst *> skipped_tail_returns;
+    bool converted_self_tail_call = false;
+    auto single_user = [](Value *v) -> Inst * {
+      return v->uses.head && v->uses.head == v->uses.tail ? v->uses.head->user : nullptr;
+    };
+    auto cmp_cond = [](Value::Tag tag) {
+      if (tag == Value::Tag::Gt) return ArmCond::Gt;
+      if (tag == Value::Tag::Ge) return ArmCond::Ge;
+      if (tag == Value::Tag::Le) return ArmCond::Le;
+      if (tag == Value::Tag::Lt) return ArmCond::Lt;
+      if (tag == Value::Tag::Eq) return ArmCond::Eq;
+      if (tag == Value::Tag::Ne) return ArmCond::Ne;
+      UNREACHABLE();
+    };
+    auto is_cmp = [](Value *v) {
+      return v->tag >= Value::Tag::Lt && v->tag <= Value::Tag::Ne;
+    };
+    auto used_by_branch_and = [&](BinaryInst *cmp) {
+      auto logic = dyn_cast_nullable<BinaryInst>(single_user(cmp));
+      if (!logic || logic->tag != Value::Tag::And) return false;
+      auto br = dyn_cast_nullable<BranchInst>(single_user(logic));
+      return br && logic->next == br && is_cmp(logic->lhs.value) && is_cmp(logic->rhs.value);
+    };
 
     // 2. translate instructions except phi
     for (auto bb = f->bb.head; bb; bb = bb->next) {
@@ -203,29 +406,28 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           store_inst->shift = 2;
         } else if (auto x = dyn_cast<GetElementPtrInst>(inst)) {
           // dst = getelementptr arr, index, multiplier
-          auto dst = resolve(inst, mbb);
           auto arr = resolve(x->arr.value, mbb);
           auto mult = x->multiplier * 4;
           auto y = dyn_cast<ConstValue>(x->index.value);
 
           new MIComment("begin getelementptr " + std::string(x->lhs_sym->name), mbb);
           if (mult == 0 || (y && y->imm == 0)) {
-            // dst <- arr
-            auto move_inst = new MIMove(mbb);
-            move_inst->dst = dst;
-            move_inst->rhs = arr;
+            val_map[inst] = arr;
             dbg("offset 0 eliminated in getelementptr");
           } else if (y) {
+            auto dst = resolve(inst, mbb);
             // dst <- arr + result
             auto off = mult * y->imm;
-            auto imm_operand = get_imm_operand(off, mbb);
-            auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
-            add_inst->dst = dst;
-            add_inst->lhs = arr;
-            add_inst->rhs = imm_operand;
+            auto op = off < 0 ? MachineInst::Tag::Sub : MachineInst::Tag::Add;
+            auto imm_operand = get_imm_operand(off < 0 ? -off : off, mbb);
+            auto addr_inst = new MIBinary(op, mbb);
+            addr_inst->dst = dst;
+            addr_inst->lhs = arr;
+            addr_inst->rhs = imm_operand;
             auto offset_const = "offset calculated to constant " + std::to_string(off) + " in getelementptr";
             dbg(offset_const);
           } else if ((mult & (mult - 1)) == 0) {
+            auto dst = resolve(inst, mbb);
             // dst <- arr + index << log(mult)
             auto index = resolve(x->index.value, mbb);
             auto add_inst = new MIBinary(MachineInst::Tag::Add, mbb);
@@ -237,6 +439,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             auto fuse_mul_add = "MUL " + std::to_string(mult) + " and ADD fused into shifted ADD in getelementptr";
             dbg(fuse_mul_add);
           } else {
+            auto dst = resolve(inst, mbb);
             // dst <- arr
             auto index = resolve_no_imm(x->index.value, mbb);
             auto move_inst = new MIMove(mbb);
@@ -256,6 +459,7 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           }
           new MIComment("end getelementptr", mbb);
         } else if (auto x = dyn_cast<ReturnInst>(inst)) {
+          if (skipped_tail_returns.find(inst) != skipped_tail_returns.end()) continue;
           if (x->ret.value) {
             auto val = resolve(x->ret.value, mbb);
             // move val to a0
@@ -269,9 +473,13 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             mbb->control_transfer_inst = new_inst;
           }
         } else if (auto x = dyn_cast<BinaryInst>(inst)) {
+          if (try_emit_pow2_remainder(x, mbb)) {
+            continue;
+          }
+
           MachineOperand rhs{};
           auto rhs_const = x->rhs.value->tag == Value::Tag::Const;
-          auto imm = static_cast<ConstValue *>(x->rhs.value)->imm;
+          auto imm = rhs_const ? static_cast<ConstValue *>(x->rhs.value)->imm : 0;
           assert(!(x->lhs.value->tag == Value::Tag::Const && rhs_const));  // should be optimized out
 
           auto lhs = resolve_no_imm(x->lhs.value, mbb);
@@ -311,29 +519,20 @@ MachineProgram *machine_code_generation(IrProgram *p) {
                   }
                 }
               } else {
-                const u32 W = 32;
-                u64 n_c = (1 << (W - 1)) - ((1 << (W - 1)) % d) - 1;
-                u64 p = W;
-                while (((u64)1 << p) <= n_c * (d - ((u64)1 << p) % d)) {
-                  p++;
-                }
-                u32 m = (((u64)1 << p) + (u64)d - ((u64)1 << p) % d) / (u64)d;
-                u32 shift = p - W;
-                auto i0 = new MIMove(mbb);
-                i0->dst = new_virtual_reg();
-                i0->rhs = MachineOperand::I(m);
+                auto [m, shift] = div_magic_info(d);
+                auto magic = get_div_magic_operand(m, mbb);
                 auto temp_dst = new_virtual_reg();
                 if (m >= 0x80000000) {
                   auto i1 = new MIFma(true, true, mbb);
                   i1->dst = temp_dst;
                   i1->lhs = lhs;
-                  i1->rhs = i0->dst;
+                  i1->rhs = magic;
                   i1->acc = lhs;
                 } else {
                   auto i1 = new MILongMul(mbb);
                   i1->dst = temp_dst;
                   i1->lhs = lhs;
-                  i1->rhs = i0->dst;
+                  i1->rhs = magic;
                 }
                 auto i2 = new MIMove(mbb);
                 i2->dst = new_virtual_reg();
@@ -364,6 +563,9 @@ MachineProgram *machine_code_generation(IrProgram *p) {
               }
             }
           }
+          if (x->tag == Value::Tag::Mul && try_emit_shiftadd_remainder(x, mbb, inst)) {
+            continue;
+          }
           // try to use imm
           if (x->rhsCanBeImm() && rhs_const) {
             // Optimization 1:
@@ -389,23 +591,18 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             // only one user, lhs and rhs are not consts
             // match pattern:
             // %x2 = mul %x1, %x0
-            // %x4 = add / sub %x3, %x2
-            // becomes
-            // v4 = v3
-            // mla / mls v4, v1, v0
+            // %x4 = add %x2, %x3 / add %x3, %x2 / sub %x3, %x2
+            // becomes:
+            // mla / mls v4, v1, v0, v3
             auto y = dyn_cast<BinaryInst>(x->next);
-            if (y && (y->tag == Value::Tag::Add || y->tag == Value::Tag::Sub) && y->rhs.value == x) {
+            if (y && ((y->tag == Value::Tag::Add && (y->lhs.value == x || y->rhs.value == x)) ||
+                      (y->tag == Value::Tag::Sub && y->rhs.value == x))) {
               dbg("Multiply-Add/Sub fused to MLA/MLS");
-              auto x3 = resolve(y->lhs.value, mbb);
+              auto acc = resolve(y->lhs.value == x ? y->rhs.value : y->lhs.value, mbb);
               auto x4 = resolve(y, mbb);
-              // x4 <- x3
-              auto move_inst = new MIMove(mbb);
-              move_inst->dst = x4;
-              move_inst->rhs = x3;
-              // x4 <- x4 +/- x1 * x0
               auto fma_inst = new MIFma(y->tag == Value::Tag::Add, false, mbb);
               fma_inst->dst = x4;
-              fma_inst->acc = x4;
+              fma_inst->acc = acc;
               fma_inst->lhs = lhs;
               fma_inst->rhs = rhs;
               // skip y
@@ -417,29 +614,17 @@ MachineProgram *machine_code_generation(IrProgram *p) {
           if (x->tag == Value::Tag::Mod) {
             UNREACHABLE();  // should be replaced
           } else if (Value::Tag::Lt <= x->tag && x->tag <= Value::Tag::Ne) {
+            if (used_by_branch_and(x)) {
+              continue;
+            }
             // transform compare instructions
             auto dst = resolve(inst, mbb);
             auto new_inst = new MICompare(mbb);
             new_inst->lhs = lhs;
             new_inst->rhs = rhs;
 
-            ArmCond cond, opposite;
-            if (x->tag == Value::Tag::Gt) {
-              cond = ArmCond::Gt;
-            } else if (x->tag == Value::Tag::Ge) {
-              cond = ArmCond::Ge;
-            } else if (x->tag == Value::Tag::Le) {
-              cond = ArmCond::Le;
-            } else if (x->tag == Value::Tag::Lt) {
-              cond = ArmCond::Lt;
-            } else if (x->tag == Value::Tag::Eq) {
-              cond = ArmCond::Eq;
-            } else if (x->tag == Value::Tag::Ne) {
-              cond = ArmCond::Ne;
-            } else {
-              UNREACHABLE();
-            }
-            opposite = opposite_cond(cond);
+            ArmCond cond = cmp_cond(x->tag);
+            ArmCond opposite = opposite_cond(cond);
 
             // 一条BinaryInst后紧接着BranchInst，而且前者的结果仅被后者使用，那么就可以不用计算结果，而是直接用bxx的指令
             if (x->uses.head == x->uses.tail && x->uses.head && isa<BranchInst>(x->uses.head->user) &&
@@ -457,6 +642,12 @@ MachineProgram *machine_code_generation(IrProgram *p) {
               mv0_inst->rhs = get_imm_operand(0, mbb);
             }
           } else if (Value::Tag::And <= x->tag && x->tag <= Value::Tag::Or) {
+            if (x->tag == Value::Tag::And && is_cmp(x->lhs.value) && is_cmp(x->rhs.value)) {
+              auto br = dyn_cast_nullable<BranchInst>(single_user(x));
+              if (br && x->next == br) {
+                continue;
+              }
+            }
             // lhs && rhs:
             // cmp lhs, #0
             // movne v1, #1
@@ -506,6 +697,43 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             new_inst->rhs = rhs;
           }
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          auto emit_cmp = [&](BinaryInst *cmp) {
+            auto cmp_inst = new MICompare(mbb);
+            cmp_inst->lhs = resolve_no_imm(cmp->lhs.value, mbb);
+            if (cmp->rhs.value->tag == Value::Tag::Const) {
+              cmp_inst->rhs = get_imm_operand(static_cast<ConstValue *>(cmp->rhs.value)->imm, mbb);
+            } else {
+              cmp_inst->rhs = resolve_no_imm(cmp->rhs.value, mbb);
+            }
+            return std::pair(cmp_inst, cmp_cond(cmp->tag));
+          };
+          auto cond_and = dyn_cast<BinaryInst>(x->cond.value);
+          if (cond_and && cond_and->tag == Value::Tag::And && is_cmp(cond_and->lhs.value) &&
+              is_cmp(cond_and->rhs.value)) {
+            auto lhs_cmp = static_cast<BinaryInst *>(cond_and->lhs.value);
+            auto rhs_cmp = static_cast<BinaryInst *>(cond_and->rhs.value);
+            auto [lhs_cmp_inst, lhs_cond] = emit_cmp(lhs_cmp);
+            mbb->control_transfer_inst = lhs_cmp_inst;
+
+            auto lhs_fail = new MIBranch(mbb);
+            lhs_fail->cond = opposite_cond(lhs_cond);
+            lhs_fail->target = bb_map[x->right];
+
+            auto [rhs_cmp_inst, rhs_cond] = emit_cmp(rhs_cmp);
+            (void)rhs_cmp_inst;
+            auto rhs_branch = new MIBranch(mbb);
+            if (x->left == bb->next) {
+              rhs_branch->cond = opposite_cond(rhs_cond);
+              rhs_branch->target = bb_map[x->right];
+              new MIJump(bb_map[x->left], mbb);
+            } else {
+              rhs_branch->cond = rhs_cond;
+              rhs_branch->target = bb_map[x->left];
+              new MIJump(bb_map[x->right], mbb);
+            }
+            continue;
+          }
+
           ArmCond c;
           if (auto it = cond_map.find(x->cond.value); it != cond_map.end()) {
             dbg("Branch uses flags registers instead of using comparison");
@@ -530,8 +758,15 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             new MIJump(bb_map[x->right], mbb);
           }
         } else if (auto x = dyn_cast<CallInst>(inst)) {
+          if (try_inline_zero_memset(x, mbb)) {
+            continue;
+          }
+
           std::vector<MachineOperand> params;
           int n = x->func->func->params.size();
+          auto tail_return = dyn_cast_nullable<ReturnInst>(x->next);
+          bool self_tail_call =
+              x->func == f && n <= 4 && tail_return && tail_return->ret.value == x && x->uses.head == x->uses.tail;
           for (int i = 0; i < n; i++) {
             if (i < 4) {
               // move args to r0-r3
@@ -548,6 +783,18 @@ MachineProgram *machine_code_generation(IrProgram *p) {
               st_inst->shift = 2;
               st_inst->data = rhs;
             }
+          }
+
+          if (self_tail_call) {
+            auto jump = new MIJump(mf->bb.head, mbb);
+            mbb->control_transfer_inst = jump;
+            mbb->succ[0] = mf->bb.head;
+            mbb->succ[1] = nullptr;
+            mf->bb.head->pred.push_back(mbb);
+            skipped_tail_returns.insert(tail_return);
+            converted_self_tail_call = true;
+            dbg("Converted self tail call to jump");
+            continue;
           }
 
           if (n > 4) {
@@ -599,29 +846,75 @@ MachineProgram *machine_code_generation(IrProgram *p) {
     // 3. handle phi nodes
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
+      auto single_succ_edge = [&](BasicBlock *pred) {
+        auto pred_mbb = bb_map[pred];
+        if (!pred_mbb->control_transfer_inst) return false;
+        int succ_count = 0;
+        MachineBB *succ = nullptr;
+        for (auto s : pred_mbb->succ) {
+          if (!s) continue;
+          succ_count++;
+          succ = s;
+        }
+        return succ_count == 1 && succ == mbb;
+      };
+      auto direct_phi_moves_are_safe = [&](const ParMv &movs) {
+        std::set<MachineOperand> defs;
+        for (auto [lhs, rhs] : movs) {
+          if (lhs != rhs) defs.insert(lhs);
+        }
+        for (auto [lhs, rhs] : movs) {
+          if (lhs != rhs && defs.find(rhs) != defs.end()) return false;
+        }
+        return true;
+      };
+
       // collect phi node information
       // (lhs, vreg) assignments
       ParMv lhs;
+      std::map<BasicBlock *, ParMv> direct_mv;
       // each bb has a list of (vreg, rhs) parallel moves
       std::map<BasicBlock *, ParMv> mv;
+      bool has_phi = false;
+      bool can_direct_phi = converted_self_tail_call && std::all_of(bb->pred.begin(), bb->pred.end(), single_succ_edge);
       for (auto inst = bb->insts.head; inst; inst = inst->next) {
         // phi insts must appear at the beginning of bb
         if (auto x = dyn_cast<PhiInst>(inst)) {
+          has_phi = true;
           // for each phi:
           // lhs = phi [r1 bb1], [r2 bb2] ...
           // 1. create vreg for each inst
           // 2. add parallel mv (lhs1, ...) = (vreg1, ...)
           // 3. add parallel mv in each bb: (vreg1, ...) = (r1, ...)
+          auto dst = resolve(inst, mbb);
           auto vr = new_virtual_reg();
-          lhs.emplace_back(resolve(inst, mbb), vr);
+          lhs.emplace_back(dst, vr);
           for (u32 i = 0; i < x->incoming_values.size(); i++) {
             auto pred_bb = x->incoming_bbs()[i];
             auto val = resolve(x->incoming_values[i].value, bb_map[pred_bb]);
+            if (can_direct_phi) {
+              direct_mv[pred_bb].emplace_back(dst, val);
+            }
             mv[pred_bb].emplace_back(vr, val);
           }
         } else {
           break;
         }
+      }
+      if (can_direct_phi) {
+        for (auto &[_, movs] : direct_mv) {
+          if (!direct_phi_moves_are_safe(movs)) {
+            can_direct_phi = false;
+            break;
+          }
+        }
+      }
+      if (has_phi && can_direct_phi) {
+        for (auto &[bb, movs] : direct_mv) {
+          auto mbb = bb_map[bb];
+          insert_parallel_mv(movs, mbb->control_transfer_inst);
+        }
+        continue;
       }
       // insert parallel mv at the beginning of current mbb
       insert_parallel_mv(lhs, mbb->insts.head);

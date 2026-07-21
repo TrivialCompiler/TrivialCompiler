@@ -1,5 +1,6 @@
 #include "machine_code.hpp"
 
+#include <algorithm>
 #include <functional>
 #include <iomanip>
 
@@ -100,13 +101,24 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
             data = x->data;
             inst_name = "str";
           }
-          if (x->offset.is_imm()) {
-            i32 offset = x->offset.value << x->shift;
-            os << inst_name << x->cond << "\t" << data << ", [" << x->addr << ", #" << offset << "]" << endl;
+          auto print_offset = [&]() {
+            if (x->offset.is_imm()) {
+              os << "#" << (x->offset.value << x->shift);
+            } else {
+              os << x->offset << ", LSL #" << x->shift;
+            }
+          };
+          os << inst_name << x->cond << "\t" << data << ", [" << x->addr;
+          if (x->mode == MIAccess::Mode::Offset || x->mode == MIAccess::Mode::Prefix) {
+            os << ", ";
+            print_offset();
+            os << "]";
+            if (x->mode == MIAccess::Mode::Prefix) os << "!";
           } else {
-            os << inst_name << x->cond << "\t" << data << ", [" << x->addr << ", " << x->offset << ", LSL #" << x->shift
-               << "]" << endl;
+            os << "], ";
+            print_offset();
           }
+          os << endl;
           increase_count();
         } else if (auto x = dyn_cast<MIGlobal>(inst)) {
           os << "ldr"
@@ -131,7 +143,7 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
           } else {
             UNREACHABLE();
           }
-          os << op << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
+          os << op << x->cond << "\t" << x->dst << ", " << x->lhs << ", " << x->rhs;
           if (x->shift.type != ArmShift::None) {
             // assert(x->tag == MachineInst::Tag::Add && x->shift.type == ArmShift::Lsl);  // currently we only use this
             os << ", " << x->shift;
@@ -314,15 +326,24 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
   // reference to libsysy to avoid optimization
   os << "\tblx getint" << endl;
 
-  // data section
-  os << endl << endl << ".section .data" << endl;
-  os << ".align 4" << endl;
-  for (auto &decl : p.glob_decl) {
+  auto is_zero_init = [](Decl *decl) {
+    return std::all_of(decl->flatten_init.begin(), decl->flatten_init.end(), [](Expr *expr) { return expr->result == 0; });
+  };
+
+  auto output_decl_header = [&](Decl *decl) {
     os << endl << ".global " << decl->name << endl;
     os << "\t"
        << ".type"
        << "\t" << decl->name << ", %object" << endl;
     os << decl->name << ":" << endl;
+  };
+
+  // data section
+  os << endl << endl << ".section .data" << endl;
+  os << ".align 4" << endl;
+  for (auto &decl : p.glob_decl) {
+    if (is_zero_init(decl)) continue;
+    output_decl_header(decl);
 
     // output values
     int count = 0;
@@ -357,6 +378,13 @@ std::ostream &operator<<(std::ostream &os, const MachineProgram &p) {
       }
     }
     print_values();
+  }
+  os << endl << endl << ".section .bss" << endl;
+  os << ".align 4" << endl;
+  for (auto &decl : p.glob_decl) {
+    if (!is_zero_init(decl)) continue;
+    output_decl_header(decl);
+    os << "\t.space\t" << decl->flatten_init.size() * 4 << endl;
   }
   return os;
 }

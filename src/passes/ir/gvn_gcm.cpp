@@ -11,6 +11,24 @@ using VN = std::vector<std::pair<Value *, Value *>>;
 
 static Value *vn_of(VN &vn, Value *x);
 
+static bool is_positive_power_of_two(i32 x) {
+  if (x <= 0) return false;
+  auto ux = static_cast<u32>(x);
+  return (ux & (ux - 1)) == 0;
+}
+
+static BinaryInst *try_canonicalize_pow2_mod(BinaryInst *x) {
+  if (x->tag != Value::Tag::Sub) return nullptr;
+  auto mul = dyn_cast<BinaryInst>(x->rhs.value);
+  if (!mul || mul->tag != Value::Tag::Mul) return nullptr;
+  auto div = dyn_cast<BinaryInst>(mul->lhs.value);
+  auto factor = dyn_cast<ConstValue>(mul->rhs.value);
+  if (!div || div->tag != Value::Tag::Div || !factor || !is_positive_power_of_two(factor->imm)) return nullptr;
+  auto divisor = dyn_cast<ConstValue>(div->rhs.value);
+  if (!divisor || divisor->imm != factor->imm || div->lhs.value != x->lhs.value) return nullptr;
+  return new BinaryInst(Value::Tag::Mod, x->lhs.value, factor, x);
+}
+
 static Value *find_eq(VN &vn, BinaryInst *x) {
   using namespace op;
   Op t1 = (Op) x->tag;
@@ -34,6 +52,12 @@ static Value *find_eq(VN &vn, BinaryInst *x) {
 
 // GetElementPtrInst和LoadInst的find_eq中，对x->arr.value的递归搜索最终会终止于AllocaInst, ParamRef, GlobalRef，它们直接用指针比较
 static Value *find_eq(VN &vn, GetElementPtrInst *x) {
+  if (auto index = dyn_cast<ConstValue>(vn_of(vn, x->index.value)); index && index->imm == 0) {
+    Value *arr = vn_of(vn, x->arr.value);
+    if (auto param = dyn_cast<ParamRef>(arr); param && param->decl->is_param_array()) return arr;
+    if (isa<GetElementPtrInst>(arr)) return arr;
+  }
+
   for (u32 i = 0; i < vn.size(); ++i) {
     auto[k, v] = vn[i];
     if (auto y = dyn_cast<GetElementPtrInst>(k); y && y != x) {
@@ -257,6 +281,11 @@ void gvn_gcm(IrFunc *f) {
     for (Inst *i = bb->insts.head; i;) {
       Inst *next = i->next;
       if (auto x = dyn_cast<BinaryInst>(i)) {
+        if (auto mod = try_canonicalize_pow2_mod(x)) {
+          replace(x, mod);
+          i = next;
+          continue;
+        }
         if (isa<ConstValue>(x->lhs.value) && x->swapOperand()) {
           dbg("IMM operand moved from lhs to rhs");
         }

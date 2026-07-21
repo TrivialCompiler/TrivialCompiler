@@ -1,0 +1,53 @@
+int a[20];
+
+int triangular_sum() {
+    int i = 0;
+    while (i < 20) {
+        a[i] = 0;
+        i = i + 1;
+    }
+
+    i = 0;
+    while (i < 5) {
+        int j = 0;
+        while (j < 8) {
+            if (i < j) {
+                j = j + 1;
+                continue;
+            }
+            a[j] = a[j] + i * 10 + j;
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    int sum = 0;
+    i = 0;
+    while (i < 8) {
+        sum = sum + a[i];
+        i = i + 1;
+    }
+    return sum;
+}
+
+int keeps_final_iv() {
+    int j = 0;
+    int sum = 0;
+    while (j < 5) {
+        if (2 < j) {
+            j = j + 1;
+            continue;
+        }
+        sum = sum + j;
+        j = j + 1;
+    }
+    return sum * 10 + j;
+}
+
+int main() {
+    putint(triangular_sum());
+    putch(10);
+    putint(keeps_final_iv());
+    putch(10);
+    return 0;
+}

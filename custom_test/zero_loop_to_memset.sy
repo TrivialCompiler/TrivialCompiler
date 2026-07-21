@@ -1,0 +1,17 @@
+int a[5] = {1, 2, 3, 4, 5};
+
+void zero_prefix(int n) {
+  int i = 0;
+  while (i < n) {
+    a[i] = 0;
+    i = i + 1;
+  }
+}
+
+int main() {
+  zero_prefix(3);
+  putarray(5, a);
+  zero_prefix(-1);
+  putarray(5, a);
+  return 0;
+}

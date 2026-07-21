@@ -1,0 +1,9 @@
+int rotate(int a, int b, int n) {
+    if (n == 0) return a * 10 + b;
+    return rotate(b, a, n - 1);
+}
+
+int main() {
+    putint(rotate(1, 2, getint()));
+    return 0;
+}

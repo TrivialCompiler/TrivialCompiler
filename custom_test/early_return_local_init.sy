@@ -1,0 +1,10 @@
+int f(int n) {
+  int a[16] = {};
+  if (n < 0) return 7;
+  a[3] = 5;
+  return a[0] + a[3] + a[15];
+}
+
+int main() {
+  return f(-1) + f(1);
+}

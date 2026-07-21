@@ -1,0 +1,11 @@
+int a[6] = {0, 1, 2, 3, 4, 5};
+
+int main() {
+  int i = 2;
+  while (i < 5) {
+    a[i] = a[i] + 10;
+    i = i + 1;
+  }
+  putarray(6, a);
+  return 0;
+}

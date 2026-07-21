@@ -1,0 +1,14 @@
+int digit(int num, int pos) {
+  int i = 0;
+  while (i < pos) {
+    num = num / 16;
+    i = i + 1;
+  }
+  return num % 16;
+}
+
+int main() {
+  int x = getint();
+  return digit(x, 0) + digit(x, 1) + digit(x, 2) + digit(x, 3) + digit(x, 4) + digit(x, 5) + digit(x, 6) +
+         digit(x, 7) + digit(x, 8);
+}

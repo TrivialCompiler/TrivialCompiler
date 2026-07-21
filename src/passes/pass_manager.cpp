@@ -15,13 +15,22 @@
 #include "ir/dce.hpp"
 #include "ir/dead_store_elim.hpp"
 #include "ir/extract_stack_array.hpp"
+#include "ir/fold_counted_div_loop.hpp"
 #include "ir/gvn_gcm.hpp"
 #include "ir/inline_func.hpp"
 #include "ir/loop_unroll.hpp"
 #include "ir/mark_global_const.hpp"
 #include "ir/mem2reg.hpp"
+#include "ir/promote_const_local_array.hpp"
+#include "ir/promote_loop_store.hpp"
+#include "ir/remove_dead_local_init.hpp"
 #include "ir/remove_identical_branch.hpp"
 #include "ir/remove_unused_function.hpp"
+#include "ir/sink_local_init.hpp"
+#include "ir/specialize_const_arg.hpp"
+#include "ir/strength_reduce_loop_access.hpp"
+#include "ir/tighten_guarded_loop_bound.hpp"
+#include "ir/zero_loop_to_memset.hpp"
 
 using IrFuncPass = void (*)(IrFunc *);
 using IrProgramPass = void (*)(IrProgram *);
@@ -50,8 +59,25 @@ static PassDesc ir_passes[] = {
     DEFINE_PASS(dead_store_elim),
 
     DEFINE_PASS(extract_stack_array),
+    DEFINE_PASS(sink_local_init),
     DEFINE_PASS(inline_func),
+    DEFINE_PASS(specialize_const_arg),
+    DEFINE_PASS(fold_counted_div_loop),
+    DEFINE_PASS(zero_loop_to_memset),
+    DEFINE_PASS(remove_dead_local_init),
+    DEFINE_PASS(promote_const_local_array),
+    DEFINE_PASS(inline_func),
+    DEFINE_PASS(promote_loop_store),
+    DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(tighten_guarded_loop_bound),
+    DEFINE_PASS(strength_reduce_loop_access),
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(loop_unroll),
+    DEFINE_PASS(gvn_gcm),
+    DEFINE_PASS(dead_store_elim),
+    DEFINE_PASS(compute_callgraph),
+    DEFINE_PASS(dce),
     DEFINE_PASS(compute_callgraph),
     DEFINE_PASS(remove_unused_function),
 };

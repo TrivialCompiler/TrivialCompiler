@@ -1,5 +1,6 @@
 #include "ir.hpp"
 
+#include <algorithm>
 #include <unordered_map>
 
 #include "ast.hpp"
@@ -120,6 +121,12 @@ struct pv {
     return os;
   }
 };
+
+bool is_pointer_value(Value *v) {
+  if (isa<GlobalRef>(v) || isa<AllocaInst>(v) || isa<GetElementPtrInst>(v)) return true;
+  if (auto p = dyn_cast<ParamRef>(v)) return p->decl->is_param_array();
+  return false;
+}
 
 // output IR
 std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
@@ -314,7 +321,9 @@ std::ostream &operator<<(std::ostream &os, const IrProgram &p) {
           }
           os << ")" << endl;
         } else if (auto x = dyn_cast<PhiInst>(inst)) {
-          os << pv(v_index, inst) << " = phi i32 ";
+          bool is_pointer_phi = std::any_of(x->incoming_values.begin(), x->incoming_values.end(),
+                                            [](const Use &u) { return is_pointer_value(u.value); });
+          os << pv(v_index, inst) << " = phi " << (is_pointer_phi ? "i32* " : "i32 ");
           for (u32 i = 0; i < x->incoming_values.size(); ++i) {
             if (i != 0) os << ", ";
             os << "[" << pv(v_index, x->incoming_values[i].value) << ", %_"

@@ -27,6 +27,12 @@ void compute_stack_info(MachineFunc *f) {
     if (auto x = dyn_cast_nullable<MIMove>(sp_arg_inst)) {
       assert(x->rhs.is_imm());
       x->rhs.value += f->stack_size + 4 * saved_regs;
+      auto access = dyn_cast_nullable<MIAccess>(x->next);
+      if (access && x->rhs.value >= 0 && x->rhs.value < (1 << 12) && access->addr == MachineOperand::R(ArmReg::sp) &&
+          access->offset.is_equiv(x->dst) && access->shift == 0) {
+        access->offset = x->rhs;
+        x->bb->insts.remove(x);
+      }
     } else {
       UNREACHABLE();
     }

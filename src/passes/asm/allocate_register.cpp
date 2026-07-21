@@ -20,15 +20,21 @@ std::pair<std::vector<MachineOperand>, std::vector<MachineOperand>> get_def_use(
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     def = {x->dst};
-    use = {x->dst, x->lhs, x->rhs, x->acc};
+    use = {x->lhs, x->rhs, x->acc};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = {x->dst};
     use = {x->rhs};
   } else if (auto x = dyn_cast<MILoad>(inst)) {
     def = {x->dst};
     use = {x->addr, x->offset};
+    if (x->mode != MIAccess::Mode::Offset) {
+      def.push_back(x->addr);
+    }
   } else if (auto x = dyn_cast<MIStore>(inst)) {
     use = {x->data, x->addr, x->offset};
+    if (x->mode != MIAccess::Mode::Offset) {
+      def.push_back(x->addr);
+    }
   } else if (auto x = dyn_cast<MICompare>(inst)) {
     use = {x->lhs, x->rhs};
   } else if (auto x = dyn_cast<MICall>(inst)) {
@@ -61,7 +67,7 @@ std::pair<MachineOperand *, std::vector<MachineOperand *>> get_def_use_ptr(Machi
     use = {&x->lhs, &x->rhs};
   } else if (auto x = dyn_cast<MIFma>(inst)) {
     def = {&x->dst};
-    use = {&x->dst, &x->lhs, &x->rhs, &x->acc};
+    use = {&x->lhs, &x->rhs, &x->acc};
   } else if (auto x = dyn_cast<MIMove>(inst)) {
     def = &x->dst;
     use = {&x->rhs};
