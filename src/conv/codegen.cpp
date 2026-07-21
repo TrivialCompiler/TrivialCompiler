@@ -177,6 +177,9 @@ MachineProgram *machine_code_generation(IrProgram *p) {
       }
     };
 
+    // Peephole: expand small zero-filling memset calls into straight-line word
+    // stores.  Example: `memset(a, 0, 16)` becomes four `str zero, [a, #i]`
+    // stores and avoids a runtime call.
     auto try_inline_zero_memset = [&](CallInst *call, MachineBB *mbb) {
       constexpr i32 INLINE_ZERO_MEMSET_MAX_BYTES = 128;
       if (call->func != Func::BUILTIN[8].val || call->args.size() != 3) {
@@ -210,9 +213,10 @@ MachineProgram *machine_code_generation(IrProgram *p) {
       return true;
     };
 
+    // Peephole: lower unsigned-style `x % 2^k`, or the canonical
+    // `x - (x / 2^k) * 2^k`, to `x & (2^k - 1)`.  This mirrors the current
+    // Div-by-pow2 lowering; signed-correct remainders need a different sequence.
     auto try_emit_pow2_remainder = [&](BinaryInst *inst, MachineBB *mbb) {
-      // Match `x % C` for positive powers of two. This mirrors the current Div-by-pow2 codegen, which uses a
-      // logical shift; signed-correct remainders need a different lowering sequence.
       Value *lhs = nullptr;
       ConstValue *factor = nullptr;
 
@@ -259,6 +263,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
       return true;
     };
 
+    // Compute the multiplier/shift pair used to lower division by a positive
+    // non-power-of-two constant with a multiply-high sequence.
     auto div_magic_info = [](u32 d) {
       const u32 W = 32;
       u64 sign_bit = u64{1} << (W - 1);
@@ -287,6 +293,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
     }
 
     std::map<u32, MachineOperand> shared_div_magic;
+    // Materialize a division magic constant locally, or hoist and share it from
+    // the entry block when the same constant is used often enough.
     auto get_div_magic_operand = [&](u32 magic, MachineBB *mbb) {
       if (div_magic_use_count[magic] < 3 || mbb == mf->bb.head) {
         auto local = new MIMove(mbb);
@@ -309,6 +317,9 @@ MachineProgram *machine_code_generation(IrProgram *p) {
       return it->second;
     };
 
+    // Peephole: rebuild `x - (x / C) * C` when `C - 1` is a power of two as
+    // `x - (q + (q << k))`, avoiding a general multiply for divisors like 3, 5,
+    // 9, and 17.
     auto try_emit_shiftadd_remainder = [&](BinaryInst *mul, MachineBB *mbb, Inst *&cursor) {
       if (mul->tag != Value::Tag::Mul || mul->uses.head != mul->uses.tail) return false;
 
@@ -358,6 +369,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
     std::map<Value *, std::pair<MachineInst *, ArmCond>> cond_map;
     std::set<Inst *> skipped_tail_returns;
     bool converted_self_tail_call = false;
+    // The compare/branch peepholes below require a single use so flags can be
+    // consumed directly by the nearby branch without materializing a 0/1 value.
     auto single_user = [](Value *v) -> Inst * {
       return v->uses.head && v->uses.head == v->uses.tail ? v->uses.head->user : nullptr;
     };
@@ -373,6 +386,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
     auto is_cmp = [](Value *v) {
       return v->tag >= Value::Tag::Lt && v->tag <= Value::Tag::Ne;
     };
+    // Detect `(cmp1 && cmp2)` feeding one branch; codegen lowers it as two
+    // conditional branches instead of building boolean temporaries.
     auto used_by_branch_and = [&](BinaryInst *cmp) {
       auto logic = dyn_cast_nullable<BinaryInst>(single_user(cmp));
       if (!logic || logic->tag != Value::Tag::And) return false;
@@ -697,6 +712,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
             new_inst->rhs = rhs;
           }
         } else if (auto x = dyn_cast<BranchInst>(inst)) {
+          // Emit one ARM compare and return the condition code that represents
+          // the IR comparison result.
           auto emit_cmp = [&](BinaryInst *cmp) {
             auto cmp_inst = new MICompare(mbb);
             cmp_inst->lhs = resolve_no_imm(cmp->lhs.value, mbb);
@@ -846,6 +863,8 @@ MachineProgram *machine_code_generation(IrProgram *p) {
     // 3. handle phi nodes
     for (auto bb = f->bb.head; bb; bb = bb->next) {
       auto mbb = bb_map[bb];
+      // A phi move can be placed directly on a predecessor edge when that edge
+      // has only this block as a real successor.
       auto single_succ_edge = [&](BasicBlock *pred) {
         auto pred_mbb = bb_map[pred];
         if (!pred_mbb->control_transfer_inst) return false;
@@ -858,6 +877,9 @@ MachineProgram *machine_code_generation(IrProgram *p) {
         }
         return succ_count == 1 && succ == mbb;
       };
+      // Direct phi moves are safe only when no RHS still needs a vreg overwritten
+      // by another move in the same edge bundle; otherwise the parallel-move
+      // resolver must break cycles/copies.
       auto direct_phi_moves_are_safe = [&](const ParMv &movs) {
         std::set<MachineOperand> defs;
         for (auto [lhs, rhs] : movs) {
